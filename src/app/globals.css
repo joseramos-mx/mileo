@@ -1,0 +1,363 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Sistema de diseño de Mileo (SKILL.md §5)
+
+   Dos capas, a propósito:
+
+   1. La escala perceptual (--azul-*, --neutro-*). No genera utilidades: nadie
+      escribe bg-azul-600 en una pantalla.
+   2. Los tokens por rol (--color-app, --color-accion, ...). Éstos sí generan
+      utilidades y son los únicos que se usan en el JSX.
+
+   Cambiar el tema sólo reasigna la capa 1 dentro de la capa 2. Ninguna pantalla
+   se entera.
+   ========================================================================== */
+
+:root {
+  /* Escala azul, tono fijo 259 grados */
+  --azul-50: #f0f6ff;
+  --azul-100: #e0ecff;
+  --azul-200: #c3dbff;
+  --azul-300: #a0c5ff;
+  --azul-400: #77acff;
+  --azul-500: #4b91ff;
+  --azul-600: #1975f9; /* azul de marca */
+  --azul-700: #005fdb;
+  --azul-800: #004db4;
+  --azul-900: #003a8b;
+  --azul-950: #012661;
+  /* Los dos fondos profundos del diseño entregado: el panel de bienvenida y
+     las tarjetas de categoría. Misma familia, más apagados. */
+  --azul-975: #071528;
+  --azul-panel: #1b5299;
+
+  /* Neutros con una pizca del mismo tono. Nunca grises puros. */
+  --neutro-50: #f7faff;
+  --neutro-100: #e7ebf2;
+  --neutro-200: #d5d9e0;
+  --neutro-300: #c0c4ca;
+  --neutro-400: #a8acb2;
+  --neutro-500: #8f949d;
+  --neutro-600: #787e86;
+  --neutro-700: #646971;
+  --neutro-850: #3c4148;
+  --neutro-900: #1d2126;
+  --neutro-950: #161a1f;
+  --neutro-975: #090c11;
+  --negro: #000000;
+
+  /* Semánticos. Ámbar = le toca al doctor. Verde = terminado.
+     El magenta lo pide el diseño entregado para separar "mandado a validación"
+     de "aprobado"; queda anotado en ENTREGA.md. */
+  --ambar: #f5a623;
+  --verde: #34c759;
+  --magenta: #d648b0;
+  --cielo: #4cc3f5;
+
+  /* Pastillas del diseño entregado: fondo tenue y texto oscuro encima, iguales
+     en los dos temas porque son un color plano que no depende del fondo. */
+  --pastilla-neutra-fondo: #e7ebf2;
+  --pastilla-neutra-texto: #1d2126;
+  --pastilla-azul-fondo: #cfe9ff;
+  --pastilla-azul-texto: #003a8b;
+  --pastilla-verde-fondo: #ddf3de;
+  --pastilla-verde-texto: #14622c;
+  --pastilla-ambar-fondo: #fbe8c8;
+  --pastilla-ambar-texto: #7a4f00;
+
+  /* Odontograma. Va siempre sobre fondo claro, sea cual sea el tema (§5.1):
+     es la pantalla donde se señala un diente, y ahí el gris del tema oscuro
+     estorba. Por eso estos colores son planos y no se reasignan.
+     El contorno es el que entregó diseño en el dibujo. */
+  --diente-lienzo: #f7faff;
+  --diente-cuerpo: #ffffff;
+  --diente-contorno: #a5a5a5;
+  --diente-trabajo: #c3dbff;
+  --diente-trabajo-contorno: #005fdb;
+  --diente-pontico: #e0ecff;
+  --diente-anillo: #77acff;
+  --diente-numero: #1d2126;
+  --diente-puente: #005fdb;
+
+  /* Mosaicos de estado del inicio.
+     El diseño entregado los pide de colores distintos, uno por etapa, para que
+     el doctor reconozca de un vistazo en qué va cada caso. Es un cambio a §5.1,
+     que sólo admite dos semánticos; queda anotado en ENTREGA.md. El color nunca
+     va solo: cada tarjeta lleva además la pastilla con el nombre de la etapa. */
+  --mosaico-recibido: #8f9bb3;
+  --mosaico-revision: #a78bfa;
+  --mosaico-aceptado: #4ec9a5;
+  --mosaico-diseno: #6f8ef7;
+  --mosaico-aprobacion: #f5a623;
+  --mosaico-fabricacion: #4b91ff;
+  --mosaico-calidad: #c084d8;
+  --mosaico-camino: #4cc3f5;
+  --mosaico-entregado: #34c759;
+  --mosaico-pausa: #8f949d;
+  --mosaico-rehacer: #f2724b;
+}
+
+/* ------------------------------------------------- tema oscuro (por omisión)
+
+   El diseño entregado es oscuro. El claro queda como interruptor del usuario,
+   y las pantallas donde se juzga color se fuerzan claras siempre (§5.1).
+   -------------------------------------------------------------------------- */
+
+:root,
+.siempre-oscuro {
+  --rol-app: var(--negro);
+  --rol-superficie: var(--neutro-950);
+  --rol-superficie-suave: var(--neutro-900);
+  --rol-borde: var(--neutro-850);
+  --rol-borde-encima: var(--neutro-700);
+  --rol-texto-primario: #ffffff;
+  --rol-texto-secundario: var(--neutro-400);
+
+  /* Para texto y enlaces sobre fondo oscuro, azul-400: el azul de marca sobre
+     negro no alcanza contraste de texto (§5.1).
+     El relleno tampoco puede ser azul-600: blanco encima da 4.23:1 y §7 exige
+     4.5:1. Se usa azul-700, que da 5.7:1 con blanco. */
+  --rol-accion: var(--azul-700);
+  --rol-accion-encima: var(--azul-600);
+  --rol-enlace: var(--azul-400);
+  --rol-foco: var(--azul-400);
+
+  --rol-portada: var(--azul-975);
+  --rol-categoria: var(--azul-panel);
+  /* Un escalon mas marcado que la superficie, para separar dos mitades de una
+     misma tarjeta sin meterles un borde. */
+  --rol-superficie-marcada: var(--neutro-900);
+
+  --rol-pendiente: var(--ambar);
+  --rol-pendiente-fondo: #3a2a08;
+  --rol-pendiente-texto: #f7c66b;
+  /* Azul de "lo tiene el laboratorio". No es el azul de accion a proposito:
+     el relleno azul se reserva para el boton principal de la pantalla. */
+  --rol-proceso: var(--azul-400);
+  --rol-proceso-fondo: #0e2444;
+  --rol-proceso-texto: var(--azul-300);
+  --rol-terminado: var(--verde);
+  --rol-terminado-fondo: #0d2e18;
+  --rol-terminado-texto: #7ee29b;
+  --rol-validacion: #f08ad8;
+
+  color-scheme: dark;
+}
+
+.siempre-oscuro {
+  background-color: var(--rol-app);
+  color: var(--rol-texto-primario);
+}
+
+/* ------------------------------------------------------------- tema claro */
+
+:root[data-tema="claro"],
+.siempre-claro {
+  --rol-app: var(--neutro-50);
+  --rol-superficie: #ffffff;
+  --rol-superficie-suave: var(--neutro-50);
+  --rol-borde: var(--neutro-200);
+  --rol-borde-encima: var(--neutro-400);
+  --rol-texto-primario: var(--neutro-900);
+  /* SKILL.md §5.1 pone neutro-600 aquí, pero sobre blanco da 4.1:1 y §7 exige
+     4.5:1 para texto normal. Se sube a neutro-700 (5.5:1). */
+  --rol-texto-secundario: var(--neutro-700);
+  --rol-accion: var(--azul-700);
+  --rol-accion-encima: var(--azul-800);
+  --rol-enlace: var(--azul-700);
+  --rol-foco: var(--azul-700);
+
+  --rol-portada: var(--azul-950);
+  --rol-categoria: var(--azul-panel);
+  --rol-superficie-marcada: var(--neutro-100);
+
+  --rol-pendiente: var(--ambar);
+  --rol-pendiente-fondo: #fdf3e0;
+  --rol-pendiente-texto: #7a4f00;
+  --rol-proceso: var(--azul-600);
+  --rol-proceso-fondo: var(--azul-100);
+  --rol-proceso-texto: var(--azul-800);
+  --rol-terminado: var(--verde);
+  --rol-terminado-fondo: #e4f7e9;
+  --rol-terminado-texto: #14622c;
+  --rol-validacion: #8c1f74;
+
+  color-scheme: light;
+}
+
+/* Excepción no negociable (SKILL.md §5.1): toda pantalla donde se juzgue color
+   o se vea una foto de la pieza va sobre fondo neutro claro, sin importar el
+   tema activo. El visor 3D y las fotos de control de calidad siempre claros. */
+.siempre-claro {
+  background-color: var(--rol-app);
+  color: var(--rol-texto-primario);
+}
+
+/* ------------------------------------------------------- tokens de Tailwind */
+
+@theme inline {
+  --color-app: var(--rol-app);
+  --color-superficie: var(--rol-superficie);
+  --color-superficie-suave: var(--rol-superficie-suave);
+  --color-borde: var(--rol-borde);
+  --color-borde-encima: var(--rol-borde-encima);
+  --color-primario: var(--rol-texto-primario);
+  --color-secundario: var(--rol-texto-secundario);
+  --color-accion: var(--rol-accion);
+  --color-accion-encima: var(--rol-accion-encima);
+  --color-sobre-accion: #ffffff;
+  --color-enlace: var(--rol-enlace);
+  --color-foco: var(--rol-foco);
+
+  --color-portada: var(--rol-portada);
+  --color-categoria: var(--rol-categoria);
+  --color-superficie-marcada: var(--rol-superficie-marcada);
+
+  --color-pendiente: var(--rol-pendiente);
+  --color-pendiente-fondo: var(--rol-pendiente-fondo);
+  --color-pendiente-texto: var(--rol-pendiente-texto);
+  --color-proceso: var(--rol-proceso);
+  --color-proceso-fondo: var(--rol-proceso-fondo);
+  --color-proceso-texto: var(--rol-proceso-texto);
+  --color-terminado: var(--rol-terminado);
+  --color-terminado-fondo: var(--rol-terminado-fondo);
+  --color-terminado-texto: var(--rol-terminado-texto);
+  --color-validacion: var(--rol-validacion);
+  --color-cielo: var(--cielo);
+  --color-magenta: var(--magenta);
+  --color-pastilla-neutra-fondo: var(--pastilla-neutra-fondo);
+  --color-pastilla-neutra-texto: var(--pastilla-neutra-texto);
+  --color-pastilla-azul-fondo: var(--pastilla-azul-fondo);
+  --color-pastilla-azul-texto: var(--pastilla-azul-texto);
+  --color-pastilla-verde-fondo: var(--pastilla-verde-fondo);
+  --color-pastilla-verde-texto: var(--pastilla-verde-texto);
+  --color-pastilla-ambar-fondo: var(--pastilla-ambar-fondo);
+  --color-pastilla-ambar-texto: var(--pastilla-ambar-texto);
+
+  --color-diente-lienzo: var(--diente-lienzo);
+  --color-diente-cuerpo: var(--diente-cuerpo);
+  --color-diente-contorno: var(--diente-contorno);
+  --color-diente-trabajo: var(--diente-trabajo);
+  --color-diente-trabajo-contorno: var(--diente-trabajo-contorno);
+  --color-diente-pontico: var(--diente-pontico);
+  --color-diente-anillo: var(--diente-anillo);
+  --color-diente-numero: var(--diente-numero);
+  --color-diente-puente: var(--diente-puente);
+
+  --color-mosaico-recibido: var(--mosaico-recibido);
+  --color-mosaico-revision: var(--mosaico-revision);
+  --color-mosaico-aceptado: var(--mosaico-aceptado);
+  --color-mosaico-diseno: var(--mosaico-diseno);
+  --color-mosaico-aprobacion: var(--mosaico-aprobacion);
+  --color-mosaico-fabricacion: var(--mosaico-fabricacion);
+  --color-mosaico-calidad: var(--mosaico-calidad);
+  --color-mosaico-camino: var(--mosaico-camino);
+  --color-mosaico-entregado: var(--mosaico-entregado);
+  --color-mosaico-pausa: var(--mosaico-pausa);
+  --color-mosaico-rehacer: var(--mosaico-rehacer);
+
+  --font-sans: var(--fuente-jakarta), ui-sans-serif, system-ui, sans-serif;
+
+  /* Escala tipográfica: 24/19/17/15/13/12. Nunca más de 3 en una pantalla.
+     El titular del panel de bienvenida es la excepción del diseño entregado.
+     Ojo: el nombre no puede repetirse con ningún --color-*, porque las dos
+     familias comparten el prefijo `text-` y Tailwind resuelve a favor del
+     color. Así se perdía el titular: azul marino sobre azul marino. */
+  --text-titular: 3.25rem;
+  --text-titular--line-height: 1.05;
+  --text-titulo: 1.2rem;
+  --text-titulo--line-height: 1.2;
+  --text-subtitulo: .9rem;
+  --text-subtitulo--line-height: 1.35;
+  --text-realce: 1.0625rem;
+  --text-realce--line-height: 1.45;
+  --text-cuerpo: 0.7rem;
+  --text-cuerpo--line-height: 1.5;
+  --text-menor: 0.8125rem;
+  --text-menor--line-height: 1.45;
+  --text-minimo: 0.75rem;
+  --text-minimo--line-height: 1.4;
+
+  /* Forma: 8 px controles, 12 px tarjetas, 16 px contenedores.
+     El panel es el recorte grande de la portada y del inicio. */
+  --radius-control: 0.5rem;
+  --radius-tarjeta: 0.75rem;
+  --radius-contenedor: 1rem;
+  --radius-panel: 2.5rem;
+}
+
+/* ------------------------------------------------------------------- base */
+
+@layer base {
+  html {
+    background-color: var(--rol-app);
+  }
+
+  body {
+    background-color: var(--rol-app);
+    color: var(--rol-texto-primario);
+    font-size: var(--text-cuerpo);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Foco visible en todo lo operable con teclado: anillo de 2 px (SKILL.md §7) */
+  :focus-visible {
+    outline: 2px solid var(--rol-foco);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Con prefers-reduced-motion todo aparece sin transición (SKILL.md §5.5) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Área táctil mínima de 44x44 px (SKILL.md §7). Se usa en cualquier control
+     que de otro modo quedaría más chico que el dedo de quien lo aprieta. */
+  .area-tactil {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  /* Sólo el alto. Para controles cuyo ancho ya lo manda su contenedor —los
+     renglones de la navegación de abajo, por ejemplo—: ahí el ancho mínimo no
+     hace falta y, con el texto al 200%, empujaba la página a lo ancho. */
+  .alto-tactil {
+    min-height: 2.75rem;
+  }
+
+  /* Salta al contenido: primer tabulador de cada pantalla.
+     Se esconde recortándolo, no empujándolo fuera de la pantalla: así no
+     ensancha el documento cuando alguien tiene el texto al 200%. */
+  .salto-al-contenido {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 100;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .salto-al-contenido:focus {
+    clip-path: none;
+  }
+
+  /* Tiras horizontales sin barra a la vista: el diseño entregado no la enseña,
+     y las flechas o el arrastre siguen funcionando. */
+  .sin-barra {
+    scrollbar-width: none;
+  }
+  .sin-barra::-webkit-scrollbar {
+    display: none;
+  }
+}

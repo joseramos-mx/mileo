@@ -1,0 +1,23 @@
+# Ambiente de produccion. Aislado del de desarrollo: otro volumen, otra base, otro puerto.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mileo-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: mileo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      POSTGRES_DB: mileo_prod
+    ports:
+      - "5434:5432"
+    volumes:
+      - mileo_prod_data:/var/lib/postgresql/data
+      - ./respaldos:/respaldos
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mileo -d mileo_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mileo_prod_data:

@@ -1,0 +1,568 @@
+// Mileo — modelo de datos.
+// Vocabulario fijo (SKILL.md §8): caso, unidad, etapa, aprobacion, rehacer,
+// control de calidad, kit, puntos, fecha de entrega. Se escribe igual aqui,
+// en el codigo y en pantalla.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- personas
+
+enum Rol {
+  DOCTOR
+  ASISTENTE
+  ADMISION
+  DISENO
+  MANUFACTURA
+  ACABADO
+  CALIDAD
+  DIRECCION
+}
+
+model Clinica {
+  id       String   @id @default(cuid())
+  nombre   String
+  ciudad   String?
+  creadoEn DateTime @default(now())
+
+  /// Cuantos casos al mes son la meta de esta clinica. Es lo que enseña la
+  /// barra de "meta mensual" del inicio.
+  metaMensual Int @default(30)
+
+  escaner      Escaner?
+  usuarios     Usuario[]
+  pacientes    Paciente[]
+  casos        Caso[]
+  invitaciones Invitacion[]
+}
+
+model Usuario {
+  id             String  @id @default(cuid())
+  correo         String  @unique
+  nombreCompleto String
+  telefono       String?
+  hashContrasena String?
+  rol            Rol
+  activo         Boolean @default(true)
+  fotoUrl        String?
+
+  clinicaId String?
+  clinica   Clinica? @relation(fields: [clinicaId], references: [id])
+
+  // Aviso de privacidad aceptado al primer ingreso (O-1)
+  avisoPrivacidadVersion    String?
+  avisoPrivacidadAceptadoEn DateTime?
+
+  // Avisos configurables por el doctor (O-3)
+  avisoPorCorreo   Boolean @default(true)
+  avisoPorWhatsapp Boolean @default(true)
+
+  invitadoPorId String?
+  invitadoPor   Usuario?  @relation("Invitaciones", fields: [invitadoPorId], references: [id])
+  invitados     Usuario[] @relation("Invitaciones")
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  sesiones           Sesion[]
+  invitacionesHechas Invitacion[]
+  casosComoDoctor    Caso[]           @relation("DoctorDelCaso")
+  casosCreados       Caso[]           @relation("CreadorDelCaso")
+  casosComoTecnico   Caso[]           @relation("TecnicoDelCaso")
+  archivosSubidos    Archivo[]
+  eventos            EventoBitacora[]
+  aprobaciones       Aprobacion[]
+  mensajes           Mensaje[]
+  avisos             Aviso[]
+  calidadCerrada     ControlDeCalidad[] @relation("QuienCerroCalidad")
+  calidadAutorizada  ControlDeCalidad[] @relation("QuienAutorizo")
+
+  @@index([clinicaId])
+}
+
+// Alta solo por invitacion del laboratorio (O-1). No existe registro abierto.
+model Invitacion {
+  id        String   @id @default(cuid())
+  correo    String
+  rol       Rol
+  clinicaId String?
+  clinica   Clinica? @relation(fields: [clinicaId], references: [id])
+
+  token       String    @unique
+  expiraEn    DateTime
+  aceptadaEn  DateTime?
+  creadaPorId String
+  creadaPor   Usuario   @relation(fields: [creadaPorId], references: [id])
+  creadoEn    DateTime  @default(now())
+
+  @@index([correo])
+}
+
+model Sesion {
+  id        String   @id @default(cuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiraEn  DateTime
+  creadoEn  DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+// ---------------------------------------------------------------- clinico
+
+model Paciente {
+  id             String   @id @default(cuid())
+  clinicaId      String
+  clinica        Clinica  @relation(fields: [clinicaId], references: [id])
+  folio          String
+  iniciales      String
+  nombreCompleto String?
+  creadoEn       DateTime @default(now())
+
+  casos Caso[]
+
+  @@unique([clinicaId, folio])
+}
+
+enum Etapa {
+  RECIBIDO
+  EN_REVISION
+  ACEPTADO
+  EN_DISENO
+  ESPERANDO_APROBACION
+  EN_FABRICACION
+  EN_CONTROL_DE_CALIDAD
+  LISTO_Y_EN_CAMINO
+  ENTREGADO
+  EN_PAUSA
+  REHACER
+}
+
+enum Indicacion {
+  CORONA_Y_PUENTE
+  SOBRE_IMPLANTE
+  INCRUSTACION_Y_CARILLA
+  PROVISIONAL
+  GUARDA_OCLUSAL
+  MODELO_3D
+}
+
+/// Qué papel juega cada unidad dentro del trabajo.
+///
+/// Un puente es un grupo de unidades conectadas: los extremos son PILAR y lo
+/// que va en medio, PONTICO. Con eso un puente 14-17 se representa sin
+/// ambiguedad: cuatro unidades con el mismo puenteId, 14 y 17 pilares, 15 y 16
+/// ponticos.
+enum RolDeUnidad {
+  CORONA
+  PILAR
+  PONTICO
+  CARILLA
+  INCRUSTACION
+  ADITAMENTO
+  /// Los que no van sobre un diente preparado, pero el producto ya los recibe.
+  PROVISIONAL
+  GUARDA_OCLUSAL
+  MODELO
+  BARRA
+}
+
+enum Material {
+  ZIRCONIO_MONOLITICO
+  ZIRCONIO_ESTRATIFICADO
+  DISILICATO_DE_LITIO
+  METAL_PORCELANA
+  CROMO_COBALTO
+  TITANIO
+  PMMA
+  RESINA_IMPRESION
+  CERA_CALCINABLE
+}
+
+enum Prioridad {
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+model Caso {
+  id        String  @id @default(cuid())
+  folio     String  @unique
+  clinicaId String
+  clinica   Clinica @relation(fields: [clinicaId], references: [id])
+
+  doctorId String
+  doctor   Usuario @relation("DoctorDelCaso", fields: [doctorId], references: [id])
+
+  creadoPorId String
+  creadoPor   Usuario @relation("CreadorDelCaso", fields: [creadoPorId], references: [id])
+
+  tecnicoId String?
+  tecnico   Usuario? @relation("TecnicoDelCaso", fields: [tecnicoId], references: [id])
+
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id])
+
+  indicacion Indicacion
+  etapa      Etapa      @default(RECIBIDO)
+  prioridad  Prioridad  @default(NORMAL)
+  notas      String?
+
+  // Borrador: el caso existe pero la clinica todavia no lo envia
+  // (O-2, nunca perder trabajo)
+  esBorrador Boolean   @default(true)
+  enviadoEn  DateTime?
+
+  // El reloj de la fecha de entrega arranca al aceptar, no al subir (O-3)
+  aceptadoEn               DateTime?
+  fechaEntregaComprometida DateTime?
+  entregadoEn              DateTime?
+
+  enRiesgo     Boolean @default(false)
+  motivoRiesgo String?
+
+  // Rehacer como caso hijo ligado al original (O-7)
+  casoOrigenId String?
+  casoOrigen   Caso?   @relation("Rehacer", fields: [casoOrigenId], references: [id])
+  rehechos     Caso[]  @relation("Rehacer")
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  unidades    Unidad[]
+  puentes     Puente[]
+  archivos    Archivo[]
+  eventos     EventoBitacora[]
+  aprobaciones Aprobacion[]
+  mensajes    Mensaje[]
+  avisos      Aviso[]
+  controlDeCalidad ControlDeCalidad?
+
+  @@index([clinicaId, etapa])
+  @@index([doctorId])
+  @@index([fechaEntregaComprometida])
+}
+
+// Un caso contiene multiples unidades, cada una con rol, material y diente (O-0)
+model Unidad {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  diente   Int // notacion FDI: 11-18, 21-28, 31-38, 41-48
+  rol      RolDeUnidad
+  material Material
+  color    String? // guia Vita: A1, A2, B1...
+  /// Lo que el doctor quiera decirle al tecnico de esta unidad en concreto.
+  notas    String?
+
+  /// Las unidades de un mismo puente comparten este grupo.
+  puenteId String?
+  puente   Puente? @relation(fields: [puenteId], references: [id], onDelete: SetNull)
+
+  creadoEn DateTime @default(now())
+
+  @@unique([casoId, diente])
+  @@index([casoId])
+  @@index([puenteId])
+}
+
+/// Un puente: el grupo de unidades conectadas entre si.
+///
+/// No guarda datos propios porque no los necesita: lo que define al puente es
+/// que sus unidades lo comparten, y cual de ellas es pilar y cual pontico.
+model Puente {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  unidades Unidad[]
+  creadoEn DateTime @default(now())
+
+  @@index([casoId])
+}
+
+enum TipoArchivo {
+  ESCANEO_PREPARACION
+  ESCANEO_ANTAGONISTA
+  REGISTRO_MORDIDA
+  FOTO_COLOR
+  DISENO
+  MALLA_LIGERA
+  FOTO_CALIDAD_AJUSTE
+  FOTO_CALIDAD_COLOR
+  OTRO
+}
+
+enum EstadoArchivo {
+  EN_PROCESO
+  COMPLETO
+}
+
+model Archivo {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  nombre         String
+  tipo           TipoArchivo
+  extension      String
+  bytesTotales   BigInt
+  bytesRecibidos BigInt        @default(0)
+  estado         EstadoArchivo @default(EN_PROCESO)
+  rutaRelativa   String
+  sha256         String?
+
+  subidoPorId String
+  subidoPor   Usuario @relation(fields: [subidoPorId], references: [id])
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([casoId])
+}
+
+// ---------------------------------------------------------------- bitacora
+
+enum TipoEvento {
+  CASO_CREADO
+  CASO_ENVIADO
+  CASO_ACTUALIZADO
+  UNIDAD_AGREGADA
+  UNIDAD_MODIFICADA
+  UNIDAD_ELIMINADA
+  ETAPA_CAMBIADA
+  ARCHIVO_SUBIDO
+  ARCHIVO_ELIMINADO
+  DISENO_APROBADO
+  AJUSTE_SOLICITADO
+  MENSAJE_ENVIADO
+  RIESGO_MARCADO
+  FECHA_RECORRIDA
+  USUARIO_INVITADO
+  USUARIO_INGRESO
+  AVISO_PRIVACIDAD_ACEPTADO
+  RESPALDO_RESTAURADO
+}
+
+/// Bitacora inmutable: la base de datos rechaza UPDATE, DELETE y TRUNCATE
+/// sobre esta tabla (ver migracion). Cada evento se encadena por hash con el
+/// anterior de su misma cadena, de modo que alterar o borrar un renglon rompe
+/// la verificacion de forma visible.
+model EventoBitacora {
+  id        String @id @default(cuid())
+  secuencia BigInt @unique @default(autoincrement())
+
+  /// Cadena de hash a la que pertenece el evento: el id del caso, o "sistema".
+  cadena String
+
+  casoId String?
+  caso   Caso?   @relation(fields: [casoId], references: [id])
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  tipo          TipoEvento
+  etapaAnterior Etapa?
+  etapaNueva    Etapa?
+  resumen       String
+  datos         Json?
+
+  hashPrevio String @default("")
+  hash       String @default("")
+
+  creadoEn DateTime @default(now())
+
+  @@index([casoId, secuencia])
+  @@index([cadena, secuencia])
+}
+
+// ------------------------------------------------------- aprobacion y chat
+
+enum Decision {
+  APROBADO
+  AJUSTE_SOLICITADO
+}
+
+/// Nada se fabrica sin aprobacion registrada del doctor (verdad #2 del
+/// producto). Cada decision queda aqui, ligada al diseno exacto que vio.
+model Aprobacion {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  /// El archivo de diseno que el doctor tenia enfrente al decidir.
+  archivoDisenoId String
+
+  decision   Decision
+  /// Obligatorio al solicitar ajuste (O-4).
+  comentario String?
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  creadoEn DateTime @default(now())
+
+  @@index([casoId, creadoEn])
+}
+
+/// Chat anclado al caso (O-4). El tecnico firma con su nombre y su foto;
+/// Mileo nunca finge ser una persona (SKILL.md §8).
+model Mensaje {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  autorId String
+  autor   Usuario @relation(fields: [autorId], references: [id])
+
+  texto String
+
+  /// Adjunto de imagen, si lo lleva.
+  archivoId String?
+
+  creadoEn DateTime @default(now())
+
+  @@index([casoId, creadoEn])
+}
+
+// ------------------------------------------------------------------ avisos
+
+enum CanalDeAviso {
+  CORREO
+  WHATSAPP
+}
+
+enum EstadoDeAviso {
+  PENDIENTE
+  ENVIADO
+  FALLIDO
+  /// La persona apago ese canal, o no dio telefono.
+  OMITIDO
+}
+
+enum TipoDeAviso {
+  INVITACION
+  CASO_RECIBIDO
+  CAMBIO_DE_ETAPA
+  ESPERA_SU_APROBACION
+  RECORDATORIO_DE_APROBACION
+  RIESGO_DE_RETRASO
+  FECHA_RECORRIDA
+  CASO_ENTREGADO
+}
+
+/// Cola de avisos (SKILL.md O-3).
+///
+/// Maximo un aviso por etapa: lo garantiza `clave`, que es unica. Encolar dos
+/// veces el mismo aviso no manda dos mensajes, no importa cuantas veces corra
+/// el vigilante.
+///
+/// Los avisos se encolan aqui y un proceso aparte los entrega. Asi, si el
+/// proveedor de correo o de WhatsApp esta caido, no se pierde ninguno y el
+/// caso del doctor no se detiene por eso.
+model Aviso {
+  id String @id @default(cuid())
+
+  /// Quien recibe, si ya tiene cuenta.
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  /// A donde va cuando todavia no hay cuenta: es el caso de la invitacion,
+  /// que precisamente sirve para crearla.
+  destinoCorreo   String?
+  destinoTelefono String?
+
+  casoId String?
+  caso   Caso?   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  tipo   TipoDeAviso
+  canal  CanalDeAviso
+  estado EstadoDeAviso @default(PENDIENTE)
+
+  /// Idempotencia: usuario + caso + tipo + etapa. Unica.
+  clave String @unique
+
+  asunto String
+  cuerpo String
+
+  intentos   Int       @default(0)
+  enviadoEn  DateTime?
+  ultimoError String?
+
+  creadoEn DateTime @default(now())
+
+  @@index([estado, creadoEn])
+  @@index([casoId])
+}
+
+// ------------------------------------------------- control de calidad y envio
+
+/// Control de calidad y envio (SKILL.md O-6).
+///
+/// Un caso no se puede marcar enviado sin esto: dos fotos, el kit completo y la
+/// firma de quien lo reviso. Ademas, quien cerro el diseno no puede cerrar la
+/// calidad del mismo caso; saltarse esa regla necesita autorizacion de
+/// direccion y queda escrito aqui y en la bitacora.
+model ControlDeCalidad {
+  id     String @id @default(cuid())
+  casoId String @unique
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  /// Quien reviso y cerro el control de calidad.
+  revisadoPorId String
+  revisadoPor   Usuario @relation("QuienCerroCalidad", fields: [revisadoPorId], references: [id])
+
+  /// Que piezas del kit se verificaron, por su clave.
+  kit Json
+
+  numeroDeGuia    String?
+  enlaceDeRastreo String?
+
+  /// Si direccion autorizo que la misma persona cerrara diseno y calidad.
+  autorizadoPorId String?
+  autorizadoPor   Usuario? @relation("QuienAutorizo", fields: [autorizadoPorId], references: [id])
+  motivoDeAutorizacion String?
+
+  creadoEn DateTime @default(now())
+
+  @@index([revisadoPorId])
+}
+
+// ------------------------------------------------------------------ escaner
+
+enum EstadoDelEscaner {
+  LISTO
+  REQUIERE_REVISION
+  SIN_CONEXION
+}
+
+/// El escaner de la clinica, para la tarjeta del inicio.
+///
+/// El comodato completo es O-8 y va despues del piloto (§11); aqui solo se
+/// guarda lo que el diseno entregado enseña, y si una clinica no tiene escaner
+/// dado de alta, la pantalla lo dice en vez de inventar datos.
+model Escaner {
+  id        String  @id @default(cuid())
+  clinicaId String  @unique
+  clinica   Clinica @relation(fields: [clinicaId], references: [id], onDelete: Cascade)
+
+  marca  String
+  modelo String
+
+  estado           EstadoDelEscaner @default(LISTO)
+  licenciaVenceEn  DateTime?
+  /// Foto del equipo, que entrega el equipo de diseño. Sin ella se enseña el
+  /// marco con la descripcion (§9).
+  fotoUrl          String?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+}

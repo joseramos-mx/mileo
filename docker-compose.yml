@@ -1,0 +1,23 @@
+# Ambiente de desarrollo de Mileo.
+# Produccion usa la misma imagen; ver docker-compose.prod.yml
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mileo-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mileo
+      POSTGRES_PASSWORD: mileo_dev
+      POSTGRES_DB: mileo_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - mileo_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mileo -d mileo_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mileo_dev_data:
