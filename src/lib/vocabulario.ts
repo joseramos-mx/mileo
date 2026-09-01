@@ -1,3 +1,4 @@
+import { TRABAJOS } from "@/lib/trabajos";
 import type {
   Etapa,
   Indicacion,
@@ -123,74 +124,70 @@ export function leTocaAlDoctor(etapa: Etapa) {
 
 export const INDICACIONES: Record<
   Indicacion,
-  { nombre: string; descripcion: string; roles: RolDeUnidad[] }
+  {
+    nombre: string;
+    descripcion: string;
+    /**
+     * Con qué tipo de trabajo se estrena un diente en un caso de esta
+     * indicación. No es una restricción: el catálogo completo sigue a la mano
+     * en el odontograma, igual que en el programa de diseño del laboratorio.
+     */
+    porOmision: RolDeUnidad;
+  }
 > = {
   CORONA_Y_PUENTE: {
     nombre: "Coronas y puentes",
     descripcion: "Zirconio, disilicato, metal porcelana",
-    roles: ["CORONA", "PILAR", "PONTICO"],
+    porOmision: "CORONA_ANATOMICA",
   },
   SOBRE_IMPLANTE: {
     nombre: "Sobre implante",
     descripcion: "Aditamentos, coronas y barras",
-    roles: ["CORONA", "ADITAMENTO", "BARRA"],
+    porOmision: "CORONA_ANATOMICA",
   },
   INCRUSTACION_Y_CARILLA: {
     nombre: "Incrustaciones y carillas",
     descripcion: "Inlay, onlay y carillas",
-    roles: ["INCRUSTACION", "CARILLA"],
+    porOmision: "INCRUSTACION",
   },
   PROVISIONAL: {
     nombre: "Provisional",
     descripcion: "PMMA fresado o impreso",
-    roles: ["PROVISIONAL"],
+    porOmision: "CORONA_CASCARON",
   },
   GUARDA_OCLUSAL: {
     nombre: "Guarda oclusal",
     descripcion: "Rígida o blanda",
-    roles: ["GUARDA_OCLUSAL"],
+    porOmision: "GUARDA_OCLUSAL",
   },
   MODELO_3D: {
     nombre: "Modelo 3D",
     descripcion: "Impresión 3D desde su escaneo",
-    roles: ["MODELO"],
+    porOmision: "MODELO",
   },
 };
 
 /**
- * Que papel juega la unidad dentro del trabajo.
- *
- * No es lo mismo que la indicacion del caso: una corona sobre implante sigue
- * siendo una corona, y que vaya sobre implante lo dice la indicacion. Lo que
- * el rol contesta es otra cosa: si esa pieza se apoya en un diente preparado
- * (pilar) o cuelga entre dos (pontico). De ahi salen los puentes.
+ * El nombre, qué es, qué materiales le quedan y si lleva color de la guía Vita
+ * son parte del tipo de trabajo, no de la pantalla: salen del catálogo y no se
+ * repiten aquí. Ver `src/lib/trabajos.ts`.
  */
-export const ROLES_DE_UNIDAD: Record<RolDeUnidad, string> = {
-  CORONA: "Corona",
-  PILAR: "Pilar",
-  PONTICO: "Póntico",
-  CARILLA: "Carilla",
-  INCRUSTACION: "Incrustación",
-  ADITAMENTO: "Aditamento",
-  PROVISIONAL: "Provisional",
-  GUARDA_OCLUSAL: "Guarda oclusal",
-  MODELO: "Modelo",
-  BARRA: "Barra",
-};
+export const ROLES_DE_UNIDAD = Object.fromEntries(
+  Object.entries(TRABAJOS).map(([rol, tipo]) => [rol, tipo.nombre]),
+) as Record<RolDeUnidad, string>;
 
-/** Como se le explica cada rol al doctor cuando escoge (§8). */
-export const QUE_ES_CADA_ROL: Record<RolDeUnidad, string> = {
-  CORONA: "Va sobre un diente preparado o sobre un implante.",
-  PILAR: "Sostiene un puente. Va cementada sobre el diente preparado.",
-  PONTICO: "Reemplaza el diente ausente. No toca hueso: cuelga de los pilares.",
-  CARILLA: "Sólo la cara visible del diente.",
-  INCRUSTACION: "Rellena la parte del diente que falta, inlay u onlay.",
-  ADITAMENTO: "La pieza que une el implante con la corona.",
-  PROVISIONAL: "Para que el paciente salga con algo puesto mientras tanto.",
-  GUARDA_OCLUSAL: "Para el bruxismo. No va sobre un diente en particular.",
-  MODELO: "El modelo impreso de la arcada.",
-  BARRA: "La estructura que une varios implantes.",
-};
+export const QUE_ES_CADA_ROL = Object.fromEntries(
+  Object.entries(TRABAJOS).map(([rol, tipo]) => [rol, tipo.queEs]),
+) as Record<RolDeUnidad, string>;
+
+export const MATERIALES_POR_ROL = Object.fromEntries(
+  Object.entries(TRABAJOS).map(([rol, tipo]) => [rol, tipo.materiales]),
+) as Record<RolDeUnidad, Material[]>;
+
+/** Los que no llevan color: nadie escoge tono de una barra de titanio. */
+export const ROLES_SIN_COLOR = (Object.keys(TRABAJOS) as RolDeUnidad[]).filter(
+  (rol) => !TRABAJOS[rol].llevaColorVita,
+);
 
 export const MATERIALES: Record<Material, string> = {
   ZIRCONIO_MONOLITICO: "Zirconio monolítico",
@@ -203,43 +200,6 @@ export const MATERIALES: Record<Material, string> = {
   RESINA_IMPRESION: "Resina de impresión",
   CERA_CALCINABLE: "Cera calcinable",
 };
-
-/** Que materiales tienen sentido para cada rol. */
-export const MATERIALES_POR_ROL: Record<RolDeUnidad, Material[]> = {
-  CORONA: [
-    "ZIRCONIO_MONOLITICO",
-    "ZIRCONIO_ESTRATIFICADO",
-    "DISILICATO_DE_LITIO",
-    "METAL_PORCELANA",
-  ],
-  PILAR: [
-    "ZIRCONIO_MONOLITICO",
-    "ZIRCONIO_ESTRATIFICADO",
-    "METAL_PORCELANA",
-  ],
-  PONTICO: [
-    "ZIRCONIO_MONOLITICO",
-    "ZIRCONIO_ESTRATIFICADO",
-    "METAL_PORCELANA",
-  ],
-  CARILLA: ["DISILICATO_DE_LITIO", "ZIRCONIO_ESTRATIFICADO"],
-  INCRUSTACION: ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO"],
-  ADITAMENTO: ["TITANIO", "ZIRCONIO_MONOLITICO"],
-  PROVISIONAL: ["PMMA", "RESINA_IMPRESION"],
-  GUARDA_OCLUSAL: ["PMMA", "RESINA_IMPRESION"],
-  MODELO: ["RESINA_IMPRESION"],
-  BARRA: ["TITANIO", "CROMO_COBALTO"],
-};
-
-/** Los roles que no llevan color: nadie escoge tono de una barra de titanio. */
-export const ROLES_SIN_COLOR: RolDeUnidad[] = ["BARRA", "MODELO", "ADITAMENTO"];
-
-/**
- * Los roles que arman un puente. Un puente es un grupo de unidades vecinas
- * donde los extremos son pilares y lo de en medio, ponticos: asi un 14-17 se
- * lee sin ambiguedad.
- */
-export const ROLES_DE_PUENTE: RolDeUnidad[] = ["PILAR", "PONTICO"];
 
 /** Guía Vita clásica, en el orden en que la usa el doctor. */
 export const COLORES_VITA = [

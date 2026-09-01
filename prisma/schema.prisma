@@ -161,17 +161,50 @@ enum Indicacion {
 /// ambiguedad: cuatro unidades con el mismo puenteId, 14 y 17 pilares, 15 y 16
 /// ponticos.
 enum RolDeUnidad {
-  CORONA
-  PILAR
-  PONTICO
-  CARILLA
+  /// Coronas y cofias
+  CORONA_ANATOMICA
+  COFIA
+  CORONA_PRENSADA
+  CORONA_CASCARON
+  COFIA_CON_ALIVIO
+  MOCKUP
+
+  /// Ponticos
+  PONTICO_ANATOMICO
+  PONTICO_REDUCIDO
+  PONTICO_PRENSADO
+  PONTICO_CASCARON
+
+  /// Incrustaciones y carillas
   INCRUSTACION
-  ADITAMENTO
-  /// Los que no van sobre un diente preparado, pero el producto ya los recibe.
-  PROVISIONAL
+  INCRUSTACION_CON_ALIVIO
+  CARILLA
+
+  /// Copiado digital
+  ENCERADO_ANATOMICO
+  ENCERADO_REDUCIDO
+  ENCERADO_DE_PONTICO
+
+  /// Removibles y aparatos
+  PROTESIS_TOTAL
+  PROTESIS_PARCIAL
   GUARDA_OCLUSAL
+  TELESCOPICA_PRIMARIA
+  TELESCOPICA_SECUNDARIA
+  ADITAMENTO
+
+  /// Barras
+  PILAR_DE_BARRA
+  SEGMENTO_DE_BARRA
+  SUBESTRUCTURA_CON_ALIVIO
+
+  /// Modelos
   MODELO
-  BARRA
+
+  /// Denticion restante: no se fabrican, se anotan.
+  ANTAGONISTA
+  DIENTE_VECINO
+  OMITIR_EN_PUENTE
 }
 
 enum Material {
@@ -258,7 +291,8 @@ model Unidad {
 
   diente   Int // notacion FDI: 11-18, 21-28, 31-38, 41-48
   rol      RolDeUnidad
-  material Material
+  /// Vacio en las anotaciones: un antagonista no se fabrica.
+  material Material?
   color    String? // guia Vita: A1, A2, B1...
   /// Lo que el doctor quiera decirle al tecnico de esta unidad en concreto.
   notas    String?

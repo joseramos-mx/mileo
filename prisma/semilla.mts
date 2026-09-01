@@ -162,7 +162,7 @@ async function main() {
           create: [
             {
               diente: 11,
-              rol: "CORONA",
+              rol: "CORONA_ANATOMICA",
               material: "ZIRCONIO_MONOLITICO",
               color: "A1",
             },
@@ -174,7 +174,7 @@ async function main() {
             },
             {
               diente: 13,
-              rol: "PROVISIONAL",
+              rol: "CORONA_CASCARON",
               material: "PMMA",
               color: "A2",
             },

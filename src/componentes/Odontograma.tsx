@@ -26,16 +26,8 @@ import {
   unidadNueva,
   type UnidadDelCaso,
 } from "@/lib/puentes";
-import {
-  COLORES_VITA,
-  INDICACIONES,
-  MATERIALES,
-  MATERIALES_POR_ROL,
-  QUE_ES_CADA_ROL,
-  ROLES_DE_UNIDAD,
-  ROLES_SIN_COLOR,
-  nombreDelDiente,
-} from "@/lib/vocabulario";
+import { COLORES_VITA, INDICACIONES, MATERIALES, nombreDelDiente } from "@/lib/vocabulario";
+import { CATEGORIAS, TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
 import { CampoDeSeleccion, CampoDeTexto } from "@/componentes/Campo";
 import { Boton } from "@/componentes/Boton";
 import { cn } from "@/lib/utilidades";
@@ -102,7 +94,7 @@ export function Odontograma({
   const enlacesEnPantalla = useRef(new Map<string, SVGGElement>());
 
   const angosta = useAngosta();
-  const rolesPermitidos = INDICACIONES[indicacion].roles;
+  const porOmision = INDICACIONES[indicacion].porOmision;
   const porDiente = new Map(unidades.map((u) => [u.diente, u]));
 
   /** En el celular sólo se ve una arcada a la vez: no caben las dos. */
@@ -127,10 +119,10 @@ export function Odontograma({
     if (!unidad) {
       // Tocar un diente vacío lo agrega al caso. Tocar uno que ya está sólo lo
       // abre: nadie borra un diente configurado por un toque de más.
-      const nueva = unidadNueva(diente, rolesPermitidos[0]);
+      const nueva = unidadNueva(diente, porOmision);
       alCambiar(ordenarPorBoca([...unidades, nueva]));
       setAviso(
-        `Agregué el diente ${diente} como ${ROLES_DE_UNIDAD[nueva.rol].toLowerCase()}.`,
+        `Agregué el diente ${diente} como ${TRABAJOS[nueva.rol].nombre.toLowerCase()}.`,
       );
     }
     setAbierto(diente);
@@ -327,13 +319,13 @@ export function Odontograma({
           </svg>
         </div>
 
-        <Leyenda />
+        <Leyenda unidades={unidades} />
       </div>
 
       <PanelDelDiente
         diente={abierto}
         unidades={unidades}
-        rolesPermitidos={rolesPermitidos}
+
         alCambiar={alCambiar}
         alCerrar={() => setAbierto(null)}
         alAvisar={setAviso}
@@ -422,21 +414,24 @@ function Diente({
   alTeclear: (evento: React.KeyboardEvent) => void;
   registrar: (nodo: SVGGElement | null) => void;
 }) {
-  const esPontico = unidad?.rol === "PONTICO";
+  const tipo = unidad ? TRABAJOS[unidad.rol] : null;
 
   const comoEsta = !unidad
     ? "sin trabajo"
-    : esPontico
-      ? `póntico de ${MATERIALES[unidad.material].toLowerCase()}`
-      : `${ROLES_DE_UNIDAD[unidad.rol].toLowerCase()} de ${MATERIALES[
-          unidad.material
-        ].toLowerCase()}${unidad.color ? ` color ${unidad.color}` : ""}`;
+    : [
+        TRABAJOS[unidad.rol].nombre.toLowerCase(),
+        unidad.material ? `de ${MATERIALES[unidad.material].toLowerCase()}` : "",
+        unidad.color ? `color ${unidad.color}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
 
   return (
     <g
       ref={registrar}
       id={`d-${trazo.numero}`}
       data-diente={trazo.numero}
+      data-rol={unidad?.rol ?? ""}
       role="button"
       tabIndex={enfocable ? 0 : -1}
       aria-pressed={abierto}
@@ -445,23 +440,19 @@ function Diente({
       onKeyDown={alTeclear}
       className="cursor-pointer"
     >
-      {/* Cuerpo: lo que se rellena según el trabajo. */}
+      {/* Cuerpo: se rellena con el color del tipo de trabajo, rebajado, para
+          que el número se siga leyendo encima (§7). El color va como atributo y
+          no como clase porque es un dato del catálogo, no un rol de la
+          interfaz: son veintinueve y viven en `src/lib/trabajos.ts`. */}
       <path
         d={trazo.cuerpo}
-        className={cn(
-          !unidad && "fill-diente-cuerpo",
-          unidad && !esPontico && "fill-diente-trabajo",
-          esPontico && "fill-diente-pontico",
-        )}
+        fill={tipo ? tipo.colorTenue : "var(--diente-cuerpo)"}
       />
 
-      {/* Contorno: el trazo gris que entregó diseño. Se oscurece cuando el
-          diente lleva trabajo, para que se distinga sin depender del relleno. */}
+      {/* Contorno: el trazo que entregó diseño, en el color del tipo. */}
       <path
         d={trazo.contorno}
-        className={
-          unidad ? "fill-diente-trabajo-contorno" : "fill-diente-contorno"
-        }
+        fill={tipo ? tipo.color : "var(--diente-contorno)"}
       />
 
       {/* Anillo del diente abierto. Refuerza; no es lo único que lo dice: su
@@ -474,22 +465,25 @@ function Diente({
           className="stroke-diente-anillo"
         />
       ) : null}
-
     </g>
   );
 }
 
-/** Qué significa cada relleno, escrito. El color nunca va solo (§7). */
-function Leyenda() {
+/**
+ * Qué es cada color, escrito. El color nunca va solo (§7).
+ *
+ * Sólo salen los tipos que este caso usa: una lista de veintinueve colores no
+ * la lee nadie, y los que no están en el caso no ayudan a leer el dibujo.
+ */
+function Leyenda({ unidades }: { unidades: UnidadDelCaso[] }) {
+  const usados = [...new Set(unidades.map((u) => u.rol))];
+  if (usados.length === 0) return null;
+
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-minimo text-secundario">
-      {[
-        ["fill-diente-cuerpo stroke-diente-contorno", "Sin trabajo"],
-        ["fill-diente-trabajo stroke-diente-trabajo-contorno", "Con trabajo"],
-        ["fill-diente-pontico stroke-diente-trabajo-contorno", "Póntico"],
-      ].map(([clases, texto]) => (
-        <li key={texto} className="flex items-center gap-1.5">
-          <svg aria-hidden="true" viewBox="0 0 12 12" className="size-3">
+      {usados.map((rol) => (
+        <li key={rol} className="flex items-center gap-1.5">
+          <svg aria-hidden="true" viewBox="0 0 12 12" className="size-3 shrink-0">
             <rect
               x="1"
               y="1"
@@ -497,10 +491,11 @@ function Leyenda() {
               height="10"
               rx="3"
               strokeWidth="1.5"
-              className={clases}
+              fill={TRABAJOS[rol].colorTenue}
+              stroke={TRABAJOS[rol].color}
             />
           </svg>
-          {texto}
+          {TRABAJOS[rol].nombre}
         </li>
       ))}
     </ul>
@@ -548,14 +543,12 @@ function CambioDeArcada({
 function PanelDelDiente({
   diente,
   unidades,
-  rolesPermitidos,
   alCambiar,
   alCerrar,
   alAvisar,
 }: {
   diente: number | null;
   unidades: UnidadDelCaso[];
-  rolesPermitidos: RolDeUnidad[];
   alCambiar: (unidades: UnidadDelCaso[]) => void;
   alCerrar: () => void;
   alAvisar: (aviso: string) => void;
@@ -579,9 +572,18 @@ function PanelDelDiente({
 
   const grupo = puenteDe(unidades, diente);
   const enPuente = Boolean(grupo && grupo.length > 1);
-  const materiales = MATERIALES_POR_ROL[unidad.rol];
-  const llevaColor = !ROLES_SIN_COLOR.includes(unidad.rol);
+  const tipo = TRABAJOS[unidad.rol];
 
+  // Dentro de un puente, el lugar manda qué puede ir ahí: en las puntas, algo
+  // que se apoye en el diente preparado; en medio, un póntico. Lo que sí
+  // escoge el doctor es cuál de todos, y para eso se filtra el catálogo en vez
+  // de dejarlo escoger algo que después habría que corregirle.
+  const enLaPunta =
+    enPuente && grupo
+      ? grupo[0].diente === diente || grupo[grupo.length - 1].diente === diente
+      : false;
+  const cabeAqui = (rol: RolDeUnidad) =>
+    !enPuente || (enLaPunta ? puedeSerPilar(rol) : esPontico(rol));
 
   const cambiar = (cambio: Partial<UnidadDelCaso>) =>
     alCambiar(
@@ -600,57 +602,71 @@ function PanelDelDiente({
         <h3 className="text-subtitulo font-semibold text-primario">
           Diente {diente}
         </h3>
-        <p className="text-minimo text-secundario">
-          {nombreDelDiente(diente)}
-        </p>
+        <p className="text-minimo text-secundario">{nombreDelDiente(diente)}</p>
       </div>
 
       {enPuente && grupo ? (
-        <div className="flex flex-col gap-2 rounded-control bg-superficie-suave p-3">
+        <div className="flex flex-col gap-1 rounded-control bg-superficie-suave p-3">
           <p className="text-menor font-medium text-primario">
             Puente {nombreDelPuente(grupo)}
           </p>
           <p className="text-minimo text-secundario">
-            {ROLES_DE_UNIDAD[unidad.rol]}. {QUE_ES_CADA_ROL[unidad.rol]}
-          </p>
-          <p className="text-minimo text-secundario">
-            En un puente el papel de cada pieza lo manda su lugar: las de los
-            extremos son pilares y las de en medio, pónticos. Para separarlo,
-            toque la línea que une los dos dientes en el odontograma.
+            {enLaPunta
+              ? "Va en la punta: se apoya en el diente preparado y sostiene el puente."
+              : "Va en medio: cuelga de los dos extremos, sin apoyarse en hueso."}{" "}
+            Para separarlo, toque la línea que une los dos dientes.
           </p>
         </div>
-      ) : (
+      ) : null}
+
+      {/* El catálogo, agrupado como en el programa de diseño del laboratorio.
+          Cada tipo con su color, y el escogido marcado con aria-pressed: el
+          color no es lo único que dice cuál está puesto (§7). */}
+      <div className="flex flex-col gap-3">
+        <p className="text-menor font-medium text-primario">
+          Qué se le va a hacer
+        </p>
+
+        {CATEGORIAS.map((categoria) => {
+          const tipos = categoria.tipos.filter(cabeAqui);
+          if (tipos.length === 0) return null;
+
+          return (
+            <div key={categoria.nombre} className="flex flex-col gap-1.5">
+              <p className="text-minimo text-secundario">{categoria.nombre}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {tipos.map((rol) => (
+                  <PastillaDeTrabajo
+                    key={rol}
+                    rol={rol}
+                    puesta={unidad.rol === rol}
+                    alEscoger={() => cambiar(conMaterialValido(rol, unidad))}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        <p className="text-minimo text-secundario">{tipo.queEs}</p>
+      </div>
+
+      {tipo.materiales.length > 0 ? (
         <CampoDeSeleccion
-          etiqueta="Qué se le va a hacer"
+          etiqueta="Material"
           requerido
-          value={unidad.rol}
-          onChange={(e) =>
-            cambiar(conMaterialValido(e.target.value as RolDeUnidad, unidad))
-          }
-          ayuda={QUE_ES_CADA_ROL[unidad.rol]}
+          value={unidad.material ?? tipo.materiales[0]}
+          onChange={(e) => cambiar({ material: e.target.value as Material })}
         >
-          {rolesPermitidos.map((rol) => (
-            <option key={rol} value={rol}>
-              {ROLES_DE_UNIDAD[rol]}
+          {tipo.materiales.map((material) => (
+            <option key={material} value={material}>
+              {MATERIALES[material]}
             </option>
           ))}
         </CampoDeSeleccion>
-      )}
+      ) : null}
 
-      <CampoDeSeleccion
-        etiqueta="Material"
-        requerido
-        value={unidad.material}
-        onChange={(e) => cambiar({ material: e.target.value as Material })}
-      >
-        {materiales.map((material) => (
-          <option key={material} value={material}>
-            {MATERIALES[material]}
-          </option>
-        ))}
-      </CampoDeSeleccion>
-
-      {llevaColor ? (
+      {tipo.llevaColorVita ? (
         <CampoDeSeleccion
           etiqueta="Color"
           requerido
@@ -685,6 +701,59 @@ function PanelDelDiente({
         Quitar el diente {diente} del caso
       </Boton>
     </aside>
+  );
+}
+
+/**
+ * Una pastilla del catálogo: el tipo de trabajo, con su color.
+ *
+ * Es un botón, no un renglón de una lista desplegable: el técnico ve los
+ * veintinueve de un vistazo y aprieta el que quiere, como en el programa con
+ * el que ya trabaja. El color del texto encima está medido contra el de la
+ * pastilla en `src/lib/trabajos.ts`; ninguna baja de 4.5:1 (§7).
+ */
+function PastillaDeTrabajo({
+  rol,
+  puesta,
+  alEscoger,
+}: {
+  rol: RolDeUnidad;
+  puesta: boolean;
+  alEscoger: () => void;
+}) {
+  const tipo = TRABAJOS[rol];
+
+  return (
+    <button
+      type="button"
+      data-trabajo={rol}
+      aria-pressed={puesta}
+      onClick={alEscoger}
+      style={
+        puesta
+          ? { backgroundColor: tipo.color, color: tipo.colorDelTexto }
+          : { borderColor: tipo.color }
+      }
+      className={cn(
+        "alto-tactil inline-flex items-center gap-2 rounded-control px-3 py-1.5",
+        "text-left text-minimo font-medium transition-colors duration-150",
+        puesta
+          ? "border border-transparent"
+          : "border bg-superficie text-primario",
+      )}
+    >
+      {/* Sin escoger, el color va en el borde y en el cuadrito, nunca en la
+          letra: varios de los veintinueve no alcanzan 4.5:1 como texto sobre
+          blanco, y el nombre tiene que leerse (§7). */}
+      {puesta ? null : (
+        <span
+          aria-hidden="true"
+          style={{ backgroundColor: tipo.color }}
+          className="size-2.5 shrink-0 rounded-[3px]"
+        />
+      )}
+      {tipo.nombre}
+    </button>
   );
 }
 

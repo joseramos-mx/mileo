@@ -12,6 +12,8 @@ import {
   ROLES_DE_UNIDAD,
   leTocaAlDoctor,
 } from "@/lib/vocabulario";
+import { seFabrica } from "@/lib/trabajos";
+import type { RolDeUnidad } from "@/generated/prisma/enums";
 import { RENDER_POR_INDICACION } from "@/lib/entrada";
 import type { CasoParaTarjeta } from "@/componentes/TarjetaDeCaso";
 
@@ -45,9 +47,21 @@ export const seleccionDeTarjeta = {
 type UnidadResumible = {
   diente: number;
   rol: string;
-  material: string;
+  /** Vacío en las anotaciones: un antagonista no se fabrica. */
+  material?: string | null;
   color?: string | null;
 };
+
+/**
+ * Sólo las piezas que el laboratorio va a hacer.
+ *
+ * El antagonista y el diente vecino se capturan porque el técnico necesita
+ * saber que se escanearon, pero no son unidades: contarlos diría que el caso
+ * lleva cinco piezas cuando lleva cuatro, y eso acaba en una cuenta mal hecha.
+ */
+function soloPiezas<T extends { rol: string }>(unidades: T[]) {
+  return unidades.filter((u) => seFabrica(u.rol as RolDeUnidad));
+}
 
 type CasoCrudo = {
   id: string;
@@ -66,34 +80,37 @@ type CasoCrudo = {
  * necesita para reconocer el caso de un vistazo, sin abrirlo.
  */
 export function resumirUnidades(unidades: UnidadResumible[]) {
-  if (unidades.length === 0) return "Sin unidades todavía";
+  const piezas = soloPiezas(unidades);
+  if (piezas.length === 0) return "Sin unidades todavía";
 
   const roles = [
     ...new Set(
-      unidades.map(
-        (u) => ROLES_DE_UNIDAD[u.rol as keyof typeof ROLES_DE_UNIDAD],
-      ),
+      piezas.map((u) => ROLES_DE_UNIDAD[u.rol as keyof typeof ROLES_DE_UNIDAD]),
     ),
   ];
   const materiales = [
     ...new Set(
-      unidades.map((u) => MATERIALES[u.material as keyof typeof MATERIALES]),
+      piezas
+        .map((u) => MATERIALES[u.material as keyof typeof MATERIALES])
+        .filter(Boolean),
     ),
   ];
 
-  return `${cuantasUnidades(unidades)} · ${roles.join(", ")} · ${materiales.join(", ")}`;
+  return [cuantasUnidades(piezas), roles.join(", "), materiales.join(", ")]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** "2 unidades" / "1 unidad" */
-export function cuantasUnidades(unidades: { diente: number }[]) {
+export function cuantasUnidades(unidades: unknown[]) {
   return unidades.length === 1 ? "1 unidad" : `${unidades.length} unidades`;
 }
 
 /** "2 unidades · 14, 15" — el primer renglón de la tarjeta. */
-export function unidadesYDientes(unidades: { diente: number }[]) {
-  if (unidades.length === 0) return "Sin unidades todavía";
-  const dientes = unidades.map((u) => u.diente).join(", ");
-  return `${cuantasUnidades(unidades)} · ${dientes}`;
+export function unidadesYDientes(unidades: UnidadResumible[]) {
+  const piezas = soloPiezas(unidades);
+  if (piezas.length === 0) return "Sin unidades todavía";
+  return `${cuantasUnidades(piezas)} · ${piezas.map((u) => u.diente).join(", ")}`;
 }
 
 /**
@@ -103,14 +120,17 @@ export function unidadesYDientes(unidades: { diente: number }[]) {
  * tiene que poder ver desde la lista que un caso va en dos tonos.
  */
 export function materialYColor(unidades: UnidadResumible[]) {
-  if (unidades.length === 0) return "Falta escoger el material";
+  const piezas = soloPiezas(unidades);
+  if (piezas.length === 0) return "Falta escoger el material";
 
   const materiales = [
     ...new Set(
-      unidades.map((u) => MATERIALES[u.material as keyof typeof MATERIALES]),
+      piezas
+        .map((u) => MATERIALES[u.material as keyof typeof MATERIALES])
+        .filter(Boolean),
     ),
   ];
-  const colores = [...new Set(unidades.map((u) => u.color).filter(Boolean))];
+  const colores = [...new Set(piezas.map((u) => u.color).filter(Boolean))];
 
   return [materiales.join(", "), colores.join(", ")].filter(Boolean).join(" ");
 }
@@ -221,7 +241,7 @@ export async function borradoresDeLaClinica(
     folio: caso.folio,
     paciente: `${caso.paciente.folio} · ${caso.paciente.iniciales}`,
     indicacion: caso.indicacion,
-    cuantasUnidades: caso.unidades.length,
+    cuantasUnidades: soloPiezas(caso.unidades).length,
     resumenDeUnidades: resumirUnidades(caso.unidades),
     archivos: caso._count.archivos,
     actualizadoEn: caso.actualizadoEn,

@@ -170,10 +170,15 @@ export default async function PaginaDeCaso({
                 </span>
               </span>
               <span className="text-menor text-secundario">
-                {ROLES_DE_UNIDAD[unidad.rol]} · {MATERIALES[unidad.material]}
-                {unidad.color && COLORES_VITA.includes(unidad.color)
-                  ? ` · color ${unidad.color}`
-                  : ""}
+                {[
+                  ROLES_DE_UNIDAD[unidad.rol],
+                  unidad.material ? MATERIALES[unidad.material] : null,
+                  unidad.color && COLORES_VITA.includes(unidad.color)
+                    ? `color ${unidad.color}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </li>
           ))}

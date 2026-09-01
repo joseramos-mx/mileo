@@ -168,8 +168,13 @@ function RenglonDeUnidad({ unidad }: { unidad: UnidadCapturada }) {
         </span>
       </p>
       <p className="text-minimo text-secundario">
-        {ROLES_DE_UNIDAD[unidad.rol]} · {MATERIALES[unidad.material]}
-        {unidad.color ? ` · color ${unidad.color}` : ""}
+        {[
+          ROLES_DE_UNIDAD[unidad.rol],
+          unidad.material ? MATERIALES[unidad.material] : null,
+          unidad.color ? `color ${unidad.color}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
       </p>
       {unidad.notas ? (
         <p className="text-minimo text-secundario">Nota: {unidad.notas}</p>

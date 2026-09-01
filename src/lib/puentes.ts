@@ -1,10 +1,6 @@
 import type { Material, RolDeUnidad } from "@/generated/prisma/enums";
-import {
-  DIENTES_SUPERIORES,
-  DIENTES_INFERIORES,
-  MATERIALES_POR_ROL,
-  ROLES_SIN_COLOR,
-} from "@/lib/vocabulario";
+import { DIENTES_SUPERIORES, DIENTES_INFERIORES } from "@/lib/vocabulario";
+import { TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
 
 /**
  * Los puentes del caso, en reglas puras.
@@ -25,7 +21,8 @@ import {
 export type UnidadDelCaso = {
   diente: number;
   rol: RolDeUnidad;
-  material: Material;
+  /** Vacío en las anotaciones: un antagonista no se fabrica. */
+  material: Material | null;
   color: string | null;
   notas: string | null;
   /** Todas las unidades de un mismo puente comparten esta clave. */
@@ -80,11 +77,21 @@ export function puenteDe(unidades: UnidadDelCaso[], diente: number) {
 }
 
 /**
- * Dentro de un puente el rol no se escoge: se deduce. Los dos extremos se
- * apoyan en dientes preparados y son pilares; todo lo de en medio es póntico.
+ * Dentro de un puente el papel de cada pieza lo manda su lugar.
+ *
+ * En las puntas va algo que se apoya en un diente preparado —una corona, una
+ * cofia, un encerado anatómico— y en medio, algo que cuelga: un póntico. Lo que
+ * el doctor sí escoge es cuál de todos: si su corona ya era prensada, se queda
+ * prensada. Sólo se corrige la que no puede ir en ese lugar.
  */
-function rolEnElPuente(posicion: number, cuantas: number): RolDeUnidad {
-  return posicion === 0 || posicion === cuantas - 1 ? "PILAR" : "PONTICO";
+function rolEnElPuente(
+  actual: RolDeUnidad,
+  posicion: number,
+  cuantas: number,
+): RolDeUnidad {
+  const enLaPunta = posicion === 0 || posicion === cuantas - 1;
+  if (enLaPunta) return puedeSerPilar(actual) ? actual : "CORONA_ANATOMICA";
+  return esPontico(actual) ? actual : "PONTICO_ANATOMICO";
 }
 
 /** Deja cada unidad de cada puente con el rol que le toca por su posición. */
@@ -98,7 +105,7 @@ export function ordenarRolesDePuentes(
     // Un puente de una sola unidad no es un puente: se deshace solo.
     if (grupo.length < 2) continue;
     grupo.forEach((u, i) => {
-      rolDe.set(u.diente, rolEnElPuente(i, grupo.length));
+      rolDe.set(u.diente, rolEnElPuente(u.rol, i, grupo.length));
     });
   }
 
@@ -114,28 +121,37 @@ export function ordenarRolesDePuentes(
   });
 }
 
-/** Al cambiar de rol, el material tiene que seguir teniendo sentido. */
+/**
+ * Al cambiar de tipo, el material y el color tienen que seguir teniendo
+ * sentido. Si el que traía sigue sirviendo, se respeta; si no, se pone el
+ * primero que aplica. Una anotación se queda sin material: no hay pieza.
+ */
 export function conMaterialValido(
   rol: RolDeUnidad,
   unidad: Pick<UnidadDelCaso, "material" | "color">,
 ) {
-  const permitidos = MATERIALES_POR_ROL[rol];
+  const tipo = TRABAJOS[rol];
+  const permitidos = tipo.materiales;
+
   return {
     rol,
-    material: permitidos.includes(unidad.material)
-      ? unidad.material
-      : permitidos[0],
-    color: ROLES_SIN_COLOR.includes(rol) ? null : (unidad.color ?? "A2"),
+    material:
+      permitidos.length === 0
+        ? null
+        : unidad.material && permitidos.includes(unidad.material)
+          ? unidad.material
+          : permitidos[0],
+    color: tipo.llevaColorVita ? (unidad.color ?? "A2") : null,
   };
 }
 
-/** Una unidad nueva, con lo que corresponde a su rol. */
+/** Una unidad nueva, con lo que corresponde a su tipo. */
 export function unidadNueva(diente: number, rol: RolDeUnidad): UnidadDelCaso {
   return {
     diente,
     notas: null,
     puenteId: null,
-    ...conMaterialValido(rol, { material: MATERIALES_POR_ROL[rol][0], color: null }),
+    ...conMaterialValido(rol, { material: null, color: null }),
   };
 }
 
@@ -171,7 +187,7 @@ export function conectar(
   let conVecino = unidades;
   for (const cual of [diente, vecino]) {
     if (!conVecino.some((u) => u.diente === cual)) {
-      conVecino = [...conVecino, unidadNueva(cual, "PONTICO")];
+      conVecino = [...conVecino, unidadNueva(cual, "PONTICO_ANATOMICO")];
     }
   }
 

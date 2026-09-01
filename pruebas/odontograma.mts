@@ -111,7 +111,7 @@ comprobar(
     "false",
 );
 
-await pagina.locator('g[data-diente="17"]').click();
+await pagina.locator('g[data-diente="15"]').click();
 await pagina.waitForTimeout(250);
 comprobar(
   "el puente aparece nombrado de 14 a 17",
@@ -121,38 +121,142 @@ comprobar(
 const etiqueta15 = await pagina.locator('g[data-diente="15"]').getAttribute("aria-label");
 comprobar(`el 15 quedó de póntico (${etiqueta15})`, (etiqueta15 ?? "").includes("póntico"));
 const etiqueta17 = await pagina.locator('g[data-diente="17"]').getAttribute("aria-label");
-comprobar(`el 17 quedó de pilar (${etiqueta17})`, (etiqueta17 ?? "").includes("pilar"));
+comprobar(
+  `el 17, que va en la punta, quedó de corona (${etiqueta17})`,
+  (etiqueta17 ?? "").includes("corona anatómica"),
+);
 
-// Cada estado se pinta distinto, y se comprueba en el dibujo, no a ojo.
+// Cada tipo de trabajo pinta el diente de su color, y se comprueba en el
+// dibujo, no a ojo.
 const relleno = async (diente: number) =>
   (await pagina
     .locator(`g[data-diente="${diente}"] path`)
     .first()
-    .getAttribute("class")) ?? "";
+    .getAttribute("fill")) ?? "";
+const rolDe = async (diente: number) =>
+  (await pagina.locator(`g[data-diente="${diente}"]`).getAttribute("data-rol")) ?? "";
+
+comprobar(
+  `el 14 quedó de corona anatómica (${await rolDe(14)})`,
+  (await rolDe(14)) === "CORONA_ANATOMICA",
+);
+comprobar(
+  `el 15 quedó de póntico anatómico (${await rolDe(15)})`,
+  (await rolDe(15)) === "PONTICO_ANATOMICO",
+);
+
 const pilar = await relleno(14);
 const pontico = await relleno(15);
 const sinNada = await relleno(13);
-comprobar(`el pilar va relleno (${pilar})`, pilar.includes("fill-diente-trabajo"));
+comprobar(`la corona y el póntico se pintan distinto (${pilar} / ${pontico})`,
+  pilar !== pontico && pilar !== "" && pontico !== "");
 comprobar(
-  `el póntico va con relleno tenue (${pontico})`,
-  pontico.includes("fill-diente-pontico"),
+  `el que no lleva trabajo se queda sin color (${sinNada})`,
+  sinNada === "var(--diente-cuerpo)",
 );
-comprobar(
-  `el que no lleva trabajo va sin relleno (${sinNada})`,
-  sinNada.includes("fill-diente-cuerpo"),
-);
-comprobar(
-  "los dos pilares se pintan igual",
-  (await relleno(17)) === pilar,
-);
-comprobar(
-  "los dos pónticos se pintan igual",
-  (await relleno(16)) === pontico,
-);
+comprobar("los dos pilares se pintan igual", (await relleno(17)) === pilar);
+comprobar("los dos pónticos se pintan igual", (await relleno(16)) === pontico);
 comprobar(
   "el diente abierto lleva su anillo",
-  (await pagina.locator('g[data-diente="17"] path.stroke-diente-anillo').count()) === 1,
+  (await pagina.locator('g[data-diente="15"] path.stroke-diente-anillo').count()) === 1,
 );
+
+// El catalogo entero, en pastillas y no en una lista desplegable.
+comprobar(
+  "la pastilla puesta se marca, no sólo con color",
+  (await pagina
+    .locator('aside button[data-trabajo="PONTICO_ANATOMICO"]')
+    .getAttribute("aria-pressed")) === "true",
+);
+
+// Dentro de un puente, en medio solo caben ponticos.
+comprobar(
+  "en medio del puente sólo ofrece pónticos",
+  (await pagina.locator('aside button[data-trabajo="CORONA_ANATOMICA"]').count()) === 0,
+);
+
+// Fuera del puente, el catalogo completo, en pastillas y no en una lista.
+await pagina.locator('g[data-diente="13"]').click();
+await pagina.waitForTimeout(300);
+const pastillas = await pagina.locator("aside button[data-trabajo]").count();
+comprobar(
+  `el catálogo completo se ve en pastillas (${pastillas} tipos)`,
+  pastillas === 29,
+);
+comprobar(
+  "agrupadas por categoría, como en el programa del laboratorio",
+  await pagina.getByText("Coronas y cofias").isVisible(),
+);
+comprobar(
+  "y ningún desplegable para escoger el tipo",
+  (await pagina.getByLabel(/Qué se le va a hacer/).count()) === 0,
+);
+await pagina.screenshot({ path: "pruebas/capturas/odontograma-catalogo.png" });
+
+// Cada pastilla se mide de verdad en pantalla, con los colores que salieron
+// del navegador. Son 29 y ninguna puede quedar por debajo de 4.5:1 (§7).
+const contrastes = await pagina.evaluate(() => {
+  // Sin funciones con nombre aquí adentro, ni siquiera flechas guardadas en
+  // una constante: el empacador les inyecta un `__name` que no existe en el
+  // navegador y la llamada se cae entera.
+  const flojas: string[] = [];
+  const peso = [0.2126, 0.7152, 0.0722];
+
+  for (const boton of document.querySelectorAll("aside button[data-trabajo]")) {
+    const estilo = getComputedStyle(boton);
+    let fondo = estilo.backgroundColor;
+    let padre = boton.parentElement;
+    while (padre && /rgba\(0, 0, 0, 0\)|transparent/.test(fondo)) {
+      fondo = getComputedStyle(padre).backgroundColor;
+      padre = padre.parentElement;
+    }
+
+    const luces: number[] = [];
+    for (const color of [estilo.color, fondo]) {
+      const partes = (color.match(/\d+/g) ?? ["0", "0", "0"]).map(Number);
+      let total = 0;
+      for (let i = 0; i < 3; i++) {
+        const v = partes[i] / 255;
+        total +=
+          peso[i] *
+          (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      }
+      luces.push(total);
+    }
+
+    const razon =
+      (Math.max(luces[0], luces[1]) + 0.05) /
+      (Math.min(luces[0], luces[1]) + 0.05);
+    if (razon < 4.5) {
+      flojas.push(`${boton.getAttribute("data-trabajo")} ${razon.toFixed(2)}`);
+    }
+  }
+  return flojas;
+});
+for (const floja of contrastes) console.log(`   contraste bajo: ${floja}`);
+comprobar(
+  `las 29 pastillas llegan a 4.5:1 (${contrastes.length} por debajo)`,
+  contrastes.length === 0,
+);
+// Se deshace: el 13 no es de este caso.
+await pagina.getByRole("button", { name: "Quitar el diente 13 del caso" }).click();
+await pagina.waitForTimeout(300);
+await pagina.locator('g[data-diente="15"]').click();
+await pagina.waitForTimeout(300);
+
+// Cambiar de tipo desde la pastilla.
+await pagina.locator('aside button[data-trabajo="PONTICO_PRENSADO"]').click();
+await pagina.waitForTimeout(300);
+comprobar(
+  `el 15 cambió a póntico prensado (${await rolDe(15)})`,
+  (await rolDe(15)) === "PONTICO_PRENSADO",
+);
+comprobar(
+  "y el diente se repintó con el color del tipo nuevo",
+  (await relleno(15)) !== pontico,
+);
+await pagina.locator('aside button[data-trabajo="PONTICO_ANATOMICO"]').click();
+await pagina.waitForTimeout(300);
 
 await pagina.screenshot({ path: "pruebas/capturas/odontograma-puente.png" });
 
@@ -235,8 +339,9 @@ comprobar(
   new Set(guardadas.map((u) => u.puenteId)).size === 1 && guardadas[0].puenteId !== null,
 );
 comprobar(
-  `14 y 17 pilares, 15 y 16 pónticos (${guardadas.map((u) => `${u.diente}:${u.rol}`).join(" ")})`,
-  guardadas.map((u) => u.rol).join(",") === "PILAR,PONTICO,PONTICO,PILAR",
+  `en las puntas coronas y en medio pónticos (${guardadas.map((u) => `${u.diente}:${u.rol}`).join(" ")})`,
+  guardadas.map((u) => u.rol).join(",") ===
+    "CORONA_ANATOMICA,PONTICO_ANATOMICO,PONTICO_ANATOMICO,CORONA_ANATOMICA",
 );
 
 const puentes = (

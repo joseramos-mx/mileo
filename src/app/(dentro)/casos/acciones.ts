@@ -9,12 +9,12 @@ import { registrarEvento } from "@/lib/bitacora";
 import { siguienteFolio } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
 import { arcadaDe, nombreDelPuente, puentesDe } from "@/lib/puentes";
+import { TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
 import {
   DIENTES_INFERIORES,
   DIENTES_SUPERIORES,
   INDICACIONES,
   MATERIALES,
-  MATERIALES_POR_ROL,
   ROLES_DE_UNIDAD,
 } from "@/lib/vocabulario";
 
@@ -138,7 +138,9 @@ const esquemaUnidad = z.object({
   rol: z.enum(
     Object.keys(ROLES_DE_UNIDAD) as [keyof typeof ROLES_DE_UNIDAD],
   ),
-  material: z.enum(Object.keys(MATERIALES) as [keyof typeof MATERIALES]),
+  material: z
+    .enum(Object.keys(MATERIALES) as [keyof typeof MATERIALES])
+    .nullable(),
   color: z.string().trim().max(8).nullable(),
   notas: z.string().trim().max(500).nullable(),
   /**
@@ -155,7 +157,11 @@ const esquemaUnidad = z.object({
  * no se puede fabricar y hay que decirlo con palabras del consultorio.
  */
 function revisarPuentes(
-  unidades: { diente: number; rol: string; puenteId: string | null }[],
+  unidades: {
+    diente: number;
+    rol: keyof typeof TRABAJOS;
+    puenteId: string | null;
+  }[],
 ) {
   for (const grupo of puentesDe(
     unidades as Parameters<typeof puentesDe>[0],
@@ -179,14 +185,18 @@ function revisarPuentes(
       return `El puente ${nombreDelPuente(grupo)} tiene un hueco. Un puente une dientes pegados.`;
     }
 
-    const esperado = grupo.map((_, i) =>
-      i === 0 || i === grupo.length - 1 ? "PILAR" : "PONTICO",
-    );
-    const malo = grupo.findIndex((u, i) => u.rol !== esperado[i]);
+    // En las puntas va algo que se apoya en un diente preparado; en medio,
+    // algo que cuelga. Si no, el puente no se puede fabricar.
+    const malo = grupo.findIndex((u, i) => {
+      const enLaPunta = i === 0 || i === grupo.length - 1;
+      return enLaPunta ? !puedeSerPilar(u.rol) : !esPontico(u.rol);
+    });
     if (malo !== -1) {
-      return esperado[malo] === "PILAR"
-        ? `En el puente ${nombreDelPuente(grupo)}, el diente ${dientes[malo]} está en la punta: tiene que ser pilar.`
-        : `En el puente ${nombreDelPuente(grupo)}, el diente ${dientes[malo]} va en medio: tiene que ser póntico.`;
+      const enLaPunta = malo === 0 || malo === grupo.length - 1;
+      const tipo = TRABAJOS[grupo[malo].rol].nombre.toLowerCase();
+      return enLaPunta
+        ? `En el puente ${nombreDelPuente(grupo)}, el diente ${dientes[malo]} está en la punta: ahí va algo que se apoye en el diente preparado, no ${tipo}.`
+        : `En el puente ${nombreDelPuente(grupo)}, el diente ${dientes[malo]} va en medio: ahí va un póntico, no ${tipo}.`;
     }
   }
 
@@ -219,12 +229,27 @@ export async function guardarUnidades(
     return { error: "Revise que cada diente tenga rol y material." };
   }
 
-  // Que el material corresponda al rol: la cascada también se valida aquí,
-  // no sólo en la pantalla.
+  // Que el material corresponda al tipo de trabajo: la cascada también se
+  // valida aquí, no sólo en la pantalla. Una anotación no lleva material
+  // porque no hay pieza que hacer.
   for (const unidad of leido.data) {
-    if (!MATERIALES_POR_ROL[unidad.rol].includes(unidad.material)) {
+    const tipo = TRABAJOS[unidad.rol];
+
+    if (tipo.materiales.length === 0) {
+      if (unidad.material !== null) {
+        return {
+          error: `${ROLES_DE_UNIDAD[unidad.rol]} no se fabrica, así que no lleva material.`,
+        };
+      }
+      continue;
+    }
+
+    if (!unidad.material) {
+      return { error: `Falta escoger el material de ${ROLES_DE_UNIDAD[unidad.rol].toLowerCase()}.` };
+    }
+    if (!tipo.materiales.includes(unidad.material)) {
       return {
-        error: `${MATERIALES[unidad.material]} no aplica para ${ROLES_DE_UNIDAD[unidad.rol]}.`,
+        error: `${MATERIALES[unidad.material]} no aplica para ${ROLES_DE_UNIDAD[unidad.rol].toLowerCase()}.`,
       };
     }
   }

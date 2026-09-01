@@ -207,6 +207,44 @@ pastilla con el nombre de la etapa escrito, y el mosaico va marcado como
 decorativo para que un lector de pantalla no lo lea dos veces. Los colores viven
 en `--mosaico-*` dentro de `globals.css`, en un solo lugar.
 
+### El catálogo de trabajos, con 29 colores
+
+El Product Owner pidió el catálogo con la misma estructura que exocad, el
+programa con el que los técnicos ya trabajan: ocho categorías, veintinueve
+tipos, y **cada tipo de su color** para que el diente se ilumine distinto según
+lo que se le va a hacer.
+
+Es la desviación más grande de §5.1, que sólo admite dos colores semánticos. Se
+implementó porque el catálogo no es decoración: es el vocabulario del taller, y
+obligar al técnico a traducirlo a "corona / póntico / carilla" cada vez que
+captura un caso le mete errores. La condición, otra vez, es §7: **el color nunca
+va solo.**
+
+- Cada diente lleva su número escrito encima y un `aria-label` que dice el tipo
+  completo: "Diente 15, segundo premolar superior derecho: póntico anatómico de
+  disilicato de litio color A2".
+- La pastilla escogida se marca con `aria-pressed`, no sólo con el relleno.
+- La leyenda de abajo nombra por escrito cada color que el caso usa. Sólo los
+  que usa: veintinueve renglones no los lee nadie.
+- El diente se rellena con el color **rebajado** y se contornea con el color
+  entero, para que el número siga leyéndose encima.
+
+Los colores viven en `src/lib/trabajos.ts`, en una tabla, no en `globals.css`:
+son un dato del catálogo, no roles de la interfaz. El guion que la genera
+—`python scripts/generar-catalogo.py`— **se niega a escribir un color que no
+llegue a 4.5:1**, y `npm run prueba:odontograma` lo vuelve a medir en pantalla
+con los colores que devuelve el navegador. Cuatro de los colores de exocad no
+alcanzaban y se oscurecieron; en las pastillas sin escoger el color va en el
+borde y en un cuadrito, nunca en la letra.
+
+### La dentición restante no cuenta como unidad
+
+"Antagonista", "Diente vecino" y "Omitir en el puente" se capturan porque el
+técnico necesita saber que esos dientes se escanearon, pero **no se fabrican**.
+No cuentan en "2 unidades", no llevan material —la columna es opcional en la
+base— y no entran en el resumen del caso. Contarlas diría que un caso lleva
+cinco piezas cuando lleva cuatro, y eso acaba en una cuenta mal hecha.
+
 ### Las imágenes
 
 Lo que ya entregó el equipo de diseño está en uso:
