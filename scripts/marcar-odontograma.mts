@@ -4,19 +4,26 @@
  *
  *   npm run marcar:odontograma
  *
- * `public/odontograma.svg` trae los 32 dientes dibujados —dos trazos cada uno,
- * el cuerpo claro y el contorno gris— pero sin identificar, así que no hay
- * forma de pintar uno solo. Este guion los numera por su posición, que es lo
- * único que no depende de en qué orden los exportó el programa de dibujo:
+ * `public/odontogramapuentes.svg` trae los 32 dientes dibujados —dos trazos
+ * cada uno, el cuerpo claro y el contorno gris—, un nodo por diente y una línea
+ * por cada par de vecinos: 15 por arcada, 30 en total. Esas líneas son el
+ * interruptor con el que se unen dos dientes en un puente.
+ *
+ * Nada de eso viene identificado, así que no hay forma de pintar un diente
+ * solo ni de saber qué par une cada línea. Este guion lo deduce de la posición,
+ * que es lo único que no depende de en qué orden lo exportó el programa de
+ * dibujo:
  *
  *   1. Abre el dibujo en un navegador y le pide a cada grupo su caja real.
  *   2. Parte los grupos en arcada superior e inferior por la altura del centro.
  *   3. Ordena cada arcada de izquierda a derecha. Un odontograma se dibuja como
  *      si viéramos al paciente de frente, así que la izquierda de la pantalla
  *      es su lado derecho: 18…11, 21…28 arriba; 48…41, 31…38 abajo.
- *   4. Escribe dos archivos:
+ *   4. Le asigna a cada nodo su diente, y a cada línea el par de dientes que
+ *      une, por cercanía a los nodos de sus dos puntas.
+ *   5. Escribe dos archivos:
  *        public/odontograma-marcado.svg  — el mismo dibujo con id="d-XX"
- *        src/lib/odontograma-trazos.ts   — los trazos, para pintarlos en React
+ *        src/lib/odontograma-trazos.ts   — trazos y enlaces, para React
  *
  * El original no se toca. Si diseño entrega un dibujo nuevo, se vuelve a correr
  * esto y nada más.
@@ -25,7 +32,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 
-const ORIGEN = path.resolve(process.cwd(), "public/odontograma.svg");
+const ORIGEN = path.resolve(process.cwd(), "public/odontogramapuentes.svg");
 const SVG_MARCADO = path.resolve(
   process.cwd(),
   "public/odontograma-marcado.svg",
@@ -128,6 +135,95 @@ async function leer() {
         }
       }
 
+      // A cada nodo le toca el diente que tenga mas cerca. Son 32 circulos y
+      // 32 dientes: si alguno se repitiera, el dibujo no es el que esperamos y
+      // mas vale enterarse aqui que en la pantalla del doctor.
+      const circulos = [...svg.querySelectorAll("circle")];
+      if (circulos.length !== 32) {
+        return { error: `Se encontraron ${circulos.length} nodos y no 32.` };
+      }
+
+      const nodos: { numero: number; x: number; y: number; r: number }[] = [];
+      for (const c of circulos) {
+        const x = Number(c.getAttribute("cx"));
+        const y = Number(c.getAttribute("cy"));
+        let cerca = dientes[0];
+        let menor = Infinity;
+        for (const d of dientes) {
+          const distancia = Math.hypot(d.cx - x, d.cy - y);
+          if (distancia < menor) {
+            menor = distancia;
+            cerca = d;
+          }
+        }
+        nodos.push({
+          numero: cerca.numero,
+          x: Number(x.toFixed(2)),
+          y: Number(y.toFixed(2)),
+          r: Number(Number(c.getAttribute("r")).toFixed(2)),
+        });
+      }
+
+      const repetidos = nodos.length - new Set(nodos.map((n) => n.numero)).size;
+      if (repetidos > 0) {
+        return { error: `${repetidos} dientes se quedaron con dos nodos.` };
+      }
+
+      // Cada linea une dos nodos: sus puntas caen justo en el centro de uno.
+      const rectas = [...svg.querySelectorAll("line")];
+      const enlaces: {
+        a: number;
+        b: number;
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+      }[] = [];
+
+      for (const l of rectas) {
+        const puntas = [
+          [Number(l.getAttribute("x1")), Number(l.getAttribute("y1"))],
+          [Number(l.getAttribute("x2")), Number(l.getAttribute("y2"))],
+        ];
+        const deQuien: number[] = [];
+        for (const [x, y] of puntas) {
+          let cerca = nodos[0];
+          let menor = Infinity;
+          for (const n of nodos) {
+            const distancia = Math.hypot(n.x - x, n.y - y);
+            if (distancia < menor) {
+              menor = distancia;
+              cerca = n;
+            }
+          }
+          if (menor > 3) {
+            return {
+              error: `Una linea empieza en (${x}, ${y}), a ${menor.toFixed(1)} de cualquier nodo.`,
+            };
+          }
+          deQuien.push(cerca.numero);
+        }
+
+        enlaces.push({
+          a: deQuien[0],
+          b: deQuien[1],
+          x1: Number(puntas[0][0].toFixed(2)),
+          y1: Number(puntas[0][1].toFixed(2)),
+          x2: Number(puntas[1][0].toFixed(2)),
+          y2: Number(puntas[1][1].toFixed(2)),
+        });
+      }
+
+      // Y cada enlace tiene que unir dos vecinos de la misma arcada.
+      for (const e of enlaces) {
+        const arcada = superiores.includes(e.a) ? superiores : inferiores;
+        const i = arcada.indexOf(e.a);
+        const j = arcada.indexOf(e.b);
+        if (i === -1 || j === -1 || Math.abs(i - j) !== 1) {
+          return { error: `La linea de ${e.a} a ${e.b} no une dos vecinos.` };
+        }
+      }
+
       // El recuadro de cada arcada, con un respiro alrededor, para las vistas
       // separadas del celular.
       const encuadres: string[] = [];
@@ -153,6 +249,8 @@ async function leer() {
         vistaSuperior: encuadres[0],
         vistaInferior: encuadres[1],
         dientes,
+        nodos,
+        enlaces,
         arriba: superiores,
         abajo: inferiores,
       };
@@ -188,15 +286,33 @@ await fsp.writeFile(
 );
 
 const porNumero = [...leido.dientes].sort((a, b) => a.numero - b.numero);
+const nodoDe = new Map((leido.nodos ?? []).map((n) => [n.numero, n]));
+
+const conNodo = porNumero.map((diente) => {
+  const nodo = nodoDe.get(diente.numero);
+  if (!nodo) {
+    console.error(`El diente ${diente.numero} se quedó sin nodo.`);
+    process.exit(1);
+  }
+  return { ...diente, nodo: { x: nodo.x, y: nodo.y, r: nodo.r } };
+});
+
+// Los enlaces, nombrados como los dice el doctor: del número menor al mayor.
+const enlaces = (leido.enlaces ?? [])
+  .map((e) => (e.a < e.b ? e : { ...e, a: e.b, b: e.a, x1: e.x2, y1: e.y2, x2: e.x1, y2: e.y1 }))
+  .sort((uno, otro) => uno.a - otro.a || uno.b - otro.b);
 
 const modulo = `/**
- * Los trazos del odontograma, sacados de \`public/odontograma.svg\`.
+ * Los trazos del odontograma, sacados de \`public/odontogramapuentes.svg\`.
  *
  * GENERADO. No se edita a mano: \`npm run marcar:odontograma\`.
  *
  * Cada diente trae dos caminos —el cuerpo, que es el que se rellena según el
- * trabajo, y el contorno, que va siempre encima— y el centro de su caja, que
- * el odontograma usa para poner el número y la línea del puente.
+ * trabajo, y el contorno, que va siempre encima—, el centro de su caja, donde
+ * va el número, y su nodo sobre el riel.
+ *
+ * Los enlaces son las líneas del riel: cada una une dos dientes vecinos y es el
+ * interruptor con el que se arma o se deshace un puente.
  */
 
 export type TrazoDeDiente = {
@@ -208,13 +324,28 @@ export type TrazoDeDiente = {
   contorno: string;
   cx: number;
   cy: number;
+  /** El punto del riel que le corresponde. */
+  nodo: { x: number; y: number; r: number };
+};
+
+/** Una línea del riel: el interruptor entre dos dientes vecinos. */
+export type EnlaceDeDientes = {
+  /** El de número menor, para nombrarlo como lo dice el doctor. */
+  a: number;
+  b: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 };
 
 export const VISTA_COMPLETA = "${leido.vista}";
 export const VISTA_SUPERIOR = "${leido.vistaSuperior}";
 export const VISTA_INFERIOR = "${leido.vistaInferior}";
 
-export const TRAZOS: TrazoDeDiente[] = ${JSON.stringify(porNumero, null, 2)};
+export const TRAZOS: TrazoDeDiente[] = ${JSON.stringify(conNodo, null, 2)};
+
+export const ENLACES: EnlaceDeDientes[] = ${JSON.stringify(enlaces, null, 2)};
 
 export const TRAZO_POR_DIENTE = new Map(TRAZOS.map((t) => [t.numero, t]));
 `;
@@ -228,3 +359,6 @@ console.log("Arcada superior, de izquierda a derecha:");
 console.log(`  ${leido.arriba?.join(" ")}`);
 console.log("Arcada inferior, de izquierda a derecha:");
 console.log(`  ${leido.abajo?.join(" ")}`);
+console.log("");
+console.log(`${enlaces.length} enlaces entre vecinos:`);
+console.log(`  ${enlaces.map((e) => `${e.a}-${e.b}`).join(" ")}`);

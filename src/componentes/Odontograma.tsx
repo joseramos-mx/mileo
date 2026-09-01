@@ -2,12 +2,14 @@
 
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { Indicacion, Material, RolDeUnidad } from "@/generated/prisma/enums";
-import { LinkSimple, LinkBreak, Trash } from "@phosphor-icons/react";
+import { Trash } from "@phosphor-icons/react";
 import {
+  ENLACES,
   TRAZOS,
   VISTA_COMPLETA,
   VISTA_SUPERIOR,
   VISTA_INFERIOR,
+  type EnlaceDeDientes,
 } from "@/lib/odontograma-trazos";
 import {
   ARCADAS,
@@ -15,14 +17,13 @@ import {
   conMaterialValido,
   esSuperior,
   nombreDelPuente,
+  desunir,
+  estanUnidos,
   ordenarPorBoca,
   puenteDe,
-  puentesDe,
   quitar,
-  separar,
   conectar,
   unidadNueva,
-  vecinosDe,
   type UnidadDelCaso,
 } from "@/lib/puentes";
 import {
@@ -59,46 +60,23 @@ import { cn } from "@/lib/utilidades";
  * Va siempre sobre fondo claro, aunque el tema sea oscuro: aquí se señala un
  * diente y el gris del tema oscuro estorba (§5.1).
  *
- * Con teclado se entra una vez al dibujo y se recorre con las flechas —32
- * tabuladores hasta llegar al panel no los da nadie—. Izquierda y derecha
- * mueven por la arcada, arriba y abajo cambian de arcada, Inicio y Fin van a
- * los extremos, y Enter o espacio abren el diente.
+ * Los puentes se arman en el riel que trae el mismo dibujo: un nodo por diente
+ * y una línea entre cada par de vecinos. Cada línea es un interruptor —tocarla
+ * une los dos dientes, volver a tocarla los separa— y se pinta encendida
+ * cuando van unidos. Es el único lugar donde se une o se separa: el panel del
+ * diente explica el puente, pero no lo arma.
+ *
+ * Con teclado son dos paradas de tabulador, no sesenta: la primera entra al
+ * riel y la segunda a los dientes, y dentro de cada uno se recorre con las
+ * flechas. Izquierda y derecha mueven a lo largo de la arcada, arriba y abajo
+ * cambian de arcada, Inicio y Fin van a los extremos, y Enter o espacio
+ * acciona.
  */
 
 export type UnidadEnOdontograma = UnidadDelCaso;
 
 /** El número del diente, en unidades del dibujo. */
 const TAMANO_DEL_NUMERO = 11;
-
-/**
- * El centro de cada arcada, para saber hacia dónde queda "afuera".
- *
- * La barra del puente se dibuja por fuera de las coronas, como se anota en una
- * hoja de odontograma de papel: así se ve que esas piezas van en una sola sin
- * taparles el número. Cada arcada tiene su propio centro porque la herradura de
- * arriba y la de abajo abren para lados contrarios.
- */
-const CENTRO_DE_LA_ARCADA = new Map(
-  [true, false].map((arriba) => {
-    const dela = TRAZOS.filter((t) => esSuperior(t.numero) === arriba);
-    return [
-      arriba,
-      {
-        x: dela.reduce((suma, t) => suma + t.cx, 0) / dela.length,
-        y: dela.reduce((suma, t) => suma + t.cy, 0) / dela.length,
-      },
-    ];
-  }),
-);
-const AFUERA = 22;
-
-function porFuera(trazo: { numero: number; cx: number; cy: number }) {
-  const centro = CENTRO_DE_LA_ARCADA.get(esSuperior(trazo.numero))!;
-  const dx = trazo.cx - centro.x;
-  const dy = trazo.cy - centro.y;
-  const largo = Math.hypot(dx, dy) || 1;
-  return `${trazo.cx + (dx / largo) * AFUERA},${trazo.cy + (dy / largo) * AFUERA}`;
-}
 
 export function Odontograma({
   indicacion,
@@ -118,14 +96,14 @@ export function Odontograma({
   const [arcadaVisible, setArcadaVisible] = useState<"superior" | "inferior">(
     "superior",
   );
+  const [enlaceEnfocado, setEnlaceEnfocado] = useState(0);
   const [aviso, setAviso] = useState("");
   const dientesEnPantalla = useRef(new Map<number, SVGGElement>());
+  const enlacesEnPantalla = useRef(new Map<string, SVGGElement>());
 
   const angosta = useAngosta();
   const rolesPermitidos = INDICACIONES[indicacion].roles;
-  const puentes = puentesDe(unidades);
   const porDiente = new Map(unidades.map((u) => [u.diente, u]));
-  const porTrazo = new Map(TRAZOS.map((t) => [t.numero, t]));
 
   /** En el celular sólo se ve una arcada a la vez: no caben las dos. */
   const vista = !angosta
@@ -134,9 +112,15 @@ export function Odontograma({
       ? VISTA_SUPERIOR
       : VISTA_INFERIOR;
 
+  const arribaVisible = arcadaVisible === "superior";
   const visibles = !angosta
     ? TRAZOS
-    : TRAZOS.filter((t) => esSuperior(t.numero) === (arcadaVisible === "superior"));
+    : TRAZOS.filter((t) => esSuperior(t.numero) === arribaVisible);
+  // El enlace de la línea media (11-21, 31-41) es de la misma arcada que sus
+  // dos dientes, así que basta con mirar uno.
+  const enlacesVisibles = !angosta
+    ? ENLACES
+    : ENLACES.filter((e) => esSuperior(e.a) === arribaVisible);
 
   function abrir(diente: number) {
     const unidad = porDiente.get(diente);
@@ -162,6 +146,48 @@ export function Odontograma({
     // El nodo puede no existir todavía si acabamos de cambiar de arcada.
     requestAnimationFrame(() =>
       dientesEnPantalla.current.get(diente)?.focus({ preventScroll: false }),
+    );
+  }
+
+  /** El interruptor de una línea del riel: une o separa los dos dientes. */
+  function alternarEnlace(enlace: EnlaceDeDientes) {
+    const unidos = estanUnidos(unidades, enlace.a, enlace.b);
+    const clave = `p-${enlace.a}-${enlace.b}`;
+    alCambiar(
+      unidos
+        ? desunir(unidades, enlace.a, enlace.b, `${clave}-corte`)
+        : conectar(unidades, enlace.a, enlace.b, clave),
+    );
+    setAviso(
+      unidos
+        ? `Separé el diente ${enlace.a} del ${enlace.b}.`
+        : `Uní el diente ${enlace.a} con el ${enlace.b}.`,
+    );
+  }
+
+  /** Recorre el riel con las flechas, como los dientes. */
+  function alTeclearEnlace(evento: React.KeyboardEvent, posicion: number) {
+    if (evento.key === "Enter" || evento.key === " ") {
+      evento.preventDefault();
+      alternarEnlace(enlacesVisibles[posicion]);
+      return;
+    }
+
+    const destino: Record<string, number | undefined> = {
+      ArrowRight: posicion + 1,
+      ArrowLeft: posicion - 1,
+      Home: 0,
+      End: enlacesVisibles.length - 1,
+    };
+    const siguiente = destino[evento.key];
+    if (siguiente === undefined) return;
+    evento.preventDefault();
+    if (siguiente < 0 || siguiente >= enlacesVisibles.length) return;
+
+    setEnlaceEnfocado(siguiente);
+    const e = enlacesVisibles[siguiente];
+    requestAnimationFrame(() =>
+      enlacesEnPantalla.current.get(`${e.a}-${e.b}`)?.focus(),
     );
   }
 
@@ -219,54 +245,69 @@ export function Odontograma({
           <svg
             viewBox={vista}
             role="group"
-            aria-label="Odontograma. Toque un diente para agregarlo al caso."
+            aria-label="Odontograma. Toque un diente para agregarlo al caso, o la línea entre dos dientes para unirlos en un puente."
             className="h-auto w-full min-w-[34rem] lg:min-w-0"
           >
-            {/* Primero los dientes, que son los que se tocan. */}
-            {visibles.map((trazo) => (
-              <Diente
-                key={trazo.numero}
-                trazo={trazo}
-                unidad={porDiente.get(trazo.numero) ?? null}
-                abierto={abierto === trazo.numero}
-                enfocable={enfocado === trazo.numero}
-                alAbrir={() => abrir(trazo.numero)}
-                alTeclear={(e) => alTeclear(e, trazo.numero)}
-                registrar={(nodo) => {
-                  if (nodo) dientesEnPantalla.current.set(trazo.numero, nodo);
-                  else dientesEnPantalla.current.delete(trazo.numero);
-                }}
-              />
-            ))}
+            {/* El riel del dibujo: primero, porque los dientes van encima.
+                Cada línea es el interruptor de un puente. */}
+            <g role="group" aria-label="Uniones entre dientes">
+              {enlacesVisibles.map((enlace, posicion) => (
+                <Enlace
+                  key={`${enlace.a}-${enlace.b}`}
+                  enlace={enlace}
+                  unido={estanUnidos(unidades, enlace.a, enlace.b)}
+                  enfocable={enlaceEnfocado === posicion}
+                  alAlternar={() => alternarEnlace(enlace)}
+                  alTeclear={(e) => alTeclearEnlace(e, posicion)}
+                  registrar={(nodo) => {
+                    const clave = `${enlace.a}-${enlace.b}`;
+                    if (nodo) enlacesEnPantalla.current.set(clave, nodo);
+                    else enlacesEnPantalla.current.delete(clave);
+                  }}
+                />
+              ))}
 
-            {/* La barra del puente, por fuera de las coronas. Lo que dice ya
-                está escrito en el panel y en el aria-label de cada diente:
-                esto sólo lo enseña de un vistazo (§7). */}
-            <g aria-hidden="true" className="pointer-events-none">
-              {[...puentes.values()]
-                .filter((grupo) => grupo.length > 1)
-                .map((grupo) => (
-                  <polyline
-                    key={grupo[0].puenteId}
-                    fill="none"
-                    strokeWidth={6}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="stroke-diente-puente"
-                    points={grupo
-                      .map((u) => {
-                        const t = porTrazo.get(u.diente);
-                        return t ? porFuera(t) : "";
-                      })
-                      .filter(Boolean)
-                      .join(" ")}
-                  />
-                ))}
+              {/* Los nodos, uno por diente. Se encienden con el diente. */}
+              {visibles.map((trazo) => (
+                <circle
+                  key={trazo.numero}
+                  aria-hidden="true"
+                  cx={trazo.nodo.x}
+                  cy={trazo.nodo.y}
+                  r={trazo.nodo.r}
+                  strokeWidth={1}
+                  className={cn(
+                    "pointer-events-none stroke-diente-contorno",
+                    porDiente.get(trazo.numero)?.puenteId
+                      ? "fill-diente-puente stroke-diente-puente"
+                      : "fill-diente-cuerpo",
+                  )}
+                />
+              ))}
             </g>
 
-            {/* Los números al final, para que la barra del puente no los tape.
-                Van fuera del diente porque son sólo dibujo: lo que anuncia el
-                lector de pantalla es el aria-label del diente. */}
+            {/* Los dientes. */}
+            <g role="group" aria-label="Dientes">
+              {visibles.map((trazo) => (
+                <Diente
+                  key={trazo.numero}
+                  trazo={trazo}
+                  unidad={porDiente.get(trazo.numero) ?? null}
+                  abierto={abierto === trazo.numero}
+                  enfocable={enfocado === trazo.numero}
+                  alAbrir={() => abrir(trazo.numero)}
+                  alTeclear={(e) => alTeclear(e, trazo.numero)}
+                  registrar={(nodo) => {
+                    if (nodo) dientesEnPantalla.current.set(trazo.numero, nodo);
+                    else dientesEnPantalla.current.delete(trazo.numero);
+                  }}
+                />
+              ))}
+            </g>
+
+            {/* Los números al final, para que nada se los tape. Van fuera del
+                diente porque son sólo dibujo: lo que anuncia el lector de
+                pantalla es el aria-label del diente. */}
             <g aria-hidden="true" className="pointer-events-none">
               {visibles.map((trazo) => (
                 <text
@@ -294,10 +335,6 @@ export function Odontograma({
         unidades={unidades}
         rolesPermitidos={rolesPermitidos}
         alCambiar={alCambiar}
-        alAbrirOtro={(otro) => {
-          setAbierto(otro);
-          setEnfocado(otro);
-        }}
         alCerrar={() => setAbierto(null)}
         alAvisar={setAviso}
       />
@@ -307,6 +344,63 @@ export function Odontograma({
         {aviso}
       </p>
     </div>
+  );
+}
+
+/**
+ * Una línea del riel: el interruptor de un puente entre dos dientes vecinos.
+ *
+ * La línea que se ve es la del dibujo, de 8 unidades. Encima va otra
+ * transparente y mucho más gruesa: es la que recibe el dedo, para que el área
+ * de toque llegue a lo que pide §7 sin engordar el dibujo.
+ */
+function Enlace({
+  enlace,
+  unido,
+  enfocable,
+  alAlternar,
+  alTeclear,
+  registrar,
+}: {
+  enlace: EnlaceDeDientes;
+  unido: boolean;
+  enfocable: boolean;
+  alAlternar: () => void;
+  alTeclear: (evento: React.KeyboardEvent) => void;
+  registrar: (nodo: SVGGElement | null) => void;
+}) {
+  return (
+    <g
+      ref={registrar}
+      data-enlace={`${enlace.a}-${enlace.b}`}
+      role="switch"
+      tabIndex={enfocable ? 0 : -1}
+      aria-checked={unido}
+      aria-label={`Unir el diente ${enlace.a} con el ${enlace.b} en un puente`}
+      onClick={alAlternar}
+      onKeyDown={alTeclear}
+      className="cursor-pointer"
+    >
+      <line
+        x1={enlace.x1}
+        y1={enlace.y1}
+        x2={enlace.x2}
+        y2={enlace.y2}
+        strokeWidth={unido ? 10 : 8}
+        strokeLinecap="round"
+        className={unido ? "stroke-diente-puente" : "stroke-diente-contorno"}
+      />
+      {/* Sólo para el dedo: no se ve, pero es lo que se toca. */}
+      <line
+        x1={enlace.x1}
+        y1={enlace.y1}
+        x2={enlace.x2}
+        y2={enlace.y2}
+        stroke="transparent"
+        strokeWidth={26}
+        strokeLinecap="round"
+      />
+    </g>
   );
 }
 
@@ -456,7 +550,6 @@ function PanelDelDiente({
   unidades,
   rolesPermitidos,
   alCambiar,
-  alAbrirOtro,
   alCerrar,
   alAvisar,
 }: {
@@ -464,8 +557,6 @@ function PanelDelDiente({
   unidades: UnidadDelCaso[];
   rolesPermitidos: RolDeUnidad[];
   alCambiar: (unidades: UnidadDelCaso[]) => void;
-  /** Para seguir la cadena: al unir, el panel se pasa al diente unido. */
-  alAbrirOtro: (diente: number) => void;
   alCerrar: () => void;
   alAvisar: (aviso: string) => void;
 }) {
@@ -478,6 +569,10 @@ function PanelDelDiente({
           Toque un diente del odontograma. Aquí le pregunto qué se le va a
           hacer, de qué material y en qué color.
         </p>
+        <p className="mt-2">
+          Para armar un puente, toque la línea que une dos dientes. Vuelva a
+          tocarla para separarlos.
+        </p>
       </aside>
     );
   }
@@ -486,9 +581,7 @@ function PanelDelDiente({
   const enPuente = Boolean(grupo && grupo.length > 1);
   const materiales = MATERIALES_POR_ROL[unidad.rol];
   const llevaColor = !ROLES_SIN_COLOR.includes(unidad.rol);
-  const claveNueva = `p-${Math.min(...unidades.map((u) => u.diente))}-${diente}`;
-  const yaUnidos = new Set((grupo ?? []).map((u) => u.diente));
-  const porUnir = vecinosDe(diente).filter((v) => !yaUnidos.has(v));
+
 
   const cambiar = (cambio: Partial<UnidadDelCaso>) =>
     alCambiar(
@@ -522,20 +615,9 @@ function PanelDelDiente({
           </p>
           <p className="text-minimo text-secundario">
             En un puente el papel de cada pieza lo manda su lugar: las de los
-            extremos son pilares y las de en medio, pónticos. Si quiere
-            escogerlo usted, sepárelo primero.
+            extremos son pilares y las de en medio, pónticos. Para separarlo,
+            toque la línea que une los dos dientes en el odontograma.
           </p>
-          <Boton
-            type="button"
-            tono="borde"
-            onClick={() => {
-              alCambiar(separar(unidades, diente, `${claveNueva}-b`));
-              alAvisar(`Separé el diente ${diente} de su puente.`);
-            }}
-          >
-            <LinkBreak aria-hidden="true" size={16} />
-            Separar del puente
-          </Boton>
         </div>
       ) : (
         <CampoDeSeleccion
@@ -543,9 +625,7 @@ function PanelDelDiente({
           requerido
           value={unidad.rol}
           onChange={(e) =>
-            cambiar(
-              conMaterialValido(e.target.value as RolDeUnidad, unidad),
-            )
+            cambiar(conMaterialValido(e.target.value as RolDeUnidad, unidad))
           }
           ayuda={QUE_ES_CADA_ROL[unidad.rol]}
         >
@@ -591,39 +671,6 @@ function PanelDelDiente({
         onChange={(e) => cambiar({ notas: e.target.value || null })}
         ayuda="Opcional. Lo que el técnico tenga que saber de esta pieza."
       />
-
-      {porUnir.length > 0 ? (
-        <div className="flex flex-col gap-2 border-t border-borde pt-3">
-          <p className="text-minimo font-medium text-primario">
-            Unir con el diente de al lado
-          </p>
-          <p className="text-minimo text-secundario">
-            Únalos para hacer un puente. Si el vecino todavía no está en el
-            caso, lo agrego como póntico.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {porUnir.map((vecino) => (
-              <Boton
-                key={vecino}
-                type="button"
-                tono="borde"
-                onClick={() => {
-                  alCambiar(
-                    conectar(unidades, diente, vecino, `${claveNueva}-${vecino}`),
-                  );
-                  alAvisar(`Uní el diente ${diente} con el ${vecino}.`);
-                  // El panel se pasa al diente unido, para poder seguir la
-                  // cadena sin volver al dibujo: 14, 15, 16, 17.
-                  alAbrirOtro(vecino);
-                }}
-              >
-                <LinkSimple aria-hidden="true" size={16} />
-                Unir con el {vecino}
-              </Boton>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <Boton
         type="button"

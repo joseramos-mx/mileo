@@ -72,19 +72,47 @@ comprobar(
   await pagina.getByRole("heading", { name: "Diente 14" }).isVisible(),
 );
 
-for (const vecino of [15, 16, 17]) {
-  await pagina.getByRole("button", { name: `Unir con el ${vecino}` }).click();
-  await pagina.waitForTimeout(250);
-}
 comprobar(
-  "al unir, el panel se pasa solo al diente unido",
-  await pagina.getByRole("heading", { name: "Diente 17" }).isVisible(),
-);
-comprobar(
-  "y ya no ofrece unir con el 16, que ya viene en el puente",
-  (await pagina.getByRole("button", { name: "Unir con el 16" }).count()) === 0,
+  "el riel trae una línea por cada par de vecinos",
+  (await pagina.locator("g[data-enlace]").count()) === 30,
 );
 
+// El puente se arma en el riel: cada línea es un interruptor.
+for (const par of ["14-15", "15-16", "16-17"]) {
+  const linea = pagina.locator(`g[data-enlace="${par}"]`);
+  comprobar(
+    `la línea ${par} empieza apagada`,
+    (await linea.getAttribute("aria-checked")) === "false",
+  );
+  await linea.click();
+  await pagina.waitForTimeout(250);
+  comprobar(
+    `al tocarla, la línea ${par} queda encendida`,
+    (await linea.getAttribute("aria-checked")) === "true",
+  );
+}
+
+// El area de toque de la linea, en pixeles de pantalla.
+const cajaEnlace = await pagina.locator('g[data-enlace="14-15"]').boundingBox();
+const grosor = Math.min(cajaEnlace?.width ?? 0, cajaEnlace?.height ?? 0);
+comprobar(
+  `la línea se puede tocar con el dedo (${grosor.toFixed(0)} px de ancho)`,
+  grosor >= 24,
+);
+const cajaDiente = await pagina.locator('g[data-diente="14"]').boundingBox();
+comprobar(
+  `y el diente también (${(cajaDiente?.width ?? 0).toFixed(0)} px)`,
+  Math.min(cajaDiente?.width ?? 0, cajaDiente?.height ?? 0) >= 24,
+);
+
+comprobar(
+  "la línea 17-18 sigue apagada: nadie la tocó",
+  (await pagina.locator('g[data-enlace="17-18"]').getAttribute("aria-checked")) ===
+    "false",
+);
+
+await pagina.locator('g[data-diente="17"]').click();
+await pagina.waitForTimeout(250);
 comprobar(
   "el puente aparece nombrado de 14 a 17",
   await pagina.getByText("Puente 14 a 17").first().isVisible(),
@@ -127,6 +155,29 @@ comprobar(
 );
 
 await pagina.screenshot({ path: "pruebas/capturas/odontograma-puente.png" });
+
+// Volver a tocar la línea separa, y se puede deshacer.
+await pagina.locator('g[data-enlace="15-16"]').click();
+await pagina.waitForTimeout(300);
+comprobar(
+  "volver a tocar la línea parte el puente en dos",
+  (await pagina.locator('g[data-enlace="15-16"]').getAttribute("aria-checked")) ===
+    "false",
+);
+comprobar(
+  "y los dos pedazos siguen siendo puentes",
+  (await pagina.locator('g[data-enlace="14-15"]').getAttribute("aria-checked")) ===
+    "true" &&
+    (await pagina.locator('g[data-enlace="16-17"]').getAttribute("aria-checked")) ===
+      "true",
+);
+await pagina.locator('g[data-enlace="15-16"]').click();
+await pagina.waitForTimeout(300);
+comprobar(
+  "y se vuelve a unir",
+  (await pagina.locator('g[data-enlace="15-16"]').getAttribute("aria-checked")) ===
+    "true",
+);
 
 // El teclado: se entra una vez y se recorre con las flechas.
 // La arcada de arriba se dibuja del 18 al 28, así que a la derecha del 17

@@ -139,12 +139,23 @@ export function unidadNueva(diente: number, rol: RolDeUnidad): UnidadDelCaso {
   };
 }
 
+/** Si estos dos dientes van unidos en el mismo puente. */
+export function estanUnidos(
+  unidades: UnidadDelCaso[],
+  diente: number,
+  vecino: number,
+) {
+  const uno = unidades.find((u) => u.diente === diente)?.puenteId;
+  const otro = unidades.find((u) => u.diente === vecino)?.puenteId;
+  return Boolean(uno) && uno === otro;
+}
+
 /**
- * Conecta dos dientes vecinos en un puente.
+ * Une dos dientes vecinos en un puente.
  *
- * Si el vecino todavía no tiene unidad, se crea: al doctor que arma un 14-17 no
- * se le pide capturar el 15 y el 16 por separado para después conectarlos. Si
- * cada uno ya venía de un puente distinto, los dos se funden en uno.
+ * El que falte se crea: al doctor que arma un 14-17 no se le pide capturar el
+ * 15 y el 16 por separado para después unirlos. Si cada uno ya venía de un
+ * puente distinto, los dos se funden en uno.
  *
  * `nuevaClave` viene de afuera para que esta función no dependa del reloj ni
  * del azar y se pueda probar.
@@ -157,9 +168,12 @@ export function conectar(
 ): UnidadDelCaso[] {
   if (!vecinosDe(diente).includes(vecino)) return unidades;
 
-  const conVecino = unidades.some((u) => u.diente === vecino)
-    ? unidades
-    : [...unidades, unidadNueva(vecino, "PONTICO")];
+  let conVecino = unidades;
+  for (const cual of [diente, vecino]) {
+    if (!conVecino.some((u) => u.diente === cual)) {
+      conVecino = [...conVecino, unidadNueva(cual, "PONTICO")];
+    }
+  }
 
   const claves = [diente, vecino]
     .map((d) => conVecino.find((u) => u.diente === d)?.puenteId)
@@ -177,6 +191,41 @@ export function conectar(
   });
 
   return ordenarRolesDePuentes(ordenarPorBoca(unidos));
+}
+
+/**
+ * Corta la unión entre dos dientes vecinos.
+ *
+ * El puente se parte en dos por ahí: lo que quede de cada lado sigue siendo
+ * puente sólo si le quedan dos unidades o más. Las unidades no se borran; lo
+ * que se deshace es la unión.
+ */
+export function desunir(
+  unidades: UnidadDelCaso[],
+  diente: number,
+  vecino: number,
+  nuevaClave: string,
+): UnidadDelCaso[] {
+  if (!estanUnidos(unidades, diente, vecino)) return unidades;
+
+  const grupo = puenteDe(unidades, diente);
+  if (!grupo) return unidades;
+
+  // El grupo viene en el orden del dibujo. Lo que queda del lado del segundo
+  // se lleva la clave nueva.
+  const corte = Math.max(
+    grupo.findIndex((u) => u.diente === diente),
+    grupo.findIndex((u) => u.diente === vecino),
+  );
+  const delOtroLado = new Set(grupo.slice(corte).map((u) => u.diente));
+
+  return ordenarRolesDePuentes(
+    unidades.map((unidad) =>
+      delOtroLado.has(unidad.diente)
+        ? { ...unidad, puenteId: nuevaClave }
+        : unidad,
+    ),
+  );
 }
 
 /**
