@@ -71,11 +71,8 @@ export function CapturaDeUnidades({
     return () => clearTimeout(temporizador);
   }, [casoId, unidades]);
 
-  const puentes = puentesDe(unidades);
-  const sueltas = unidades.filter((u) => !u.puenteId);
-
   return (
-    <section aria-labelledby="unidades" className="flex flex-col gap-4">
+    <section aria-labelledby="unidades" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="unidades" className="text-subtitulo font-semibold text-primario">
           ¿En qué dientes?
@@ -89,11 +86,20 @@ export function CapturaDeUnidades({
         </p>
       </div>
 
-      <Odontograma
-        indicacion={indicacion}
-        unidades={unidades}
-        alCambiar={setUnidades}
-      />
+      {/* En pantalla ancha, el resumen va al lado del odontograma y no debajo:
+          es lo que el doctor revisa mientras captura, y bajarlo a buscar lo
+          obligaba a perder de vista el dibujo. */}
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <Odontograma
+          indicacion={indicacion}
+          unidades={unidades}
+          alCambiar={setUnidades}
+        />
+
+        <div className="flex min-w-0 flex-col gap-3 2xl:max-h-[min(62vh,38rem)] 2xl:overflow-y-auto">
+          <ResumenDelCaso unidades={unidades} />
+        </div>
+      </div>
 
       {error ? (
         <p
@@ -104,55 +110,66 @@ export function CapturaDeUnidades({
         </p>
       ) : null}
 
-      {unidades.length === 0 ? (
-        <p className="text-cuerpo text-secundario">
-          Toque en el odontograma los dientes de este caso.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <h3 className="text-menor font-medium text-primario">
-            Lo que lleva el caso
-          </h3>
+    </section>
+  );
+}
 
-          {[...puentes.values()]
-            .filter((grupo) => grupo.length > 1)
-            .map((grupo) => (
-              <div
-                key={grupo[0].puenteId}
-                className="rounded-tarjeta border border-borde bg-superficie p-4"
-              >
-                <p className="text-cuerpo font-medium text-primario">
-                  Puente {nombreDelPuente(grupo)}
-                  <span className="font-normal text-secundario">
-                    {" · "}
-                    {grupo.length} unidades unidas
-                  </span>
-                </p>
-                <ul className="mt-2 flex flex-col gap-1">
-                  {grupo.map((unidad) => (
-                    <li key={unidad.diente}>
-                      <RenglonDeUnidad unidad={unidad} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+/** Lo que lleva el caso, agrupado por puente. */
+function ResumenDelCaso({ unidades }: { unidades: UnidadCapturada[] }) {
+  const puentes = puentesDe(unidades);
+  const sueltas = unidades.filter((u) => !u.puenteId);
 
-          {sueltas.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {sueltas.map((unidad) => (
-                <li
-                  key={unidad.diente}
-                  className="rounded-tarjeta border border-borde bg-superficie p-4"
-                >
+  if (unidades.length === 0) {
+    return (
+      <p className="text-cuerpo text-secundario">
+        Toque en el odontograma los dientes de este caso.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <h3 className="text-menor font-medium text-primario">
+        Lo que lleva el caso
+      </h3>
+
+      {[...puentes.values()]
+        .filter((grupo) => grupo.length > 1)
+        .map((grupo) => (
+          <div
+            key={grupo[0].puenteId}
+            className="rounded-tarjeta border border-borde bg-superficie p-3"
+          >
+            <p className="text-menor font-medium text-primario">
+              Puente {nombreDelPuente(grupo)}
+              <span className="font-normal text-secundario">
+                {" · "}
+                {grupo.length} unidades unidas
+              </span>
+            </p>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {grupo.map((unidad) => (
+                <li key={unidad.diente}>
                   <RenglonDeUnidad unidad={unidad} />
                 </li>
               ))}
             </ul>
-          ) : null}
-        </div>
-      )}
-    </section>
+          </div>
+        ))}
+
+      {sueltas.length > 0 ? (
+        <ul className="flex flex-col gap-2">
+          {sueltas.map((unidad) => (
+            <li
+              key={unidad.diente}
+              className="rounded-tarjeta border border-borde bg-superficie p-3"
+            >
+              <RenglonDeUnidad unidad={unidad} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
   );
 }
 

@@ -37,8 +37,11 @@ export default async function PaginaDeCaptura({ params }: PageProps<"/casos/[id]
   const admision = revisarAdmision(caso);
   const listo = sePuedeEnviar(caso);
 
+  // Ancho de verdad: el odontograma es una herradura alta, y encerrarlo en una
+  // columna angosta obligaba a bajar tres pantallas para llegar a los archivos.
+  // Aquí cabe todo a lo ancho y el doctor lo ve de un vistazo.
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 pb-8">
+    <div className="mx-auto flex w-full max-w-[110rem] flex-col gap-6 pb-8">
       <header>
         <Link
           href="/"
@@ -68,18 +71,22 @@ export default async function PaginaDeCaptura({ params }: PageProps<"/casos/[id]
         }))}
       />
 
-      <ArchivosDelCaso
-        casoId={caso.id}
-        archivos={caso.archivos.map((a) => ({
-          id: a.id,
-          nombre: a.nombre,
-          tipo: a.tipo,
-          estado: a.estado,
-          bytesTotales: Number(a.bytesTotales),
-        }))}
-      />
+      {/* Los archivos y la lista de admisión, uno al lado del otro: son dos
+          columnas cortas, no dos pantallas. */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <ArchivosDelCaso
+          casoId={caso.id}
+          archivos={caso.archivos.map((a) => ({
+            id: a.id,
+            nombre: a.nombre,
+            tipo: a.tipo,
+            estado: a.estado,
+            bytesTotales: Number(a.bytesTotales),
+          }))}
+        />
 
-      <ListaDeAdmision casoId={caso.id} puntos={admision} listo={listo} />
+        <ListaDeAdmision casoId={caso.id} puntos={admision} listo={listo} />
+      </div>
     </div>
   );
 }

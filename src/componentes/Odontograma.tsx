@@ -214,7 +214,10 @@ export function Odontograma({
     <div
       className={cn(
         "siempre-claro grid gap-4 rounded-contenedor bg-diente-lienzo p-4",
-        "lg:grid-cols-[minmax(0,1fr)_20rem]",
+        // El panel se lleva lo que sobra a lo ancho: cuanto más ancho, menos
+        // renglones de pastillas y menos alto el bloque entero.
+        "lg:grid-cols-[minmax(0,1fr)_22rem]",
+        "xl:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_30rem]",
         className,
       )}
     >
@@ -238,7 +241,13 @@ export function Odontograma({
             viewBox={vista}
             role="group"
             aria-label="Odontograma. Toque un diente para agregarlo al caso, o la línea entre dos dientes para unirlos en un puente."
-            className="h-auto w-full min-w-[34rem] lg:min-w-0"
+            /* En pantalla grande el dibujo se manda por su alto, no por su
+               ancho: la herradura es alta y, dejándola crecer con la columna,
+               se comía la pantalla entera. Aquí queda acotada y centrada. */
+            className={cn(
+              "h-auto w-full min-w-[34rem]",
+              "lg:mx-auto lg:block lg:h-[min(62vh,38rem)] lg:w-auto lg:max-w-full lg:min-w-0",
+            )}
           >
             {/* El riel del dibujo: primero, porque los dientes van encima.
                 Cada línea es el interruptor de un puente. */}
@@ -322,6 +331,8 @@ export function Odontograma({
         <Leyenda unidades={unidades} />
       </div>
 
+      {/* El panel nunca pasa del alto del dibujo: lo que no cabe se desplaza
+          dentro, en vez de alargar la página (§7). */}
       <PanelDelDiente
         diente={abierto}
         unidades={unidades}
@@ -389,7 +400,7 @@ function Enlace({
         x2={enlace.x2}
         y2={enlace.y2}
         stroke="transparent"
-        strokeWidth={26}
+        strokeWidth={34}
         strokeLinecap="round"
       />
     </g>
@@ -557,7 +568,7 @@ function PanelDelDiente({
 
   if (diente === null || !unidad) {
     return (
-      <aside className="rounded-tarjeta bg-superficie p-4 text-menor text-secundario">
+      <aside className="rounded-tarjeta bg-superficie p-4 text-menor text-secundario lg:max-h-[min(62vh,38rem)]">
         <p>
           Toque un diente del odontograma. Aquí le pregunto qué se le va a
           hacer, de qué material y en qué color.
@@ -593,7 +604,10 @@ function PanelDelDiente({
   return (
     <aside
       aria-label={`Diente ${diente}`}
-      className="flex flex-col gap-4 rounded-tarjeta bg-superficie p-4"
+      className={cn(
+        "flex flex-col gap-4 rounded-tarjeta bg-superficie p-4",
+        "lg:max-h-[min(62vh,38rem)] lg:overflow-y-auto",
+      )}
       onKeyDown={(e) => {
         if (e.key === "Escape") alCerrar();
       }}
@@ -627,12 +641,18 @@ function PanelDelDiente({
           Qué se le va a hacer
         </p>
 
+        {/* En un panel ancho las categorías van en dos columnas: ocho
+            apiladas hacían del panel una segunda pantalla. */}
+        <div className="flex flex-col gap-3 2xl:block 2xl:columns-2 2xl:gap-x-5">
         {CATEGORIAS.map((categoria) => {
           const tipos = categoria.tipos.filter(cabeAqui);
           if (tipos.length === 0) return null;
 
           return (
-            <div key={categoria.nombre} className="flex flex-col gap-1.5">
+            <div
+              key={categoria.nombre}
+              className="flex flex-col gap-1.5 2xl:mb-3 2xl:break-inside-avoid"
+            >
               <p className="text-minimo text-secundario">{categoria.nombre}</p>
               <div className="flex flex-wrap gap-1.5">
                 {tipos.map((rol) => (
@@ -647,6 +667,7 @@ function PanelDelDiente({
             </div>
           );
         })}
+        </div>
 
         <p className="text-minimo text-secundario">{tipo.queEs}</p>
       </div>
