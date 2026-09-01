@@ -68,8 +68,15 @@ await pagina.screenshot({ path: "pruebas/capturas/odontograma-vacio.png" });
 await d14.click();
 await pagina.waitForTimeout(150);
 comprobar(
-  "al tocar un diente se abre su panel",
-  await pagina.getByRole("heading", { name: "Diente 14" }).isVisible(),
+  "al tocar un diente se abre su catálogo",
+  await pagina.getByRole("heading", { name: "Diente 14", exact: true }).isVisible(),
+);
+comprobar(
+  "y su material y color salen arriba del resumen, no al fondo del panel",
+  await pagina
+    .getByRole("region", { name: "Detalle del diente 14" })
+    .getByLabel(/^Material/)
+    .isVisible(),
 );
 
 comprobar(
@@ -189,7 +196,9 @@ comprobar(
 );
 comprobar(
   "y ningún desplegable para escoger el tipo",
-  (await pagina.getByLabel(/Qué se le va a hacer/).count()) === 0,
+  (await pagina
+    .locator('aside[aria-label^="Qué se le va a hacer"] select')
+    .count()) === 0,
 );
 await pagina.screenshot({ path: "pruebas/capturas/odontograma-catalogo.png" });
 
@@ -315,7 +324,7 @@ await pagina.keyboard.press("Enter");
 await pagina.waitForTimeout(250);
 comprobar(
   "con Enter se abre el diente en el que va el foco",
-  await pagina.getByRole("heading", { name: "Diente 47" }).isVisible(),
+  await pagina.getByRole("heading", { name: "Diente 47", exact: true }).isVisible(),
 );
 // Se deshace: este diente no es del caso.
 await pagina.getByRole("button", { name: "Quitar el diente 47 del caso" }).click();

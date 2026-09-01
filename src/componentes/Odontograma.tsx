@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { Indicacion, Material, RolDeUnidad } from "@/generated/prisma/enums";
 import { Trash } from "@phosphor-icons/react";
 import {
@@ -21,7 +21,6 @@ import {
   estanUnidos,
   ordenarPorBoca,
   puenteDe,
-  quitar,
   conectar,
   unidadNueva,
   type UnidadDelCaso,
@@ -30,6 +29,7 @@ import { COLORES_VITA, INDICACIONES, MATERIALES, nombreDelDiente } from "@/lib/v
 import { CATEGORIAS, TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
 import { CampoDeSeleccion, CampoDeTexto } from "@/componentes/Campo";
 import { Boton } from "@/componentes/Boton";
+import { usePantallaAngosta } from "@/lib/pantalla";
 import { cn } from "@/lib/utilidades";
 
 /**
@@ -73,15 +73,29 @@ const TAMANO_DEL_NUMERO = 11;
 export function Odontograma({
   indicacion,
   unidades,
+  abierto,
+  alAbrir: alAbrirDeAfuera,
   alCambiar,
+  detalle,
   className,
 }: {
   indicacion: Indicacion;
   unidades: UnidadEnOdontograma[];
+  /**
+   * El diente abierto. Lo manda quien usa el odontograma porque su detalle
+   * —material, color, notas— se pinta afuera, del otro lado de la pantalla.
+   */
+  abierto: number | null;
+  alAbrir: (diente: number | null) => void;
   alCambiar: (unidades: UnidadEnOdontograma[]) => void;
+  /**
+   * El detalle del diente —material, color, notas—, cuando la pantalla no da
+   * para ponerlo en su propia columna. Va al principio del catálogo, que es el
+   * otro lugar donde no hay que desplazarse para verlo.
+   */
+  detalle?: ReactNode;
   className?: string;
 }) {
-  const [abierto, setAbierto] = useState<number | null>(null);
   const [enfocado, setEnfocado] = useState<number>(
     unidades[0]?.diente ?? ARCADAS[0][0],
   );
@@ -93,7 +107,7 @@ export function Odontograma({
   const dientesEnPantalla = useRef(new Map<number, SVGGElement>());
   const enlacesEnPantalla = useRef(new Map<string, SVGGElement>());
 
-  const angosta = useAngosta();
+  const angosta = usePantallaAngosta();
   const porOmision = INDICACIONES[indicacion].porOmision;
   const porDiente = new Map(unidades.map((u) => [u.diente, u]));
 
@@ -125,7 +139,7 @@ export function Odontograma({
         `Agregué el diente ${diente} como ${TRABAJOS[nueva.rol].nombre.toLowerCase()}.`,
       );
     }
-    setAbierto(diente);
+    alAbrirDeAfuera(diente);
     setEnfocado(diente);
   }
 
@@ -331,15 +345,14 @@ export function Odontograma({
         <Leyenda unidades={unidades} />
       </div>
 
-      {/* El panel nunca pasa del alto del dibujo: lo que no cabe se desplaza
-          dentro, en vez de alargar la página (§7). */}
-      <PanelDelDiente
+      {/* El catálogo nunca pasa del alto del dibujo: lo que no cabe se
+          desplaza dentro, en vez de alargar la página (§7). */}
+      <CatalogoDelDiente
         diente={abierto}
         unidades={unidades}
-
         alCambiar={alCambiar}
-        alCerrar={() => setAbierto(null)}
-        alAvisar={setAviso}
+        alCerrar={() => alAbrirDeAfuera(null)}
+        detalle={detalle}
       />
 
       {/* Lo que acaba de pasar, para quien no ve el dibujo. */}
@@ -400,7 +413,7 @@ function Enlace({
         x2={enlace.x2}
         y2={enlace.y2}
         stroke="transparent"
-        strokeWidth={34}
+        strokeWidth={40}
         strokeLinecap="round"
       />
     </g>
@@ -548,21 +561,25 @@ function CambioDeArcada({
 }
 
 /**
- * El panel del diente abierto: qué se le va a hacer, de qué material y en qué
- * color, y con qué vecino va unido.
+ * El catálogo del diente abierto: qué se le va a hacer.
+ *
+ * Va pegado al odontograma porque es lo que se escoge mirando el dibujo. Lo
+ * que se pregunta después —material, color, notas— vive en `DetalleDelDiente`,
+ * del otro lado: son campos obligatorios y quedaban al final de este panel,
+ * donde había que desplazarse para verlos y se pasaban por alto.
  */
-function PanelDelDiente({
+function CatalogoDelDiente({
   diente,
   unidades,
   alCambiar,
   alCerrar,
-  alAvisar,
+  detalle,
 }: {
   diente: number | null;
   unidades: UnidadDelCaso[];
   alCambiar: (unidades: UnidadDelCaso[]) => void;
   alCerrar: () => void;
-  alAvisar: (aviso: string) => void;
+  detalle?: ReactNode;
 }) {
   const unidad = unidades.find((u) => u.diente === diente) ?? null;
 
@@ -571,7 +588,7 @@ function PanelDelDiente({
       <aside className="rounded-tarjeta bg-superficie p-4 text-menor text-secundario lg:max-h-[min(62vh,38rem)]">
         <p>
           Toque un diente del odontograma. Aquí le pregunto qué se le va a
-          hacer, de qué material y en qué color.
+          hacer, y al lado, de qué material y en qué color.
         </p>
         <p className="mt-2">
           Para armar un puente, toque la línea que une dos dientes. Vuelva a
@@ -583,7 +600,6 @@ function PanelDelDiente({
 
   const grupo = puenteDe(unidades, diente);
   const enPuente = Boolean(grupo && grupo.length > 1);
-  const tipo = TRABAJOS[unidad.rol];
 
   // Dentro de un puente, el lugar manda qué puede ir ahí: en las puntas, algo
   // que se apoye en el diente preparado; en medio, un póntico. Lo que sí
@@ -596,14 +612,9 @@ function PanelDelDiente({
   const cabeAqui = (rol: RolDeUnidad) =>
     !enPuente || (enLaPunta ? puedeSerPilar(rol) : esPontico(rol));
 
-  const cambiar = (cambio: Partial<UnidadDelCaso>) =>
-    alCambiar(
-      unidades.map((u) => (u.diente === diente ? { ...u, ...cambio } : u)),
-    );
-
   return (
     <aside
-      aria-label={`Diente ${diente}`}
+      aria-label={`Qué se le va a hacer al diente ${diente}`}
       className={cn(
         "flex flex-col gap-4 rounded-tarjeta bg-superficie p-4",
         "lg:max-h-[min(62vh,38rem)] lg:overflow-y-auto",
@@ -618,6 +629,8 @@ function PanelDelDiente({
         </h3>
         <p className="text-minimo text-secundario">{nombreDelDiente(diente)}</p>
       </div>
+
+      {detalle}
 
       {enPuente && grupo ? (
         <div className="flex flex-col gap-1 rounded-control bg-superficie-suave p-3">
@@ -644,32 +657,88 @@ function PanelDelDiente({
         {/* En un panel ancho las categorías van en dos columnas: ocho
             apiladas hacían del panel una segunda pantalla. */}
         <div className="flex flex-col gap-3 2xl:block 2xl:columns-2 2xl:gap-x-5">
-        {CATEGORIAS.map((categoria) => {
-          const tipos = categoria.tipos.filter(cabeAqui);
-          if (tipos.length === 0) return null;
+          {CATEGORIAS.map((categoria) => {
+            const tipos = categoria.tipos.filter(cabeAqui);
+            if (tipos.length === 0) return null;
 
-          return (
-            <div
-              key={categoria.nombre}
-              className="flex flex-col gap-1.5 2xl:mb-3 2xl:break-inside-avoid"
-            >
-              <p className="text-minimo text-secundario">{categoria.nombre}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {tipos.map((rol) => (
-                  <PastillaDeTrabajo
-                    key={rol}
-                    rol={rol}
-                    puesta={unidad.rol === rol}
-                    alEscoger={() => cambiar(conMaterialValido(rol, unidad))}
-                  />
-                ))}
+            return (
+              <div
+                key={categoria.nombre}
+                className="flex flex-col gap-1.5 2xl:mb-3 2xl:break-inside-avoid"
+              >
+                <p className="text-minimo text-secundario">
+                  {categoria.nombre}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tipos.map((rol) => (
+                    <PastillaDeTrabajo
+                      key={rol}
+                      rol={rol}
+                      puesta={unidad.rol === rol}
+                      alEscoger={() =>
+                        alCambiar(
+                          unidades.map((u) =>
+                            u.diente === diente
+                              ? { ...u, ...conMaterialValido(rol, u) }
+                              : u,
+                          ),
+                        )
+                      }
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
         </div>
 
-        <p className="text-minimo text-secundario">{tipo.queEs}</p>
+        <p className="text-minimo text-secundario">
+          {TRABAJOS[unidad.rol].queEs}
+        </p>
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * Lo que falta preguntar del diente abierto: material, color y notas.
+ *
+ * Vive fuera del odontograma, arriba del resumen del caso, porque el material
+ * y el color son obligatorios: al final del panel del catálogo quedaban abajo
+ * del pliegue y se pasaban por alto. Aquí son lo primero que se ve al escoger
+ * un diente.
+ */
+export function DetalleDelDiente({
+  diente,
+  unidades,
+  alCambiar,
+  alQuitar,
+}: {
+  diente: number | null;
+  unidades: UnidadDelCaso[];
+  alCambiar: (unidades: UnidadDelCaso[]) => void;
+  /** Al quitar el diente hay que soltar la selección: ya no existe. */
+  alQuitar: (diente: number) => void;
+}) {
+  const unidad = unidades.find((u) => u.diente === diente) ?? null;
+  if (diente === null || !unidad) return null;
+
+  const tipo = TRABAJOS[unidad.rol];
+  const cambiar = (cambio: Partial<UnidadDelCaso>) =>
+    alCambiar(
+      unidades.map((u) => (u.diente === diente ? { ...u, ...cambio } : u)),
+    );
+
+  return (
+    <section
+      aria-label={`Detalle del diente ${diente}`}
+      className="flex flex-col gap-4 rounded-tarjeta border border-borde bg-superficie p-4"
+    >
+      <div>
+        <h3 className="text-menor font-medium text-primario">
+          Diente {diente} · {tipo.nombre}
+        </h3>
+        <p className="text-minimo text-secundario">{nombreDelDiente(diente)}</p>
       </div>
 
       {tipo.materiales.length > 0 ? (
@@ -685,7 +754,11 @@ function PanelDelDiente({
             </option>
           ))}
         </CampoDeSeleccion>
-      ) : null}
+      ) : (
+        <p className="text-minimo text-secundario">
+          {tipo.nombre} no se fabrica, así que no lleva material ni color.
+        </p>
+      )}
 
       {tipo.llevaColorVita ? (
         <CampoDeSeleccion
@@ -709,19 +782,11 @@ function PanelDelDiente({
         ayuda="Opcional. Lo que el técnico tenga que saber de esta pieza."
       />
 
-      <Boton
-        type="button"
-        tono="borde"
-        onClick={() => {
-          alCambiar(quitar(unidades, diente));
-          alAvisar(`Quité el diente ${diente} del caso.`);
-          alCerrar();
-        }}
-      >
+      <Boton type="button" tono="borde" onClick={() => alQuitar(diente)}>
         <Trash aria-hidden="true" size={16} />
         Quitar el diente {diente} del caso
       </Boton>
-    </aside>
+    </section>
   );
 }
 
@@ -775,21 +840,5 @@ function PastillaDeTrabajo({
       )}
       {tipo.nombre}
     </button>
-  );
-}
-
-/**
- * Si la pantalla es angosta. En el servidor se pinta la boca completa y al
- * montar se ajusta: así el HTML no depende de un tamaño que ahí no se conoce.
- */
-function useAngosta() {
-  return useSyncExternalStore(
-    (avisar) => {
-      const consulta = window.matchMedia("(max-width: 1023px)");
-      consulta.addEventListener("change", avisar);
-      return () => consulta.removeEventListener("change", avisar);
-    },
-    () => window.matchMedia("(max-width: 1023px)").matches,
-    () => false,
   );
 }

@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Indicacion } from "@/generated/prisma/enums";
-import { Odontograma } from "@/componentes/Odontograma";
+import { DetalleDelDiente, Odontograma } from "@/componentes/Odontograma";
 import { MATERIALES, ROLES_DE_UNIDAD, nombreDelDiente } from "@/lib/vocabulario";
 import {
   nombreDelPuente,
   ordenarPorBoca,
   puentesDe,
+  quitar,
   type UnidadDelCaso,
 } from "@/lib/puentes";
+import { useTresColumnas } from "@/lib/pantalla";
 import { guardarUnidades } from "../../acciones";
 
 export type UnidadCapturada = UnidadDelCaso;
@@ -44,6 +46,8 @@ export function CapturaDeUnidades({
     "limpio",
   );
   const [error, setError] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<number | null>(null);
+  const tresColumnas = useTresColumnas();
   const [, empezar] = useTransition();
   const primeraVez = useRef(true);
 
@@ -71,6 +75,21 @@ export function CapturaDeUnidades({
     return () => clearTimeout(temporizador);
   }, [casoId, unidades]);
 
+  // El material y el color son obligatorios: al final del panel del catálogo
+  // quedaban abajo del pliegue y se pasaban por alto. Van arriba, donde se
+  // vean sin desplazarse, del lado que quepa.
+  const detalle = (
+    <DetalleDelDiente
+      diente={abierto}
+      unidades={unidades}
+      alCambiar={setUnidades}
+      alQuitar={(diente) => {
+        setUnidades(quitar(unidades, diente));
+        setAbierto(null);
+      }}
+    />
+  );
+
   return (
     <section aria-labelledby="unidades" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
@@ -86,17 +105,29 @@ export function CapturaDeUnidades({
         </p>
       </div>
 
-      {/* En pantalla ancha, el resumen va al lado del odontograma y no debajo:
-          es lo que el doctor revisa mientras captura, y bajarlo a buscar lo
-          obligaba a perder de vista el dibujo. */}
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+      {/* En pantalla ancha, el detalle del diente y el resumen van al lado del
+          odontograma y no debajo: es lo que el doctor revisa mientras captura,
+          y bajarlo a buscar lo obligaba a perder de vista el dibujo. */}
+      <div
+        className={
+          "grid gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_20rem] " +
+          "2xl:grid-cols-[minmax(0,1fr)_24rem]"
+        }
+      >
         <Odontograma
           indicacion={indicacion}
           unidades={unidades}
+          abierto={abierto}
+          alAbrir={setAbierto}
           alCambiar={setUnidades}
+          /* Cuando no caben tres columnas, el detalle se va al principio del
+             catálogo. Es un solo componente: nunca hay dos formularios del
+             mismo diente en la pantalla. */
+          detalle={tresColumnas ? undefined : detalle}
         />
 
-        <div className="flex min-w-0 flex-col gap-3 2xl:max-h-[min(62vh,38rem)] 2xl:overflow-y-auto">
+        <div className="flex min-w-0 flex-col gap-3 min-[1440px]:max-h-[min(62vh,38rem)] min-[1440px]:overflow-y-auto">
+          {tresColumnas ? detalle : null}
           <ResumenDelCaso unidades={unidades} />
         </div>
       </div>
