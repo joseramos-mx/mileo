@@ -66,6 +66,7 @@ const COLORES = [
   "diente-anillo",
   "diente-numero",
   "diente-ocupado",
+  "mandibula-relleno",
   "diente-puente",
   "mosaico-recibido",
   "mosaico-revision",

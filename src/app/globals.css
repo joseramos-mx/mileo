@@ -77,8 +77,13 @@
   --diente-trabajo-contorno: #005fdb;
   --diente-pontico: #e0ecff;
   --diente-anillo: #77acff;
-  /* El gris de "aquí ya hay trabajo" en la vista de arcadas. */
-  --diente-ocupado: #c0c4ca;
+  /* El dibujo de maxilar y mandíbula, tal como lo entregó diseño: la encía
+     y los dientes en el mismo gris, separados sólo por el contorno.
+     El de "aquí ya hay trabajo" está medido contra ese relleno: a 3.1:1
+     se distingue de verdad, y con #c0c4ca —que fue el primero que puse—
+     quedaba en 1.4:1, que no se ve. */
+  --mandibula-relleno: #e5e5e5;
+  --diente-ocupado: #7f8286;
   --diente-numero: #1d2126;
   --diente-puente: #005fdb;
 
@@ -244,6 +249,7 @@
   --color-diente-trabajo-contorno: var(--diente-trabajo-contorno);
   --color-diente-pontico: var(--diente-pontico);
   --color-diente-anillo: var(--diente-anillo);
+  --color-mandibula-relleno: var(--mandibula-relleno);
   --color-diente-ocupado: var(--diente-ocupado);
   --color-diente-numero: var(--diente-numero);
   --color-diente-puente: var(--diente-puente);

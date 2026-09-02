@@ -13,7 +13,7 @@ import { CamposDeLaUnidad } from "@/componentes/Odontograma";
 import { Boton } from "@/componentes/Boton";
 import { TRABAJOS, TODOS_LOS_ROLES } from "@/lib/trabajos";
 import { ARCADAS_EN_PALABRAS } from "@/lib/vocabulario";
-import { conDiente, esSuperior, type UnidadDelCaso } from "@/lib/tramos";
+import { conDiente, type UnidadDelCaso } from "@/lib/tramos";
 import { cn } from "@/lib/utilidades";
 
 /**
@@ -77,12 +77,14 @@ export function VistaDeArcadas({
           }
           className="h-auto w-full"
         >
-          {/* La encía primero, que los dientes van encima. */}
+          {/* La encía primero, que los dientes van encima. Va con el gris
+              del dibujo entregado, no en blanco: en el diseño la encía y los
+              dientes son del mismo gris y sólo los separa el contorno. */}
           {[...ENCIA_SUPERIOR, ...ENCIA_INFERIOR].map((d, i) => (
             <path
               key={`encia-${i}`}
               d={d}
-              fill="var(--diente-cuerpo)"
+              fill="var(--mandibula-relleno)"
               stroke="var(--diente-contorno)"
               strokeWidth={2}
             />
@@ -90,10 +92,6 @@ export function VistaDeArcadas({
 
           {DIENTES_DIBUJADOS.map((diente) => {
             const ocupado = conTrabajo.has(diente.numero);
-            const suArcada: Arcada = esSuperior(diente.numero)
-              ? "SUPERIOR"
-              : "INFERIOR";
-            const conArcada = trabajosDe(suArcada).length > 0;
 
             return (
               <path
@@ -101,15 +99,14 @@ export function VistaDeArcadas({
                 data-diente={diente.numero}
                 data-ocupado={ocupado ? "si" : undefined}
                 d={diente.d}
-                // El gris dice "aquí ya hay trabajo"; el tinte de la arcada,
-                // "esta arcada lleva algo completo". Ninguno va solo: los dos
-                // están escritos en el aria-label y en la leyenda de al lado.
+                // El diente sin nada va del gris del dibujo, como lo entregó
+                // diseño. El gris oscuro dice "aquí ya hay trabajo", y no va
+                // solo: está escrito en el aria-label y en la leyenda de al
+                // lado.
                 fill={
                   ocupado
                     ? "var(--diente-ocupado)"
-                    : conArcada
-                      ? "var(--diente-pontico)"
-                      : "var(--diente-cuerpo)"
+                    : "var(--mandibula-relleno)"
                 }
                 stroke="var(--diente-contorno)"
                 strokeWidth={2}
@@ -214,7 +211,7 @@ export function VistaDeArcadas({
 /** Qué quiere decir cada relleno, escrito. El color nunca va solo (§7). */
 function Leyenda({ hayOcupados }: { hayOcupados: boolean }) {
   const renglones = [
-    { relleno: "var(--diente-cuerpo)", texto: "Sin nada" },
+    { relleno: "var(--mandibula-relleno)", texto: "Sin trabajo" },
     ...(hayOcupados
       ? [
           {
@@ -223,10 +220,6 @@ function Leyenda({ hayOcupados }: { hayOcupados: boolean }) {
           },
         ]
       : []),
-    {
-      relleno: "var(--diente-pontico)",
-      texto: "Su arcada lleva un trabajo completo",
-    },
   ];
 
   return (
