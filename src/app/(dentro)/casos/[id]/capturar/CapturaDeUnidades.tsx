@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Indicacion } from "@/generated/prisma/enums";
 import { DetalleDelDiente, Odontograma } from "@/componentes/Odontograma";
-import { MATERIALES, ROLES_DE_UNIDAD, nombreDelDiente } from "@/lib/vocabulario";
+import { TablaDelCaso } from "@/componentes/TablaDelCaso";
 import {
-  nombreDelPuente,
+  conMetodoValido,
   ordenarPorBoca,
-  puentesDe,
   quitar,
   type UnidadDelCaso,
 } from "@/lib/puentes";
@@ -21,11 +20,11 @@ export type UnidadCapturada = UnidadDelCaso;
  *
  * El diente se escoge en el odontograma, sobre el dibujo que entregó diseño, y
  * nunca escribiéndolo. Al tocarlo se abre su panel al lado con qué se le va a
- * hacer, de qué material y en qué color; ahí mismo se une con el vecino para
- * armar un puente.
+ * hacer, de qué material, con qué método y en qué color; el puente se arma en
+ * el riel del mismo dibujo.
  *
- * Abajo queda el resumen de lo capturado, agrupado por puente, para revisarlo
- * de un vistazo sin ir tocando diente por diente.
+ * Abajo, a todo lo ancho, la tabla de lo capturado: se va llenando conforme se
+ * tocan dientes y se lee de corrido, renglón por renglón.
  *
  * Todo se guarda solo, con una pausa de un segundo. Nunca se pierde trabajo
  * (§6.6).
@@ -39,8 +38,20 @@ export function CapturaDeUnidades({
   indicacion: Indicacion;
   unidadesIniciales: UnidadCapturada[];
 }) {
-  const [unidades, setUnidades] = useState<UnidadCapturada[]>(
-    ordenarPorBoca(unidadesIniciales),
+  // Los casos capturados antes de que existiera el método vienen sin él. Se
+  // les pone el que corresponde a su material —el mismo que ofrecería la
+  // pantalla— y se guardan solos, para que nadie tenga que abrir diente por
+  // diente sólo a confirmar lo obvio.
+  const [unidades, setUnidades] = useState<UnidadCapturada[]>(() =>
+    ordenarPorBoca(
+      unidadesIniciales.map((u) => ({
+        ...u,
+        ...conMetodoValido(u.material, u.metodo),
+      })),
+    ),
+  );
+  const faltabaMetodo = unidadesIniciales.some(
+    (u) => u.material !== null && u.metodo === null,
   );
   const [guardado, setGuardado] = useState<"limpio" | "guardando" | "guardado">(
     "limpio",
@@ -49,7 +60,8 @@ export function CapturaDeUnidades({
   const [abierto, setAbierto] = useState<number | null>(null);
   const tresColumnas = useTresColumnas();
   const [, empezar] = useTransition();
-  const primeraVez = useRef(true);
+  // Si hubo que rellenar el método, la primera pasada sí guarda.
+  const primeraVez = useRef(!faltabaMetodo);
 
   // Guardado automático del borrador.
   useEffect(() => {
@@ -83,10 +95,6 @@ export function CapturaDeUnidades({
       diente={abierto}
       unidades={unidades}
       alCambiar={setUnidades}
-      alQuitar={(diente) => {
-        setUnidades(quitar(unidades, diente));
-        setAbierto(null);
-      }}
     />
   );
 
@@ -105,9 +113,8 @@ export function CapturaDeUnidades({
         </p>
       </div>
 
-      {/* En pantalla ancha, el detalle del diente y el resumen van al lado del
-          odontograma y no debajo: es lo que el doctor revisa mientras captura,
-          y bajarlo a buscar lo obligaba a perder de vista el dibujo. */}
+      {/* En pantalla ancha, el detalle del diente va al lado del odontograma:
+          es lo que se llena mirando el dibujo. */}
       <div
         className={
           "grid gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_20rem] " +
@@ -126,11 +133,29 @@ export function CapturaDeUnidades({
           detalle={tresColumnas ? undefined : detalle}
         />
 
-        <div className="flex min-w-0 flex-col gap-3 min-[1440px]:max-h-[min(62vh,38rem)] min-[1440px]:overflow-y-auto">
-          {tresColumnas ? detalle : null}
-          <ResumenDelCaso unidades={unidades} />
+        {/* Esta columna no se desplaza por dentro: recortaba los recuadros.
+            Crece con la página, y el detalle se queda pegado arriba para no
+            perderlo de vista. */}
+        <div className="flex min-w-0 flex-col gap-3">
+          {tresColumnas ? (
+            <div className="min-[1440px]:sticky min-[1440px]:top-0 min-[1440px]:z-10">
+              {detalle}
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {/* Lo que lleva el caso, debajo y a todo lo ancho: se va llenando
+          conforme se tocan dientes, y ningún renglón queda cortado. */}
+      <TablaDelCaso
+        unidades={unidades}
+        abierto={abierto}
+        alAbrir={setAbierto}
+        alQuitar={(diente) => {
+          setUnidades(quitar(unidades, diente));
+          if (abierto === diente) setAbierto(null);
+        }}
+      />
 
       {error ? (
         <p
@@ -142,91 +167,5 @@ export function CapturaDeUnidades({
       ) : null}
 
     </section>
-  );
-}
-
-/** Lo que lleva el caso, agrupado por puente. */
-function ResumenDelCaso({ unidades }: { unidades: UnidadCapturada[] }) {
-  const puentes = puentesDe(unidades);
-  const sueltas = unidades.filter((u) => !u.puenteId);
-
-  if (unidades.length === 0) {
-    return (
-      <p className="text-cuerpo text-secundario">
-        Toque en el odontograma los dientes de este caso.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <h3 className="text-menor font-medium text-primario">
-        Lo que lleva el caso
-      </h3>
-
-      {[...puentes.values()]
-        .filter((grupo) => grupo.length > 1)
-        .map((grupo) => (
-          <div
-            key={grupo[0].puenteId}
-            className="rounded-tarjeta border border-borde bg-superficie p-3"
-          >
-            <p className="text-menor font-medium text-primario">
-              Puente {nombreDelPuente(grupo)}
-              <span className="font-normal text-secundario">
-                {" · "}
-                {grupo.length} unidades unidas
-              </span>
-            </p>
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {grupo.map((unidad) => (
-                <li key={unidad.diente}>
-                  <RenglonDeUnidad unidad={unidad} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-
-      {sueltas.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {sueltas.map((unidad) => (
-            <li
-              key={unidad.diente}
-              className="rounded-tarjeta border border-borde bg-superficie p-3"
-            >
-              <RenglonDeUnidad unidad={unidad} />
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </>
-  );
-}
-
-/** Un diente capturado, dicho completo. */
-function RenglonDeUnidad({ unidad }: { unidad: UnidadCapturada }) {
-  return (
-    <>
-      <p className="text-menor text-primario">
-        <span className="font-medium">Diente {unidad.diente}</span>
-        <span className="text-secundario">
-          {" · "}
-          {nombreDelDiente(unidad.diente)}
-        </span>
-      </p>
-      <p className="text-minimo text-secundario">
-        {[
-          ROLES_DE_UNIDAD[unidad.rol],
-          unidad.material ? MATERIALES[unidad.material] : null,
-          unidad.color ? `color ${unidad.color}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </p>
-      {unidad.notas ? (
-        <p className="text-minimo text-secundario">Nota: {unidad.notas}</p>
-      ) : null}
-    </>
   );
 }

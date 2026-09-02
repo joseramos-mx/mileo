@@ -1,8 +1,12 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import type { Indicacion, Material, RolDeUnidad } from "@/generated/prisma/enums";
-import { Trash } from "@phosphor-icons/react";
+import type {
+  Indicacion,
+  Material,
+  MetodoDeFabricacion,
+  RolDeUnidad,
+} from "@/generated/prisma/enums";
 import {
   ENLACES,
   TRAZOS,
@@ -15,6 +19,7 @@ import {
   ARCADAS,
   arcadaDe,
   conMaterialValido,
+  conMetodoValido,
   esSuperior,
   nombreDelPuente,
   desunir,
@@ -25,10 +30,16 @@ import {
   unidadNueva,
   type UnidadDelCaso,
 } from "@/lib/puentes";
-import { COLORES_VITA, INDICACIONES, MATERIALES, nombreDelDiente } from "@/lib/vocabulario";
+import {
+  COLORES_VITA,
+  INDICACIONES,
+  MATERIALES,
+  METODOS,
+  METODOS_POR_MATERIAL,
+  nombreDelDiente,
+} from "@/lib/vocabulario";
 import { CATEGORIAS, TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
 import { CampoDeSeleccion, CampoDeTexto } from "@/componentes/Campo";
-import { Boton } from "@/componentes/Boton";
 import { usePantallaAngosta } from "@/lib/pantalla";
 import { cn } from "@/lib/utilidades";
 
@@ -703,22 +714,21 @@ function CatalogoDelDiente({
 /**
  * Lo que falta preguntar del diente abierto: material, color y notas.
  *
- * Vive fuera del odontograma, arriba del resumen del caso, porque el material
- * y el color son obligatorios: al final del panel del catálogo quedaban abajo
- * del pliegue y se pasaban por alto. Aquí son lo primero que se ve al escoger
- * un diente.
+ * Vive fuera del odontograma porque el material, el método y el color son
+ * obligatorios: al final del panel del catálogo quedaban abajo del pliegue y se
+ * pasaban por alto. Aquí son lo primero que se ve al escoger un diente.
+ *
+ * Quitar el diente no está aquí: eso se hace en la tabla de abajo, que es donde
+ * se ven todos. Dos botones para lo mismo es lo que §11 llama antipatrón.
  */
 export function DetalleDelDiente({
   diente,
   unidades,
   alCambiar,
-  alQuitar,
 }: {
   diente: number | null;
   unidades: UnidadDelCaso[];
   alCambiar: (unidades: UnidadDelCaso[]) => void;
-  /** Al quitar el diente hay que soltar la selección: ya no existe. */
-  alQuitar: (diente: number) => void;
 }) {
   const unidad = unidades.find((u) => u.diente === diente) ?? null;
   if (diente === null || !unidad) return null;
@@ -746,7 +756,12 @@ export function DetalleDelDiente({
           etiqueta="Material"
           requerido
           value={unidad.material ?? tipo.materiales[0]}
-          onChange={(e) => cambiar({ material: e.target.value as Material })}
+          onChange={(e) => {
+            const material = e.target.value as Material;
+            // El método sigue al material: si el que estaba ya no se puede, se
+            // corrige solo en vez de dejar una combinación imposible.
+            cambiar({ material, ...conMetodoValido(material, unidad.metodo) });
+          }}
         >
           {tipo.materiales.map((material) => (
             <option key={material} value={material}>
@@ -759,6 +774,24 @@ export function DetalleDelDiente({
           {tipo.nombre} no se fabrica, así que no lleva material ni color.
         </p>
       )}
+
+      {unidad.material ? (
+        <CampoDeSeleccion
+          etiqueta="Método"
+          requerido
+          value={unidad.metodo ?? METODOS_POR_MATERIAL[unidad.material][0]}
+          onChange={(e) =>
+            cambiar({ metodo: e.target.value as MetodoDeFabricacion })
+          }
+          ayuda="Con qué se fabrica. Sale del material."
+        >
+          {METODOS_POR_MATERIAL[unidad.material].map((metodo) => (
+            <option key={metodo} value={metodo}>
+              {METODOS[metodo]}
+            </option>
+          ))}
+        </CampoDeSeleccion>
+      ) : null}
 
       {tipo.llevaColorVita ? (
         <CampoDeSeleccion
@@ -781,11 +814,6 @@ export function DetalleDelDiente({
         onChange={(e) => cambiar({ notas: e.target.value || null })}
         ayuda="Opcional. Lo que el técnico tenga que saber de esta pieza."
       />
-
-      <Boton type="button" tono="borde" onClick={() => alQuitar(diente)}>
-        <Trash aria-hidden="true" size={16} />
-        Quitar el diente {diente} del caso
-      </Boton>
     </section>
   );
 }

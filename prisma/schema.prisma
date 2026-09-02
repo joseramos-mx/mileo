@@ -160,6 +160,15 @@ enum Indicacion {
 /// que va en medio, PONTICO. Con eso un puente 14-17 se representa sin
 /// ambiguedad: cuatro unidades con el mismo puenteId, 14 y 17 pilares, 15 y 16
 /// ponticos.
+/// Como se fabrica la pieza. Depende del material, no del tipo de trabajo.
+enum MetodoDeFabricacion {
+  FRESADO
+  IMPRESO_3D
+  PRENSADO
+  COLADO
+  TERMOFORMADO
+}
+
 enum RolDeUnidad {
   /// Coronas y cofias
   CORONA_ANATOMICA
@@ -293,6 +302,8 @@ model Unidad {
   rol      RolDeUnidad
   /// Vacio en las anotaciones: un antagonista no se fabrica.
   material Material?
+  /// Con que se hace: fresado, impreso en 3D, prensado. Vacio si no se fabrica.
+  metodo   MetodoDeFabricacion?
   color    String? // guia Vita: A1, A2, B1...
   /// Lo que el doctor quiera decirle al tecnico de esta unidad en concreto.
   notas    String?

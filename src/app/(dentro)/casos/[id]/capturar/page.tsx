@@ -1,24 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { prisma } from "@/lib/prisma";
 import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
-import { revisarAdmision, sePuedeEnviar } from "@/lib/admision";
 import { INDICACIONES } from "@/lib/vocabulario";
+import { PasosDelCaso, pasosDelAlta } from "@/componentes/PasosDelCaso";
+import { BotonEnlace } from "@/componentes/Boton";
 import { CapturaDeUnidades } from "./CapturaDeUnidades";
-import { ArchivosDelCaso } from "./ArchivosDelCaso";
-import { ListaDeAdmision } from "./ListaDeAdmision";
 
 export const metadata: Metadata = { title: "Capturar caso · Mileo" };
 
 /**
- * Alta de caso, segundo paso (SKILL.md O-2).
+ * Alta de caso, paso 2: el trabajo (SKILL.md O-2).
  *
- * Sigue la cascada: diente → tipo → material → color, y después los archivos.
- * La lista de admisión de abajo bloquea el envío hasta que el caso venga
- * completo, y dice exactamente qué hacer para completarlo.
+ * Sólo el odontograma y lo que lleva cada diente. Los archivos y la lista de
+ * admisión se fueron al paso 3: mezclarlos aquí obligaba a bajar media pantalla
+ * con el dibujo todavía a medio llenar, y el escaneo se subía antes de saber
+ * qué se iba a fabricar.
  */
-export default async function PaginaDeCaptura({ params }: PageProps<"/casos/[id]/capturar">) {
+export default async function PaginaDeCaptura({
+  params,
+}: PageProps<"/casos/[id]/capturar">) {
   const usuario = await exigirUsuario();
   const { id } = await params;
 
@@ -27,35 +30,42 @@ export default async function PaginaDeCaptura({ params }: PageProps<"/casos/[id]
     include: {
       paciente: true,
       unidades: { orderBy: { diente: "asc" } },
-      archivos: { orderBy: { creadoEn: "asc" } },
     },
   });
 
   if (!caso) notFound();
   if (!caso.esBorrador) redirect(`/casos/${caso.id}`);
 
-  const admision = revisarAdmision(caso);
-  const listo = sePuedeEnviar(caso);
-
   // Ancho de verdad: el odontograma es una herradura alta, y encerrarlo en una
-  // columna angosta obligaba a bajar tres pantallas para llegar a los archivos.
-  // Aquí cabe todo a lo ancho y el doctor lo ve de un vistazo.
+  // columna angosta obligaba a bajar tres pantallas para verlo entero.
   return (
-    <div className="mx-auto flex w-full max-w-[110rem] flex-col gap-6 pb-8">
-      <header>
+    <div className="mx-auto flex w-full max-w-[110rem] flex-col gap-5 pb-8">
+      <header className="flex flex-col gap-3">
         <Link
           href="/"
           className="text-menor text-enlace underline underline-offset-4"
         >
           Regresar al inicio
         </Link>
-        <h1 className="mt-2 text-titulo font-semibold text-primario">
-          Paciente {caso.paciente.folio} · {caso.paciente.iniciales}
-        </h1>
-        <p className="mt-1 text-cuerpo text-secundario">
-          Paso 2 de 2 · {INDICACIONES[caso.indicacion].nombre}. Guardo solo lo
-          que capture.
-        </p>
+
+        <PasosDelCaso pasos={pasosDelAlta(caso.id)} actual={2} />
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-titulo font-semibold text-primario">
+              Paciente {caso.paciente.folio} · {caso.paciente.iniciales}
+            </h1>
+            <p className="mt-1 text-cuerpo text-secundario">
+              {INDICACIONES[caso.indicacion].nombre}. Guardo solo lo que
+              capture.
+            </p>
+          </div>
+
+          <BotonEnlace href={`/casos/${caso.id}/archivos`} tono="principal">
+            Continuar a los archivos
+            <ArrowRight aria-hidden="true" size={16} />
+          </BotonEnlace>
+        </div>
       </header>
 
       <CapturaDeUnidades
@@ -65,28 +75,12 @@ export default async function PaginaDeCaptura({ params }: PageProps<"/casos/[id]
           diente: u.diente,
           rol: u.rol,
           material: u.material,
+          metodo: u.metodo,
           color: u.color,
           notas: u.notas,
           puenteId: u.puenteId,
         }))}
       />
-
-      {/* Los archivos y la lista de admisión, uno al lado del otro: son dos
-          columnas cortas, no dos pantallas. */}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_28rem]">
-        <ArchivosDelCaso
-          casoId={caso.id}
-          archivos={caso.archivos.map((a) => ({
-            id: a.id,
-            nombre: a.nombre,
-            tipo: a.tipo,
-            estado: a.estado,
-            bytesTotales: Number(a.bytesTotales),
-          }))}
-        />
-
-        <ListaDeAdmision casoId={caso.id} puntos={admision} listo={listo} />
-      </div>
     </div>
   );
 }

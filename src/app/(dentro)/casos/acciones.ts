@@ -15,6 +15,8 @@ import {
   DIENTES_SUPERIORES,
   INDICACIONES,
   MATERIALES,
+  METODOS,
+  METODOS_POR_MATERIAL,
   ROLES_DE_UNIDAD,
 } from "@/lib/vocabulario";
 
@@ -141,6 +143,7 @@ const esquemaUnidad = z.object({
   material: z
     .enum(Object.keys(MATERIALES) as [keyof typeof MATERIALES])
     .nullable(),
+  metodo: z.enum(Object.keys(METODOS) as [keyof typeof METODOS]).nullable(),
   color: z.string().trim().max(8).nullable(),
   notas: z.string().trim().max(500).nullable(),
   /**
@@ -250,6 +253,19 @@ export async function guardarUnidades(
     if (!tipo.materiales.includes(unidad.material)) {
       return {
         error: `${MATERIALES[unidad.material]} no aplica para ${ROLES_DE_UNIDAD[unidad.rol].toLowerCase()}.`,
+      };
+    }
+
+    // El método sale del material: ninguna máquina del taller cuela una resina.
+    const metodos = METODOS_POR_MATERIAL[unidad.material];
+    if (!unidad.metodo) {
+      return {
+        error: `Falta decir con qué se hace el diente ${unidad.diente}: ${metodos.map((m) => METODOS[m].toLowerCase()).join(" o ")}.`,
+      };
+    }
+    if (!metodos.includes(unidad.metodo)) {
+      return {
+        error: `${MATERIALES[unidad.material]} no se puede ${METODOS[unidad.metodo].toLowerCase()}.`,
       };
     }
   }

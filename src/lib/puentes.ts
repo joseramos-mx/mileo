@@ -1,5 +1,13 @@
-import type { Material, RolDeUnidad } from "@/generated/prisma/enums";
-import { DIENTES_SUPERIORES, DIENTES_INFERIORES } from "@/lib/vocabulario";
+import type {
+  Material,
+  MetodoDeFabricacion,
+  RolDeUnidad,
+} from "@/generated/prisma/enums";
+import {
+  DIENTES_SUPERIORES,
+  DIENTES_INFERIORES,
+  METODOS_POR_MATERIAL,
+} from "@/lib/vocabulario";
 import { TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
 
 /**
@@ -23,6 +31,8 @@ export type UnidadDelCaso = {
   rol: RolDeUnidad;
   /** Vacío en las anotaciones: un antagonista no se fabrica. */
   material: Material | null;
+  /** Con qué se hace. Sale del material: el zirconio se fresa, la resina se imprime. */
+  metodo: MetodoDeFabricacion | null;
   color: string | null;
   notas: string | null;
   /** Todas las unidades de un mismo puente comparten esta clave. */
@@ -128,20 +138,39 @@ export function ordenarRolesDePuentes(
  */
 export function conMaterialValido(
   rol: RolDeUnidad,
-  unidad: Pick<UnidadDelCaso, "material" | "color">,
+  unidad: Pick<UnidadDelCaso, "material" | "metodo" | "color">,
 ) {
   const tipo = TRABAJOS[rol];
   const permitidos = tipo.materiales;
 
+  const material =
+    permitidos.length === 0
+      ? null
+      : unidad.material && permitidos.includes(unidad.material)
+        ? unidad.material
+        : permitidos[0];
+
   return {
     rol,
-    material:
-      permitidos.length === 0
-        ? null
-        : unidad.material && permitidos.includes(unidad.material)
-          ? unidad.material
-          : permitidos[0],
+    material,
+    ...conMetodoValido(material, unidad.metodo),
     color: tipo.llevaColorVita ? (unidad.color ?? "A2") : null,
+  };
+}
+
+/**
+ * El método sigue al material. Si el que traía ya no se puede con el material
+ * nuevo, se pone el primero que sí: nunca queda un "colado" sobre una resina
+ * que sólo se imprime.
+ */
+export function conMetodoValido(
+  material: Material | null,
+  metodo: MetodoDeFabricacion | null,
+) {
+  if (!material) return { metodo: null };
+  const permitidos = METODOS_POR_MATERIAL[material];
+  return {
+    metodo: metodo && permitidos.includes(metodo) ? metodo : permitidos[0],
   };
 }
 
@@ -151,7 +180,7 @@ export function unidadNueva(diente: number, rol: RolDeUnidad): UnidadDelCaso {
     diente,
     notas: null,
     puenteId: null,
-    ...conMaterialValido(rol, { material: null, color: null }),
+    ...conMaterialValido(rol, { material: null, metodo: null, color: null }),
   };
 }
 

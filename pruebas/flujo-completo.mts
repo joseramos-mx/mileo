@@ -245,7 +245,9 @@ async function main() {
     await clinica.getByRole("button", { name: /^Diente 16/ }).click();
     await clinica.waitForTimeout(400);
     comprobar(
-      await clinica.getByRole("heading", { name: "Diente 16" }).isVisible(),
+      await clinica
+        .getByRole("heading", { name: "Diente 16", exact: true })
+        .isVisible(),
       "al tocar un diente se abre su panel con rol, material y color",
     );
 
@@ -259,8 +261,11 @@ async function main() {
     await clinica.waitForTimeout(1500); // deja que guarde el borrador
 
     comprobar(
-      (await clinica.getByText(/^Diente 1[56] ·/).count()) === 2,
-      "los dos dientes quedan en el resumen del caso",
+      (await clinica
+        .getByRole("rowheader")
+        .filter({ hasText: /^1[56]/ })
+        .count()) === 2,
+      "los dos dientes quedan en la tabla del caso",
     );
 
     await capturar(clinica, "04-alta-paso-2");
@@ -268,6 +273,16 @@ async function main() {
 
     // ------------------------------------------------ 3. archivos y admisión
     paso("3. Archivos y lista de admisión");
+
+    comprobar(
+      (await clinica.getByRole("navigation", { name: /Pasos para crear/ }).count()) === 1,
+      "cada paso enseña arriba por dónde va el alta",
+    );
+
+    await clinica.getByRole("link", { name: /Continuar a los archivos/ }).click();
+    await clinica.waitForURL(/\/casos\/.+\/archivos/);
+    await clinica.waitForLoadState("networkidle");
+    await auditar(clinica, "archivos del caso");
 
     const mandar = clinica.getByRole("button", {
       name: "Mandar el caso al laboratorio",

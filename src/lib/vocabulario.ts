@@ -1,6 +1,7 @@
 import { TRABAJOS } from "@/lib/trabajos";
 import type {
   Etapa,
+  MetodoDeFabricacion,
   Indicacion,
   Material,
   Prioridad,
@@ -188,6 +189,34 @@ export const MATERIALES_POR_ROL = Object.fromEntries(
 export const ROLES_SIN_COLOR = (Object.keys(TRABAJOS) as RolDeUnidad[]).filter(
   (rol) => !TRABAJOS[rol].llevaColorVita,
 );
+
+export const METODOS: Record<MetodoDeFabricacion, string> = {
+  FRESADO: "Fresado",
+  IMPRESO_3D: "Impreso en 3D",
+  PRENSADO: "Prensado",
+  COLADO: "Colado",
+  TERMOFORMADO: "Termoformado",
+};
+
+/**
+ * Con qué se puede hacer cada material.
+ *
+ * El método sale del material, no del tipo de trabajo: el zirconio se fresa, la
+ * resina se imprime, el disilicato se fresa o se prensa. Poner la lista
+ * completa en cada diente dejaría escoger "colado" para una guarda de resina,
+ * que ninguna máquina del taller puede hacer.
+ */
+export const METODOS_POR_MATERIAL: Record<Material, MetodoDeFabricacion[]> = {
+  ZIRCONIO_MONOLITICO: ["FRESADO"],
+  ZIRCONIO_ESTRATIFICADO: ["FRESADO"],
+  DISILICATO_DE_LITIO: ["FRESADO", "PRENSADO"],
+  METAL_PORCELANA: ["COLADO", "FRESADO"],
+  CROMO_COBALTO: ["FRESADO", "COLADO", "IMPRESO_3D"],
+  TITANIO: ["FRESADO"],
+  PMMA: ["FRESADO", "IMPRESO_3D", "TERMOFORMADO"],
+  RESINA_IMPRESION: ["IMPRESO_3D"],
+  CERA_CALCINABLE: ["FRESADO", "IMPRESO_3D"],
+};
 
 export const MATERIALES: Record<Material, string> = {
   ZIRCONIO_MONOLITICO: "Zirconio monolítico",

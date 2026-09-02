@@ -10,7 +10,7 @@ import { cn } from "@/lib/utilidades";
  * La barra de arriba del inicio: la meta del mes, la búsqueda y crear caso.
  *
  * La meta es una sola barra: la parte llena es lo que va del mes y el número de
- * la derecha lo dice también con palabras, porque el color nunca puede ser el
+ * la derecha lo dice también con cifras, porque el color nunca puede ser el
  * único portador de información (§7).
  */
 export function BarraSuperior({
@@ -74,6 +74,9 @@ export function BarraSuperior({
   );
 }
 
+/** El ancho de la barra, en dos lugares porque la capa llena la copia. */
+const ANCHO_DE_LA_META = "14rem";
+
 function BarraDeMeta({
   hechos,
   objetivo,
@@ -83,6 +86,24 @@ function BarraDeMeta({
 }) {
   const porcentaje = Math.min(100, Math.round((hechos / objetivo) * 100));
 
+  // El texto va encima de dos fondos a la vez: el relleno azul y lo que queda
+  // de barra. Un solo color no sirve para los dos —en tema claro el blanco se
+  // perdía sobre el fondo de la barra—, así que se pinta dos veces: la de
+  // abajo con el color normal del texto, y encima una copia en blanco
+  // recortada justo a lo que va lleno. Cada mitad queda sobre su propio fondo,
+  // con el contraste que pide §7 en los dos temas.
+  const contenido = (
+    <div
+      className="flex h-full items-center justify-between px-4 text-minimo font-medium"
+      style={{ width: ANCHO_DE_LA_META }}
+    >
+      <span>Meta del mes</span>
+      <span>
+        {hechos}/{objetivo}
+      </span>
+    </div>
+  );
+
   return (
     <div
       role="progressbar"
@@ -90,22 +111,19 @@ function BarraDeMeta({
       aria-valuemax={objetivo}
       aria-valuenow={hechos}
       aria-label={`Meta del mes: ${hechos} de ${objetivo} casos entregados`}
-      className="relative flex h-9 w-56 shrink-0 items-center overflow-hidden rounded-full bg-superficie"
+      style={{ width: ANCHO_DE_LA_META }}
+      className="relative h-9 shrink-0 overflow-hidden rounded-full border border-borde bg-superficie text-primario"
     >
-      {/* El relleno es proporcional de verdad: si va en cero, se ve en cero.
-          El texto va en blanco, que se lee igual sobre el relleno azul que
-          sobre el fondo de la barra. */}
-      <span
+      {contenido}
+
+      {/* El relleno es proporcional de verdad: si va en cero, se ve en cero. */}
+      <div
         aria-hidden="true"
-        className="absolute inset-y-0 left-0 rounded-full bg-accion transition-[width] duration-200"
         style={{ width: `${porcentaje}%` }}
-      />
-      <span className="relative z-10 pl-4 text-minimo font-medium text-white">
-        Meta del mes
-      </span>
-      <span className="relative z-10 ml-auto pr-4 text-minimo font-medium text-white">
-        {hechos}/{objetivo}
-      </span>
+        className="absolute inset-y-0 left-0 overflow-hidden transition-[width] duration-200"
+      >
+        <div className="h-full bg-accion text-sobre-accion">{contenido}</div>
+      </div>
     </div>
   );
 }

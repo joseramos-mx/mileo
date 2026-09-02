@@ -182,6 +182,25 @@ comprobar(
   (await pagina.locator('aside button[data-trabajo="CORONA_ANATOMICA"]').count()) === 0,
 );
 
+// La tabla de abajo, con el metodo de fabricacion.
+comprobar(
+  "la tabla del caso trae un renglón por diente",
+  (await pagina.getByRole("row").count()) === 5, // 4 dientes + encabezados
+);
+const columnas = await pagina
+  .getByRole("columnheader")
+  .allInnerTexts();
+comprobar(
+  `las columnas son diente, trabajo, método, material y color (${columnas.join(", ")})`,
+  columnas.slice(0, 5).join("|") ===
+    "Diente|Qué se le hace|Método|Material|Color",
+);
+const renglon15 = pagina.getByRole("row").filter({ hasText: "Póntico anatómico" }).first();
+comprobar(
+  `el método sale del material (${await renglon15.innerText()})`,
+  (await renglon15.innerText()).includes("Fresado"),
+);
+
 // Fuera del puente, el catalogo completo, en pastillas y no en una lista.
 await pagina.locator('g[data-diente="13"]').click();
 await pagina.waitForTimeout(300);
@@ -334,7 +353,7 @@ await pagina.waitForTimeout(250);
 await pagina.waitForTimeout(1500);
 const guardadas = (
   await bd.query(
-    `SELECT u.diente, u.rol, u."puenteId" FROM "Unidad" u
+    `SELECT u.diente, u.rol, u.metodo, u."puenteId" FROM "Unidad" u
      WHERE u."casoId" = $1 ORDER BY u.diente`,
     [caso.id],
   )
@@ -357,6 +376,10 @@ const puentes = (
   await bd.query('SELECT count(*)::int n FROM "Puente" WHERE "casoId" = $1', [caso.id])
 ).rows[0].n;
 comprobar(`quedó un solo renglón de Puente (${puentes})`, puentes === 1);
+comprobar(
+  `el método quedó guardado (${guardadas.map((u) => u.metodo).join(", ")})`,
+  guardadas.every((u) => u.metodo !== null),
+);
 
 // Accesibilidad de la pantalla con el odontograma.
 const axe = await new AxeBuilder({ page: pagina })
