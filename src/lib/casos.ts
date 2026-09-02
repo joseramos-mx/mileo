@@ -258,6 +258,28 @@ export async function casosEntregados(usuario: UsuarioEnSesion, limite = 20) {
   return casos.map(paraTarjeta);
 }
 
+/**
+ * El siguiente número de paciente de la clínica.
+ *
+ * Lo da el sistema para que nadie tenga que inventarlo ni recordar en cuál se
+ * quedó. Se cuenta sobre los folios que son sólo números: si la clínica trae
+ * los suyos con letras —"MG-12"—, esos no estorban la cuenta y se siguen
+ * pudiendo escribir a mano.
+ */
+export async function siguienteFolioDePaciente(clinicaId: string) {
+  const pacientes = await prisma.paciente.findMany({
+    where: { clinicaId },
+    select: { folio: true },
+  });
+
+  const mayor = pacientes.reduce((tope, { folio }) => {
+    const numero = /^\d+$/.test(folio) ? Number(folio) : 0;
+    return numero > tope ? numero : tope;
+  }, 0);
+
+  return String(mayor + 1);
+}
+
 /** El folio visible del caso: C-2026-0001. */
 export async function siguienteFolio() {
   const anio = new Date().getFullYear();

@@ -52,7 +52,7 @@ export function TablaDelCaso({
   }
 
   return (
-    <div className="overflow-hidden rounded-contenedor border border-borde bg-superficie">
+    <div className="min-w-0 overflow-hidden rounded-contenedor border border-borde bg-superficie">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[52rem] border-collapse text-left">
           <caption className="sr-only">

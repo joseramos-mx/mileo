@@ -121,7 +121,7 @@ export function FormularioDeCalidad({
 
       {/* --- El kit -------------------------------------------------------- */}
       <fieldset className="flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
-        <legend className="text-subtitulo font-semibold text-primario">
+        <legend className="mb-3 text-subtitulo font-semibold text-primario">
           Lo que va en la caja
         </legend>
         <p className="text-menor text-secundario">
@@ -221,7 +221,7 @@ export function FormularioDeCalidad({
       {/* --- Autorización de dirección ------------------------------------- */}
       {pideAutorizacion ? (
         <fieldset className="flex flex-col gap-4 rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4">
-          <legend className="text-menor font-medium text-pendiente-texto">
+          <legend className="mb-2 text-menor font-medium text-pendiente-texto">
             Autorización de dirección
           </legend>
           <Campo

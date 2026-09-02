@@ -74,6 +74,18 @@ async function auditar(pagina: Page, nombre: string) {
     `en ${nombre} sólo se desplaza el contenido, no la pantalla`,
   );
 
+  // Y tampoco de lado: lo que se recorre a lo ancho es una tabla dentro de su
+  // propia caja, nunca la pantalla.
+  const deLado = await pagina.evaluate(() => {
+    const m = document.querySelector("main");
+    if (!m) return 0;
+    m.scrollLeft = 9000;
+    const donde = m.scrollLeft;
+    m.scrollLeft = 0;
+    return donde;
+  });
+  comprobar(deLado === 0, `en ${nombre} nada se recorre de lado`);
+
   const resultado = await new AxeBuilder({ page: pagina })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();

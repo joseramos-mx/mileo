@@ -54,7 +54,7 @@ export function Marca({
     <span
       className={cn(
         "inline-flex items-center text-primario",
-        grande ? "h-9" : "h-7",
+        grande ? "h-7" : "h-7",
         className,
       )}
     >

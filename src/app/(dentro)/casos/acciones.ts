@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
 import { registrarEvento } from "@/lib/bitacora";
-import { siguienteFolio } from "@/lib/casos";
+import { siguienteFolio, siguienteFolioDePaciente } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
 import { arcadaDe, nombreDelPuente, puentesDe } from "@/lib/puentes";
 import { TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
@@ -33,6 +33,11 @@ const esquemaBorrador = z.object({
     .trim()
     .min(1, "Escriba el folio con el que identifica al paciente.")
     .max(40),
+  /**
+   * El folio que la pantalla propuso. Sirve para saber si el usuario lo dejó
+   * como venía o escribió el suyo.
+   */
+  folioSugerido: z.string().trim().max(40).optional(),
   iniciales: z
     .string()
     .trim()
@@ -62,6 +67,7 @@ export async function crearBorrador(
   const leido = esquemaBorrador.safeParse({
     indicacion: datos.get("indicacion"),
     folioPaciente: datos.get("folioPaciente"),
+    folioSugerido: datos.get("folioSugerido") || undefined,
     iniciales: datos.get("iniciales"),
     nombreCompleto: datos.get("nombreCompleto") || undefined,
   });
@@ -74,7 +80,21 @@ export async function crearBorrador(
     return { errores };
   }
 
-  const { indicacion, folioPaciente, iniciales, nombreCompleto } = leido.data;
+  const { indicacion, iniciales, nombreCompleto, folioSugerido } = leido.data;
+  let { folioPaciente } = leido.data;
+
+  // Si dejó el número que le propuse y entre tanto alguien más lo ocupó, tomo
+  // el siguiente libre. Si escribió otro, se respeta tal cual: eso es que está
+  // volviendo a mandar trabajo del mismo paciente, y el folio es la llave.
+  if (folioSugerido && folioPaciente === folioSugerido) {
+    const yaEsta = await prisma.paciente.findUnique({
+      where: {
+        clinicaId_folio: { clinicaId: usuario.clinicaId, folio: folioPaciente },
+      },
+      select: { id: true },
+    });
+    if (yaEsta) folioPaciente = await siguienteFolioDePaciente(usuario.clinicaId);
+  }
 
   // El doctor del caso es quien lo crea si es doctor; si es la asistente, el
   // doctor de su clínica.

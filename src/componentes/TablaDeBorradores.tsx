@@ -39,7 +39,7 @@ export function TablaDeBorradores({
   }, [borradores, busqueda]);
 
   return (
-    <div className="overflow-hidden rounded-contenedor border border-borde bg-superficie">
+    <div className="min-w-0 overflow-hidden rounded-contenedor border border-borde bg-superficie">
       {borradores.length > 4 ? (
         <div className="border-b border-borde p-3">
           <label className="relative flex max-w-sm items-center">

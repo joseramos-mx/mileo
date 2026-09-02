@@ -259,25 +259,29 @@
 
   --font-sans: var(--fuente-jakarta), ui-sans-serif, system-ui, sans-serif;
 
-  /* Escala tipográfica: 24/19/17/15/13/12. Nunca más de 3 en una pantalla.
+  /* Escala tipográfica de §5.2: 24/19/17/15/13/12 px, ni uno más. Nunca más de
+     tres tamaños en una misma pantalla.
+     Las alturas de línea crecen conforme el texto baja de tamaño: un párrafo de
+     15 px necesita más aire entre renglones que un título de 24, y con la misma
+     altura para todos los textos chicos se leían apretados.
      El titular del panel de bienvenida es la excepción del diseño entregado.
      Ojo: el nombre no puede repetirse con ningún --color-*, porque las dos
      familias comparten el prefijo `text-` y Tailwind resuelve a favor del
      color. Así se perdía el titular: azul marino sobre azul marino. */
   --text-titular: 3.25rem;
   --text-titular--line-height: 1.05;
-  --text-titulo: 1.2rem;
-  --text-titulo--line-height: 1.2;
-  --text-subtitulo: .9rem;
+  --text-titulo: 1.5rem;
+  --text-titulo--line-height: 1.25;
+  --text-subtitulo: 1.1875rem;
   --text-subtitulo--line-height: 1.35;
   --text-realce: 1.0625rem;
   --text-realce--line-height: 1.45;
-  --text-cuerpo: 0.7rem;
-  --text-cuerpo--line-height: 1.5;
+  --text-cuerpo: 0.9375rem;
+  --text-cuerpo--line-height: 1.55;
   --text-menor: 0.8125rem;
-  --text-menor--line-height: 1.45;
+  --text-menor--line-height: 1.5;
   --text-minimo: 0.75rem;
-  --text-minimo--line-height: 1.4;
+  --text-minimo--line-height: 1.45;
 
   /* Forma: 8 px controles, 12 px tarjetas, 16 px contenedores.
      El panel es el recorte grande de la portada y del inicio. */
@@ -335,6 +339,17 @@
      hace falta y, con el texto al 200%, empujaba la página a lo ancho. */
   .alto-tactil {
     min-height: 2.75rem;
+  }
+
+  /* El texto que sólo oye un lector de pantalla.
+     Tailwind lo pone en absoluto sin ubicarlo, así que cae en su posición
+     estática: uno metido en una tabla de 52 rem aterriza fuera de la pantalla y
+     estira la caja que se desplaza, aunque nadie lo vea. Aquí se ancla en el
+     origen de su contenedor. Sigue leyéndose igual —al lector le importa el
+     orden del documento, no dónde quedó el pixel— y ya no arrastra nada. */
+  .sr-only {
+    top: 0;
+    left: 0;
   }
 
   /* Salta al contenido: primer tabulador de cada pantalla.

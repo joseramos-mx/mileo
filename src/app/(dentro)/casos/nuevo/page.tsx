@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { exigirUsuario } from "@/lib/autorizacion";
+import { siguienteFolioDePaciente } from "@/lib/casos";
 import { PasosDelCaso, pasosDelAlta } from "@/componentes/PasosDelCaso";
 import { FormularioDeCaso } from "./FormularioDeCaso";
 
@@ -18,7 +19,10 @@ export const metadata: Metadata = { title: "Crear caso · Mileo" };
  * Celular primero: se usa de pie, con prisa, a veces con guantes (§6.2).
  */
 export default async function PaginaDeCasoNuevo() {
-  await exigirUsuario();
+  const usuario = await exigirUsuario();
+  const folioSugerido = usuario.clinicaId
+    ? await siguienteFolioDePaciente(usuario.clinicaId)
+    : "1";
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
@@ -43,7 +47,7 @@ export default async function PaginaDeCasoNuevo() {
         </div>
       </header>
 
-      <FormularioDeCaso />
+      <FormularioDeCaso folioSugerido={folioSugerido} />
     </div>
   );
 }

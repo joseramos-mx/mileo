@@ -14,7 +14,12 @@ import { crearBorrador, type ResultadoDeBorrador } from "../acciones";
  * en el celular, con guantes, apuntarle a una opción de lista es difícil y
  * cada tarjeta rebasa de sobra los 44 px de área táctil (§7).
  */
-export function FormularioDeCaso() {
+export function FormularioDeCaso({
+  folioSugerido,
+}: {
+  /** El siguiente número de paciente de la clínica, ya calculado. */
+  folioSugerido: string;
+}) {
   const [resultado, accion, enviando] = useActionState<
     ResultadoDeBorrador,
     FormData
@@ -24,7 +29,7 @@ export function FormularioDeCaso() {
   return (
     <form action={accion} className="flex flex-col gap-8">
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-subtitulo font-semibold text-primario">
+        <legend className="mb-3 text-subtitulo font-semibold text-primario">
           ¿Qué necesita?
         </legend>
 
@@ -59,22 +64,32 @@ export function FormularioDeCaso() {
       </fieldset>
 
       <fieldset className="flex flex-col gap-5">
-        <legend className="text-subtitulo font-semibold text-primario">
-          ¿De qué paciente?
+        {/* El título y su explicación van dentro del <legend>: el navegador
+            saca la leyenda del flujo del fieldset, así que el `gap` del flex no
+            la separa de lo que sigue y cualquier margen negativo se la come. */}
+        <legend className="mb-4 flex flex-col gap-1">
+          <span className="text-subtitulo font-semibold text-primario">
+            ¿De qué paciente?
+          </span>
+          <span className="text-menor font-normal text-secundario">
+            Con el folio y las iniciales basta. El nombre completo es suyo y
+            sólo se guarda si usted lo escribe. Si el paciente ya tiene casos,
+            escriba su mismo folio para que queden juntos.
+          </span>
         </legend>
-        <p className="-mt-2 text-menor text-secundario">
-          Con el folio y las iniciales basta. El nombre completo es suyo y sólo
-          se guarda si usted lo escribe.
-        </p>
 
+        {/* El número lo da el sistema. Queda editable porque muchas clínicas
+            usan el suyo, y porque escribir el de un paciente que ya tiene caso
+            es justamente cómo se le manda trabajo otra vez. */}
+        <input type="hidden" name="folioSugerido" value={folioSugerido} />
         <Campo
           etiqueta="Folio del paciente"
           name="folioPaciente"
           requerido
+          defaultValue={folioSugerido}
           inputMode="text"
           autoComplete="off"
-          placeholder="932"
-          ayuda="El número con el que lo identifica en su consultorio."
+          ayuda="Se lo doy yo. Puede cambiarlo."
           error={resultado.errores?.folioPaciente}
         />
 
