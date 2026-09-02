@@ -77,6 +77,8 @@
   --diente-trabajo-contorno: #005fdb;
   --diente-pontico: #e0ecff;
   --diente-anillo: #77acff;
+  /* El gris de "aquí ya hay trabajo" en la vista de arcadas. */
+  --diente-ocupado: #c0c4ca;
   --diente-numero: #1d2126;
   --diente-puente: #005fdb;
 
@@ -242,6 +244,7 @@
   --color-diente-trabajo-contorno: var(--diente-trabajo-contorno);
   --color-diente-pontico: var(--diente-pontico);
   --color-diente-anillo: var(--diente-anillo);
+  --color-diente-ocupado: var(--diente-ocupado);
   --color-diente-numero: var(--diente-numero);
   --color-diente-puente: var(--diente-puente);
 

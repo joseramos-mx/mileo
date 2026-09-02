@@ -137,8 +137,12 @@ export function Odontograma({
   // de cuatro pónticos no quiere volver a escogerlo cuatro veces; pero si lo
   // último que agregó fue una guarda —que va sobre la arcada—, el diente nuevo
   // no puede heredar eso. Si no hay de dónde, una corona anatómica.
+  // Tampoco hereda una anotación: marcar un diente vecino es cosa de una vez,
+  // y el diente siguiente casi siempre lleva trabajo de verdad.
   const ultimoDeDiente = conDiente(unidades)
-    .filter((u) => TRABAJOS[u.rol].alcance === "DIENTE")
+    .filter(
+      (u) => TRABAJOS[u.rol].alcance === "DIENTE" && !TRABAJOS[u.rol].esAnotacion,
+    )
     .at(-1);
   const porOmision: RolDeUnidad = ultimoDeDiente?.rol ?? "CORONA_ANATOMICA";
   const porDiente = new Map(unidades.map((u) => [u.diente, u]));
@@ -475,7 +479,7 @@ function Diente({
   const tipo = unidad ? TRABAJOS[unidad.rol] : null;
   // Una anotación no es una pieza: se dibuja con el contorno punteado para que
   // nadie la confunda con algo que el laboratorio va a fabricar.
-  const esAnotacion = tipo?.alcance === "CONTEXTO";
+  const esAnotacion = Boolean(tipo?.esAnotacion);
 
   const comoEsta = !unidad
     ? "sin trabajo"
@@ -517,7 +521,7 @@ function Diente({
 
       {/* Contorno: el trazo que entregó diseño, en el color del tipo. En una
           anotación va punteado y sin relleno: se ve que ahí no hay pieza. */}
-      {esAnotacion ? (
+      {esAnotacion && tipo ? (
         <path
           d={trazo.cuerpo}
           fill="none"
@@ -568,18 +572,18 @@ function Leyenda({ unidades }: { unidades: UnidadDelCaso[] }) {
               rx="3"
               strokeWidth="1.5"
               fill={
-                TRABAJOS[rol].alcance === "CONTEXTO"
+                TRABAJOS[rol].esAnotacion
                   ? "none"
                   : TRABAJOS[rol].colorTenue
               }
               stroke={TRABAJOS[rol].color}
               strokeDasharray={
-                TRABAJOS[rol].alcance === "CONTEXTO" ? "2.5 2" : undefined
+                TRABAJOS[rol].esAnotacion ? "2.5 2" : undefined
               }
             />
           </svg>
           {TRABAJOS[rol].nombre}
-          {TRABAJOS[rol].alcance === "CONTEXTO" ? " (no se fabrica)" : ""}
+          {TRABAJOS[rol].esAnotacion ? " (no se fabrica)" : ""}
         </li>
       ))}
     </ul>
@@ -843,11 +847,17 @@ export function CamposDeLaUnidad({
   titulo,
   debajo,
   alCambiar,
+  alQuitar,
 }: {
   unidad: UnidadDelCaso;
   titulo: string;
   debajo: string;
   alCambiar: (cambio: Partial<UnidadDelCaso>) => void;
+  /**
+   * Para quitarlo. Va aquí sólo en los trabajos de arcada: los de diente se
+   * quitan desde la tabla, que es donde se ven todos.
+   */
+  alQuitar?: () => void;
 }) {
   const tipo = TRABAJOS[unidad.rol];
   const tiene = (campo: Parameters<typeof pregunta>[1]) =>
@@ -870,7 +880,7 @@ export function CamposDeLaUnidad({
         <p className="text-minimo text-secundario">{debajo}</p>
       </div>
 
-      {tipo.alcance === "CONTEXTO" ? (
+      {tipo.esAnotacion ? (
         <p className="text-minimo text-secundario">
           {tipo.queEs} No se fabrica ni se cotiza: es una anotación para el
           técnico.
@@ -1066,6 +1076,16 @@ export function CamposDeLaUnidad({
         onChange={(e) => alCambiar({ notas: e.target.value || null })}
         ayuda="Opcional. Lo que el técnico tenga que saber de esta pieza."
       />
+
+      {alQuitar ? (
+        <button
+          type="button"
+          onClick={alQuitar}
+          className="alto-tactil text-menor text-enlace underline underline-offset-4"
+        >
+          Quitar {titulo.toLowerCase()} de {debajo.toLowerCase()}
+        </button>
+      ) : null}
     </section>
   );
 }

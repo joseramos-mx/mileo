@@ -27,7 +27,8 @@
     "prueba:avisos": "tsx pruebas/riesgo-y-avisos.mts",
     "medir:renders": "tsx scripts/medir-renders.mts",
     "marcar:odontograma": "tsx scripts/marcar-odontograma.mts",
-    "prueba:odontograma": "tsx pruebas/odontograma.mts"
+    "prueba:odontograma": "tsx pruebas/odontograma.mts",
+    "marcar:mandibulas": "tsx scripts/marcar-mandibulas.mts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

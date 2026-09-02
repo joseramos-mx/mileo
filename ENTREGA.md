@@ -260,6 +260,37 @@ que va ahí.
 Por lo mismo, `Puente` pasó a llamarse `Tramo`: un puente es sólo uno de los
 tres trabajos que van sobre dos o más dientes unidos.
 
+### El paso 2, en dos pestañas
+
+**Dientes** lleva el odontograma: lo que se pone diente por diente y los tramos.
+**Arcadas** lleva el dibujo de maxilar y mandíbula que entregó diseño
+(`public/mandibles.svg`) y lo que va sobre una arcada entera: prótesis total,
+prótesis parcial, guarda oclusal, modelo y la marca del antagonista.
+
+Cambiar de pestaña no borra nada: los dos paneles se quedan montados y el estado
+de las unidades es uno solo, arriba de las dos. Cada pestaña dice cuántas
+lleva —"Dientes (7)"—, y la tabla de abajo las junta todas.
+
+En Arcadas, los dientes que ya llevan trabajo se pintan en gris. No es adorno:
+son los que el doctor ya resolvió en la otra pestaña, y verlos evita que pida
+una prótesis total sobre una arcada donde acaba de pedir cuatro coronas.
+
+Con teclado son una parada de tabulador y las flechas; en pantalla angosta las
+pestañas se vuelven un selector segmentado, nunca un menú desplegable: esconder
+una de dos opciones detrás de un menú le cobra un toque de más a quien captura
+de pie y con prisa (§6.2).
+
+**El antagonista cambió de alcance.** Se marcaba diente por diente y ahora se
+marca por arcada: es la arcada opuesta entera lo que se escanea, y pedirlo
+catorce veces para decir una cosa no tenía sentido. Sigue siendo una anotación
+—no se fabrica, no se cotiza, no suma puntos—, lo que prueba que el alcance y
+"ser una pieza" son dos cosas distintas: en el catálogo son dos campos.
+
+**Una limitación del dibujo, dicha y no escondida.** De frente no se ven los
+terceros molares, así que `mandibles.svg` trae siete dientes por cuadrante. Si
+el caso lleva trabajo en un 18, 28, 38 o 48, la pantalla lo dice con palabras
+debajo del dibujo en vez de callarlo.
+
 ### Cada trabajo pregunta lo suyo
 
 El catálogo dice qué campos abre cada tipo, y **un campo que no aplica no se

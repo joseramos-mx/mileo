@@ -34,9 +34,7 @@ export type AlcanceDeTrabajo =
   /** Sobre dos o más dientes vecinos unidos entre sí. */
   | "TRAMO"
   /** Sobre una arcada completa. No se toca ningún diente. */
-  | "ARCADA"
-  /** Una anotación sobre el diente. No se fabrica ni se cotiza. */
-  | "CONTEXTO";
+  | "ARCADA";
 
 /** Lo que se le pregunta al doctor de una unidad. */
 export type CampoDeUnidad =
@@ -69,6 +67,13 @@ export type TipoDeTrabajo = {
    * ve la lista entera y afina el tipo al diseñar.
    */
   enListaCorta: boolean;
+  /**
+   * Se anota pero no se fabrica: el antagonista, el diente vecino y el espacio
+   * que el puente cruza. No cuentan como unidad, no se cotizan y no suman
+   * puntos del comodato. Es independiente del alcance: el antagonista se marca
+   * sobre una arcada entera y sigue sin ser una pieza.
+   */
+  esAnotacion: boolean;
 };
 
 export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
@@ -83,6 +88,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["ZIRCONIO_MONOLITICO", "ZIRCONIO_ESTRATIFICADO", "DISILICATO_DE_LITIO", "PMMA", "RESINA_IMPRESION", "METAL_PORCELANA", "TITANIO"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   COFIA: {
     nombre: "Cofia",
@@ -95,6 +101,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   CORONA_PRENSADA: {
     nombre: "Corona prensada",
@@ -107,6 +114,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["DISILICATO_DE_LITIO", "CERAMICA_PRENSADA"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   CORONA_CASCARON: {
     nombre: "Corona cascarón (provisional)",
@@ -119,6 +127,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   COFIA_CON_ALIVIO: {
     nombre: "Cofia con alivio",
@@ -131,6 +140,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "espesorAlivio", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   MOCKUP: {
     nombre: "Mockup",
@@ -143,6 +153,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["PMMA", "RESINA_IMPRESION", "CERA_CALCINABLE"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   PONTICO_ANATOMICO: {
     nombre: "Póntico anatómico",
@@ -155,6 +166,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["ZIRCONIO_MONOLITICO", "ZIRCONIO_ESTRATIFICADO", "DISILICATO_DE_LITIO", "PMMA", "RESINA_IMPRESION", "METAL_PORCELANA", "TITANIO"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   PONTICO_REDUCIDO: {
     nombre: "Póntico reducido",
@@ -167,6 +179,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   PONTICO_PRENSADO: {
     nombre: "Póntico prensado",
@@ -179,6 +192,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["DISILICATO_DE_LITIO", "CERAMICA_PRENSADA"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   PONTICO_CASCARON: {
     nombre: "Póntico cascarón (provisional)",
@@ -191,6 +205,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   INCRUSTACION: {
     nombre: "Incrustación inlay u onlay",
@@ -203,6 +218,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   INCRUSTACION_CON_ALIVIO: {
     nombre: "Incrustación con alivio",
@@ -215,6 +231,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO"],
     campos: ["material", "metodo", "espesorAlivio", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   CARILLA: {
     nombre: "Carilla",
@@ -227,6 +244,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["DISILICATO_DE_LITIO", "ZIRCONIO_ULTRAFINO", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   ENCERADO_ANATOMICO: {
     nombre: "Encerado anatómico",
@@ -239,6 +257,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   ENCERADO_REDUCIDO: {
     nombre: "Encerado reducido",
@@ -251,6 +270,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   ENCERADO_DE_PONTICO: {
     nombre: "Encerado de póntico",
@@ -263,6 +283,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   ADITAMENTO: {
     nombre: "Aditamento",
@@ -275,6 +296,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["TITANIO", "ZIRCONIO_SOBRE_TITANIO"],
     campos: ["material", "metodo", "sistemaImplante", "color", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   PILAR_DE_BARRA: {
     nombre: "Pilar de barra",
@@ -287,6 +309,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["TITANIO", "CROMO_COBALTO"],
     campos: ["material", "metodo", "sistemaImplante", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   SEGMENTO_DE_BARRA: {
     nombre: "Segmento de barra",
@@ -299,6 +322,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["TITANIO", "CROMO_COBALTO"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   SUBESTRUCTURA_CON_ALIVIO: {
     nombre: "Subestructura con alivio",
@@ -311,6 +335,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["ZIRCONIO_MONOLITICO", "CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "espesorAlivio", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   PROTESIS_TOTAL: {
     nombre: "Prótesis total",
@@ -323,6 +348,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["RESINA_TERMOPOLIMERIZABLE", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "colorBase", "colorDientes", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   PROTESIS_PARCIAL: {
     nombre: "Prótesis parcial",
@@ -335,6 +361,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["CROMO_COBALTO", "TITANIO", "RESINA_FLEXIBLE"],
     campos: ["material", "metodo", "colorBase", "colorDientes", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   GUARDA_OCLUSAL: {
     nombre: "Guarda oclusal",
@@ -347,6 +374,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["PMMA_TRANSPARENTE", "RESINA_IMPRESION", "RESINA_FLEXIBLE"],
     campos: ["material", "metodo", "grosor", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   TELESCOPICA_PRIMARIA: {
     nombre: "Corona telescópica primaria",
@@ -359,6 +387,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["TITANIO", "CROMO_COBALTO", "ZIRCONIO_MONOLITICO"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   TELESCOPICA_SECUNDARIA: {
     nombre: "Corona telescópica secundaria",
@@ -371,6 +400,7 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "notas"],
     enListaCorta: false,
+    esAnotacion: false,
   },
   MODELO: {
     nombre: "Modelo",
@@ -383,42 +413,46 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     materiales: ["RESINA_IMPRESION"],
     campos: ["material", "metodo", "troqueles", "notas"],
     enListaCorta: true,
+    esAnotacion: false,
   },
   ANTAGONISTA: {
     nombre: "Antagonista",
     queEs: "La arcada opuesta. Se usa para ajustar la oclusión.",
     categoria: "Dentición restante",
-    alcance: "CONTEXTO",
+    alcance: "ARCADA",
     color: "#c44e00",
     colorTenue: "#f0d3bf",
     colorDelTexto: "#ffffff",
     materiales: [],
     campos: ["notas"],
     enListaCorta: true,
+    esAnotacion: true,
   },
   DIENTE_VECINO: {
     nombre: "Diente vecino",
     queEs: "Diente contiguo que se toma como referencia.",
     categoria: "Dentición restante",
-    alcance: "CONTEXTO",
+    alcance: "DIENTE",
     color: "#8a6d1f",
     colorTenue: "#e2dac7",
     colorDelTexto: "#ffffff",
     materiales: [],
     campos: ["notas"],
     enListaCorta: true,
+    esAnotacion: true,
   },
   OMITIR_EN_PUENTE: {
     nombre: "Omitir en el puente",
     queEs: "Espacio que el puente cruza sin colocar diente.",
     categoria: "Dentición restante",
-    alcance: "CONTEXTO",
+    alcance: "DIENTE",
     color: "#c62828",
     colorTenue: "#f1c9c9",
     colorDelTexto: "#ffffff",
     materiales: [],
     campos: ["notas"],
     enListaCorta: true,
+    esAnotacion: true,
   },
 };
 
@@ -445,7 +479,7 @@ export const TODOS_LOS_ROLES = Object.keys(TRABAJOS) as RolDeUnidad[];
  * resumen del caso, no se cotiza y no suma puntos del comodato.
  */
 export function seFabrica(rol: RolDeUnidad) {
-  return TRABAJOS[rol].alcance !== "CONTEXTO";
+  return !TRABAJOS[rol].esAnotacion;
 }
 
 /** Si el trabajo le pregunta este campo al doctor. */

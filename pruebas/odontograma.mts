@@ -217,7 +217,8 @@ await pagina.waitForTimeout(300);
 const cortas = await pagina.locator("aside button[data-trabajo]").count();
 comprobar(
   `por omisión el doctor ve la lista corta (${cortas} tipos)`,
-  cortas === 10,
+  // Los nueve de diente de la lista corta. Los de arcada viven en su pestaña.
+  cortas === 9,
 );
 comprobar(
   "y ninguna de arcada, que no se pone en un diente",
@@ -421,10 +422,10 @@ comprobar(
 
 // ------------------------------------------------ el alcance de cada trabajo
 
-// Una anotacion no es una pieza: se dibuja punteada y no cuenta.
+// Una anotacion de diente no es una pieza: se dibuja punteada y no cuenta.
 await pagina.locator('g[data-diente="26"]').click();
 await pagina.waitForTimeout(300);
-await pagina.locator('aside button[data-trabajo="ANTAGONISTA"]').click();
+await pagina.locator('aside button[data-trabajo="DIENTE_VECINO"]').click();
 await pagina.waitForTimeout(400);
 comprobar(
   "la anotación se dibuja con el contorno punteado",
@@ -438,34 +439,102 @@ comprobar(
     .count()) === 0,
 );
 
-// Un trabajo de arcada no se pone en un diente: tiene su propio boton.
+// Un trabajo de arcada no se pone en un diente: vive en su propia pestaña.
 comprobar(
   "la guarda no se ofrece en el diente",
   (await pagina.locator('aside button[data-trabajo="GUARDA_OCLUSAL"]').count()) === 0,
 );
-await pagina
+
+// ------------------------------------------------------------- las pestañas
+const pestanaDientes = pagina.getByRole("tab", { name: /^Dientes/ });
+const pestanaArcadas = pagina.getByRole("tab", { name: /^Arcadas/ });
+comprobar(
+  `cada pestaña dice cuántas lleva (${await pestanaDientes.innerText()})`,
+  /Dientes \(\d+\)/.test(await pestanaDientes.innerText()) &&
+    /Arcadas \(\d+\)/.test(await pestanaArcadas.innerText()),
+);
+comprobar(
+  "la pestaña puesta se anuncia como tal",
+  (await pestanaDientes.getAttribute("aria-selected")) === "true" &&
+    (await pestanaArcadas.getAttribute("aria-selected")) === "false",
+);
+
+// Con el teclado: una parada de tabulador y las flechas mueven.
+await pestanaDientes.focus();
+await pagina.keyboard.press("ArrowRight");
+await pagina.waitForTimeout(300);
+comprobar(
+  "la flecha derecha cambia de pestaña",
+  (await pestanaArcadas.getAttribute("aria-selected")) === "true",
+);
+const panelArcadas = pagina.getByRole("tabpanel", { name: /^Arcadas/ });
+comprobar(
+  "y el panel de la pestaña queda a la vista",
+  await panelArcadas.isVisible(),
+);
+
+// Los dientes con trabajo se ven en gris en el dibujo de las arcadas.
+comprobar(
+  "en Arcadas, los dientes con trabajo se ven en gris",
+  (await panelArcadas.locator('path[data-diente="14"][data-ocupado="si"]').count()) === 1 &&
+    (await panelArcadas.locator('path[data-diente="13"][data-ocupado="si"]').count()) === 0,
+);
+comprobar(
+  "la leyenda dice qué es cada color, con texto",
+  await panelArcadas
+    .getByText("Ya tiene trabajo, capturado en Dientes")
+    .isVisible(),
+);
+
+// Los trabajos de arcada se agregan aqui.
+await panelArcadas
   .getByRole("button", { name: "Agregar guarda oclusal a la arcada superior" })
   .click();
 await pagina.waitForTimeout(400);
 comprobar(
   "la guarda se agrega a la arcada y pide su grosor",
-  await pagina
+  await panelArcadas
     .getByRole("region", { name: /^Detalle de Guarda oclusal/ })
     .getByLabel(/^Grosor/)
     .isVisible(),
 );
 comprobar(
   "y no pide color: es transparente",
-  (await pagina
+  (await panelArcadas
     .getByRole("region", { name: /^Detalle de Guarda oclusal/ })
     .getByLabel(/^Color/)
     .count()) === 0,
 );
 comprobar(
   "el mismo trabajo no se puede agregar dos veces a la misma arcada",
-  await pagina
+  await panelArcadas
     .getByRole("button", { name: "Guarda oclusal ya está en la arcada superior" })
     .isDisabled(),
+);
+
+// El antagonista se marca por arcada, no diente por diente.
+await panelArcadas
+  .getByRole("button", { name: "Agregar antagonista a la arcada inferior" })
+  .click();
+await pagina.waitForTimeout(400);
+comprobar(
+  "el antagonista se marca sobre la arcada entera",
+  await panelArcadas
+    .getByRole("region", { name: /^Detalle de Antagonista/ })
+    .isVisible(),
+);
+
+// Volver a Dientes no pierde nada.
+await pestanaArcadas.focus();
+await pagina.keyboard.press("ArrowLeft");
+await pagina.waitForTimeout(400);
+comprobar(
+  "volver a Dientes no borra lo capturado en Arcadas",
+  /Arcadas \(2\)/.test(await pestanaArcadas.innerText()),
+);
+comprobar(
+  "ni al revés: el odontograma sigue con sus dientes",
+  (await pagina.locator("g[data-diente][data-rol]:not([data-rol=''])").count()) > 0,
 );
 
 // --------------------------------------------- los campos salen del trabajo
@@ -514,16 +583,16 @@ await pagina.waitForTimeout(1600);
 const deArcada = (
   await bd.query(
     `SELECT rol, arcada, "grosorMm", diente FROM "Unidad"
-     WHERE "casoId" = $1 AND diente IS NULL`,
+     WHERE "casoId" = $1 AND diente IS NULL ORDER BY rol`,
     [caso.id],
   )
 ).rows;
 comprobar(
-  `la guarda se guardó sin diente y con su arcada (${JSON.stringify(deArcada)})`,
-  deArcada.length === 1 &&
-    deArcada[0].rol === "GUARDA_OCLUSAL" &&
-    deArcada[0].arcada === "SUPERIOR" &&
-    deArcada[0].grosorMm !== null,
+  `los de arcada se guardaron sin diente (${JSON.stringify(deArcada)})`,
+  deArcada.length === 2 &&
+    deArcada.every((u) => u.diente === null && u.arcada !== null) &&
+    deArcada.some((u) => u.rol === "GUARDA_OCLUSAL" && u.grosorMm !== null) &&
+    deArcada.some((u) => u.rol === "ANTAGONISTA"),
 );
 const anotacion = (
   await bd.query(

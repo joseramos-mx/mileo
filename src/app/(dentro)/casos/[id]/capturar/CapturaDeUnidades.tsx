@@ -3,15 +3,17 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { DetalleDelDiente, Odontograma } from "@/componentes/Odontograma";
 import { TablaDelCaso } from "@/componentes/TablaDelCaso";
+import { Pestanas } from "@/componentes/Pestanas";
 import {
   conMetodoValido,
   ordenarPorBoca,
+  conDiente,
   quitarUnidad,
   unidadDeArcada,
   type UnidadDelCaso,
 } from "@/lib/tramos";
 import { useTresColumnas } from "@/lib/pantalla";
-import { TrabajosDeArcada } from "./TrabajosDeArcada";
+import { VistaDeArcadas } from "./VistaDeArcadas";
 import { cambiarCatalogo, guardarUnidades } from "../../acciones";
 
 export type UnidadCapturada = UnidadDelCaso;
@@ -24,8 +26,16 @@ export type UnidadCapturada = UnidadDelCaso;
  * hacer, de qué material, con qué método y en qué color; el puente se arma en
  * el riel del mismo dibujo.
  *
- * Abajo, a todo lo ancho, la tabla de lo capturado: se va llenando conforme se
- * tocan dientes y se lee de corrido, renglón por renglón.
+ * Dos pestañas, porque no todo se asigna a un diente: en Dientes va el
+ * odontograma con lo que se pone diente por diente y por tramos; en Arcadas,
+ * lo que va sobre una arcada entera —prótesis, guarda, modelo— y la marca del
+ * antagonista, sobre el dibujo de maxilar y mandíbula.
+ *
+ * Cambiar de pestaña no borra nada: los dos paneles se quedan montados y el
+ * estado de las unidades es uno solo, aquí arriba.
+ *
+ * Abajo, a todo lo ancho y bajo las dos, la tabla de lo capturado: se lee de
+ * corrido venga de donde venga cada renglón.
  *
  * Todo se guarda solo, con una pausa de un segundo. Nunca se pierde trabajo
  * (§6.6).
@@ -41,6 +51,7 @@ export function CapturaDeUnidades({
   unidadesIniciales: UnidadCapturada[];
 }) {
   const [catalogoCompleto, setCatalogoCompleto] = useState(catalogoInicial);
+  const [pestana, setPestana] = useState("dientes");
   // Los casos capturados antes de que existiera el método vienen sin él. Se
   // les pone el que corresponde a su material —el mismo que ofrecería la
   // pantalla— y se guardan solos, para que nadie tenga que abrir diente por
@@ -90,6 +101,13 @@ export function CapturaDeUnidades({
     return () => clearTimeout(temporizador);
   }, [casoId, unidades]);
 
+  const cambiarElCatalogo = (completo: boolean) => {
+    setCatalogoCompleto(completo);
+    // Se le queda encendido en su perfil: quien trabaja con el catálogo
+    // entero lo hace siempre.
+    empezar(() => void cambiarCatalogo(completo));
+  };
+
   // El material y el color son obligatorios: al final del panel del catálogo
   // quedaban abajo del pliegue y se pasaban por alto. Van arriba, donde se
   // vean sin desplazarse, del lado que quepa.
@@ -101,11 +119,14 @@ export function CapturaDeUnidades({
     />
   );
 
+  const enDientes = conDiente(unidades).length;
+  const enArcadas = unidades.filter((u) => u.diente === null).length;
+
   return (
     <section aria-labelledby="unidades" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="unidades" className="text-subtitulo font-semibold text-primario">
-          ¿En qué dientes?
+          ¿Qué lleva el caso?
         </h2>
         <p aria-live="polite" className="text-minimo text-secundario">
           {guardado === "guardando"
@@ -116,62 +137,85 @@ export function CapturaDeUnidades({
         </p>
       </div>
 
-      {/* En pantalla ancha, el detalle del diente va al lado del odontograma:
-          es lo que se llena mirando el dibujo. */}
-      <div
-        className={
-          "grid gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_20rem] " +
-          "2xl:grid-cols-[minmax(0,1fr)_24rem]"
-        }
-      >
-        <Odontograma
-          unidades={unidades}
-          abierto={abierto}
-          alAbrir={setAbierto}
-          alCambiar={setUnidades}
-          catalogoCompleto={catalogoCompleto}
-          alCambiarCatalogo={(completo) => {
-            setCatalogoCompleto(completo);
-            // Se le queda encendido en su perfil: quien trabaja con el
-            // catálogo entero lo hace siempre.
-            empezar(() => void cambiarCatalogo(completo));
-          }}
-          /* Cuando no caben tres columnas, el detalle se va al principio del
-             catálogo. Es un solo componente: nunca hay dos formularios del
-             mismo diente en la pantalla. */
-          detalle={tresColumnas ? undefined : detalle}
-        />
+      {/* Dos pestañas y no dos pantallas: lo que se captura en una sigue ahí
+          al volver, porque los dos paneles se quedan montados. */}
+      <Pestanas
+        puesta={pestana}
+        alCambiar={setPestana}
+        pestanas={[
+          {
+            clave: "dientes",
+            titulo: "Dientes",
+            cuantas: enDientes,
+            contenido: (
+              <>
+                {/* En pantalla ancha, el detalle del diente va al lado del
+                    odontograma: es lo que se llena mirando el dibujo. */}
+                <div
+                  className={
+                    "grid gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_20rem] " +
+                    "2xl:grid-cols-[minmax(0,1fr)_24rem]"
+                  }
+                >
+                  <Odontograma
+                    unidades={unidades}
+                    abierto={abierto}
+                    alAbrir={setAbierto}
+                    alCambiar={setUnidades}
+                    catalogoCompleto={catalogoCompleto}
+                    alCambiarCatalogo={cambiarElCatalogo}
+                    /* Cuando no caben tres columnas, el detalle se va al
+                       principio del catálogo. Es un solo componente: nunca hay
+                       dos formularios del mismo diente en la pantalla. */
+                    detalle={tresColumnas ? undefined : detalle}
+                  />
 
-        {/* Esta columna no se desplaza por dentro: recortaba los recuadros.
-            Crece con la página, y el detalle se queda pegado arriba para no
-            perderlo de vista. */}
-        <div className="flex min-w-0 flex-col gap-3">
-          {tresColumnas ? (
-            <div className="min-[1440px]:sticky min-[1440px]:top-0 min-[1440px]:z-10">
-              {detalle}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {/* No todo va en un diente: una guarda, una prótesis y un modelo van
-          sobre una arcada entera, y para ésos no hay dónde tocar en el
-          dibujo. */}
-      <TrabajosDeArcada
-        unidades={unidades}
-        catalogoCompleto={catalogoCompleto}
-        alAgregar={(arcada, rol) =>
-          setUnidades(ordenarPorBoca([...unidades, unidadDeArcada(arcada, rol)]))
-        }
-        alCambiar={setUnidades}
+                  {/* Esta columna no se desplaza por dentro: recortaba los
+                      recuadros. Crece con la página, y el detalle se queda
+                      pegado arriba para no perderlo de vista. */}
+                  <div className="flex min-w-0 flex-col gap-3">
+                    {tresColumnas ? (
+                      <div className="min-[1440px]:sticky min-[1440px]:top-0 min-[1440px]:z-10">
+                        {detalle}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            ),
+          },
+          {
+            clave: "arcadas",
+            titulo: "Arcadas",
+            cuantas: enArcadas,
+            contenido: (
+              <VistaDeArcadas
+                unidades={unidades}
+                catalogoCompleto={catalogoCompleto}
+                alAgregar={(arcada, rol) =>
+                  setUnidades(
+                    ordenarPorBoca([...unidades, unidadDeArcada(arcada, rol)]),
+                  )
+                }
+                alCambiar={setUnidades}
+                alQuitar={(unidad) =>
+                  setUnidades(quitarUnidad(unidades, unidad))
+                }
+              />
+            ),
+          },
+        ]}
       />
 
-      {/* Lo que lleva el caso, debajo y a todo lo ancho: se va llenando
-          conforme se tocan dientes, y ningún renglón queda cortado. */}
+      {/* Lo que lleva el caso, debajo de las dos pestañas y a todo lo ancho:
+          se lee de corrido, venga de donde venga cada renglón. */}
       <TablaDelCaso
         unidades={unidades}
         abierto={abierto}
-        alAbrir={setAbierto}
+        alAbrir={(diente) => {
+          setPestana("dientes");
+          setAbierto(diente);
+        }}
         alQuitar={(unidad) => {
           setUnidades(quitarUnidad(unidades, unidad));
           if (abierto === unidad.diente) setAbierto(null);
@@ -186,7 +230,6 @@ export function CapturaDeUnidades({
           {error}
         </p>
       ) : null}
-
     </section>
   );
 }

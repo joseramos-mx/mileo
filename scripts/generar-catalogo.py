@@ -38,6 +38,10 @@ def tenue(h, blanco=0.75):
 
 BLANCO, TINTA = "#ffffff", "#1d2126"
 
+# Lo que se anota pero no se fabrica. Es independiente del alcance: el
+# antagonista se marca sobre una arcada entera y sigue sin ser una pieza.
+ANOTACIONES = {"ANTAGONISTA", "DIENTE_VECINO", "OMITIR_EN_PUENTE"}
+
 # --------------------------------------------------------------- materiales
 # Grupos que se repiten. Salen de la tabla de material -> metodo del catalogo.
 CORONA_COMPLETA = [
@@ -169,13 +173,13 @@ CATALOGO = [
  ("Dentición restante", [
   ("ANTAGONISTA", "Antagonista",
    "La arcada opuesta. Se usa para ajustar la oclusión.",
-   "#c44e00", [], "CONTEXTO", [], True),
+   "#c44e00", [], "ARCADA", [], True),
   ("DIENTE_VECINO", "Diente vecino",
    "Diente contiguo que se toma como referencia.",
-   "#8a6d1f", [], "CONTEXTO", [], True),
+   "#8a6d1f", [], "DIENTE", [], True),
   ("OMITIR_EN_PUENTE", "Omitir en el puente",
    "Espacio que el puente cruza sin colocar diente.",
-   "#c62828", [], "CONTEXTO", [], True),
+   "#c62828", [], "DIENTE", [], True),
  ]),
 ]
 
@@ -196,7 +200,8 @@ for categoria, tipos in CATALOGO:
 
         filas.append(dict(clave=clave, nombre=nombre, que=que, categoria=categoria,
                           color=color, suave=suave, texto=texto, alcance=alcance,
-                          materiales=materiales, campos=campos, corta=corta))
+                          materiales=materiales, campos=campos, corta=corta,
+                          anotacion=clave in ANOTACIONES))
 
 if errores:
     print("CONTRASTE INSUFICIENTE:")
@@ -221,10 +226,12 @@ cuerpo = "\n".join(
     '    materiales: %s,\n'
     '    campos: %s,\n'
     '    enListaCorta: %s,\n'
+    '    esAnotacion: %s,\n'
     '  },'
     % (f["clave"], f["nombre"], f["que"], f["categoria"], f["alcance"],
        f["color"], f["suave"], f["texto"], lista(f["materiales"]),
-       lista(f["campos"]), "true" if f["corta"] else "false")
+       lista(f["campos"]), "true" if f["corta"] else "false",
+       "true" if f["anotacion"] else "false")
     for f in filas
 )
 
@@ -269,9 +276,7 @@ export type AlcanceDeTrabajo =
   /** Sobre dos o más dientes vecinos unidos entre sí. */
   | "TRAMO"
   /** Sobre una arcada completa. No se toca ningún diente. */
-  | "ARCADA"
-  /** Una anotación sobre el diente. No se fabrica ni se cotiza. */
-  | "CONTEXTO";
+  | "ARCADA";
 
 /** Lo que se le pregunta al doctor de una unidad. */
 export type CampoDeUnidad =
@@ -304,6 +309,13 @@ export type TipoDeTrabajo = {
    * ve la lista entera y afina el tipo al diseñar.
    */
   enListaCorta: boolean;
+  /**
+   * Se anota pero no se fabrica: el antagonista, el diente vecino y el espacio
+   * que el puente cruza. No cuentan como unidad, no se cotizan y no suman
+   * puntos del comodato. Es independiente del alcance: el antagonista se marca
+   * sobre una arcada entera y sigue sin ser una pieza.
+   */
+  esAnotacion: boolean;
 };
 
 export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
@@ -326,7 +338,7 @@ export const TODOS_LOS_ROLES = Object.keys(TRABAJOS) as RolDeUnidad[];
  * resumen del caso, no se cotiza y no suma puntos del comodato.
  */
 export function seFabrica(rol: RolDeUnidad) {
-  return TRABAJOS[rol].alcance !== "CONTEXTO";
+  return !TRABAJOS[rol].esAnotacion;
 }
 
 /** Si el trabajo le pregunta este campo al doctor. */
