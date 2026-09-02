@@ -337,8 +337,23 @@ async function main() {
     );
 
     const zonas = clinica.locator('input[type="file"]');
+    comprobar(
+      (await clinica.getByRole("button", { name: /^Escoger archivos/ }).count()) === 3,
+      "cada apartado vacío invita a subir su archivo",
+    );
+
     await zonas.nth(0).setInputFiles(escaneo);
     await clinica.waitForTimeout(2500);
+    comprobar(
+      (await clinica.getByRole("button", { name: /^Escoger archivos/ }).count()) === 2,
+      "el apartado que ya tiene archivo cierra su recuadro de subida",
+    );
+    comprobar(
+      await clinica
+        .getByRole("button", { name: /Agregar otro archivo a escaneo de la preparación/i })
+        .isVisible(),
+      "y deja el botón para mandar otro archivo del mismo apartado",
+    );
     await zonas.nth(1).setInputFiles(antagonista);
     await clinica.waitForTimeout(2500);
 

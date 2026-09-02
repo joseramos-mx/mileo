@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { UploadSimple, Trash, CheckCircle, WifiSlash } from "@phosphor-icons/react";
+import {
+  UploadSimple,
+  Trash,
+  CheckCircle,
+  Plus,
+  WifiSlash,
+} from "@phosphor-icons/react";
 import { Boton } from "@/componentes/Boton";
 import { cn } from "@/lib/utilidades";
 import { enTamano } from "@/lib/formato";
@@ -18,6 +24,12 @@ import {
  * Se arrastra o se escoge. Barra de progreso por archivo y reanudación si se
  * cae la señal, nunca reinicio (§6.6). En el celular, el botón abre la cámara o
  * los archivos del teléfono.
+ *
+ * En cuanto hay algo subido, el recuadro punteado se quita y deja su lugar a la
+ * lista: con tres apartados llenos, tres recuadros de invitación no invitan a
+ * nada y alargan la pantalla. Para mandar otro archivo del mismo apartado queda
+ * el botón de arriba, junto a los botes de basura. Soltar un archivo encima
+ * sigue funcionando igual, esté abierto o no.
  */
 
 export type ArchivoYaSubido = {
@@ -122,61 +134,88 @@ export function ZonaDeArchivos({
     alCambiar();
   }
 
+  const hayAlgo = enCurso.length > 0 || yaSubidos.length > 0;
+
+  // El campo va escondido y se abre con un botón, pero sigue necesitando su
+  // etiqueta: quien navega con lector de pantalla lo encuentra en la lista de
+  // campos del formulario.
+  const campo = (
+    <input
+      ref={entrada}
+      type="file"
+      multiple
+      accept={esFoto ? ACEPTA_FOTO : ACEPTA_ESCANEO}
+      // En el celular, para una foto conviene abrir la camara de una vez.
+      {...(esFoto ? { capture: "environment" as const } : {})}
+      className="sr-only"
+      id={`archivos-${tipo}`}
+      aria-label={etiqueta}
+      onChange={(e) => {
+        void recibir(e.target.files);
+        e.target.value = "";
+      }}
+    />
+  );
+
   return (
-    <div className="flex flex-col gap-3">
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setArrastrando(true);
-        }}
-        onDragLeave={() => setArrastrando(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setArrastrando(false);
-          void recibir(e.dataTransfer.files);
-        }}
-        className={cn(
-          "flex flex-col items-center gap-3 rounded-contenedor border border-dashed p-6 text-center",
-          arrastrando
-            ? "border-accion bg-superficie-suave"
-            : "border-borde bg-superficie",
-        )}
-      >
-        <UploadSimple aria-hidden="true" size={24} className="text-secundario" />
-        <div>
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setArrastrando(true);
+      }}
+      onDragLeave={() => setArrastrando(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setArrastrando(false);
+        void recibir(e.dataTransfer.files);
+      }}
+      className={cn(
+        "flex flex-col gap-2 rounded-contenedor",
+        arrastrando && hayAlgo && "outline-2 outline-offset-4 outline-accion",
+      )}
+    >
+      {hayAlgo ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-cuerpo font-medium text-primario">{etiqueta}</p>
-          <p className="mt-1 text-menor text-secundario">{ayuda}</p>
+          <Boton type="button" onClick={() => entrada.current?.click()}>
+            <Plus aria-hidden="true" size={16} weight="bold" />
+            {esFoto ? "Agregar otra foto" : "Agregar otro archivo"}
+            <span className="sr-only"> a {etiqueta.toLowerCase()}</span>
+          </Boton>
+          {campo}
         </div>
+      ) : (
+        <div
+          className={cn(
+            "flex flex-col items-center gap-3 rounded-contenedor border border-dashed p-6 text-center",
+            arrastrando
+              ? "border-accion bg-superficie-suave"
+              : "border-borde bg-superficie",
+          )}
+        >
+          <UploadSimple
+            aria-hidden="true"
+            size={24}
+            className="text-secundario"
+          />
+          <div>
+            <p className="text-cuerpo font-medium text-primario">{etiqueta}</p>
+            <p className="mt-1 text-menor text-secundario">{ayuda}</p>
+          </div>
 
-        {/* El campo va escondido y se abre con el boton de al lado, pero
-            sigue necesitando su propia etiqueta: quien navega con lector de
-            pantalla lo encuentra en la lista de campos del formulario. */}
-        <input
-          ref={entrada}
-          type="file"
-          multiple
-          accept={esFoto ? ACEPTA_FOTO : ACEPTA_ESCANEO}
-          // En el celular, para una foto conviene abrir la camara de una vez.
-          {...(esFoto ? { capture: "environment" as const } : {})}
-          className="sr-only"
-          id={`archivos-${tipo}`}
-          aria-label={etiqueta}
-          onChange={(e) => {
-            void recibir(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <Boton type="button" onClick={() => entrada.current?.click()}>
-          {esFoto ? "Tomar o escoger la foto" : "Escoger archivos"}
-        </Boton>
-        <p className="text-minimo text-secundario">
-          {esFoto
-            ? "Una foto con buena luz. También puede arrastrarla aquí."
-            : "STL, PLY, OBJ, DICOM o ZIP. También puede arrastrarlos aquí."}
-        </p>
-      </div>
+          {campo}
+          <Boton type="button" onClick={() => entrada.current?.click()}>
+            {esFoto ? "Tomar o escoger la foto" : "Escoger archivos"}
+          </Boton>
+          <p className="text-minimo text-secundario">
+            {esFoto
+              ? "Una foto con buena luz. También puede arrastrarla aquí."
+              : "STL, PLY, OBJ, DICOM o ZIP. También puede arrastrarlos aquí."}
+          </p>
+        </div>
+      )}
 
-      {(enCurso.length > 0 || yaSubidos.length > 0) && (
+      {hayAlgo && (
         <ul className="flex flex-col gap-2">
           {enCurso.map((archivo) => (
             <li
