@@ -47,8 +47,13 @@ export default async function DisposicionDentro({
     esDeLaClinica(usuario) ? metaDelMes(usuario) : Promise.resolve(null),
   ]);
 
+  // `relative` no es decoración: sin un ancestro posicionado, todo lo que va en
+  // absoluto —empezando por los textos de `sr-only`, que Tailwind pone así— se
+  // cuelga del bloque inicial. Ahí no lo recorta el overflow de nadie, y el que
+  // cae al fondo de una lista larga estira el documento entero: la ventana se
+  // desplazaba y la barra lateral se iba para arriba.
   return (
-    <div className="flex h-dvh flex-col overflow-hidden lg:flex-row">
+    <div className="relative flex h-dvh flex-col overflow-hidden lg:flex-row">
       {/* Mantiene al día lo que ve el doctor cuando el laboratorio mueve un caso. */}
       <EscuchaNovedades />
 
@@ -109,9 +114,11 @@ export default async function DisposicionDentro({
 
       {/* --- Contenido ----------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* `relative` otra vez, y aquí es el que cuenta: ancla los absolutos
+            del contenido a la caja que se desplaza, no al documento. */}
         <main
           id="contenido"
-          className="flex-1 overflow-x-hidden overflow-y-auto p-3 lg:p-4"
+          className="relative flex-1 overflow-x-hidden overflow-y-auto p-3 lg:p-4"
         >
           {/* Márgenes mínimos: el contenido casi toca los bordes, como el
               diseño entregado. */}

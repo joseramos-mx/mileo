@@ -59,6 +59,21 @@ function comprobar(condicion: boolean, queDeberia: string) {
 
 /** Cero violaciones críticas o serias antes de dar por terminado (§10). */
 async function auditar(pagina: Page, nombre: string) {
+  // El cascaron se queda quieto: lo unico que se desplaza es <main>. Si algo
+  // vuelve a estirar el documento —un absoluto sin ancestro posicionado, por
+  // ejemplo un texto de `sr-only`— la barra lateral se va para arriba y queda
+  // media pantalla en blanco. Se revisa en cada pantalla auditada.
+  const seDesplazo = await pagina.evaluate(() => {
+    window.scrollTo(0, 9000);
+    const donde = window.scrollY;
+    window.scrollTo(0, 0);
+    return donde;
+  });
+  comprobar(
+    seDesplazo === 0,
+    `en ${nombre} sólo se desplaza el contenido, no la pantalla`,
+  );
+
   const resultado = await new AxeBuilder({ page: pagina })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
