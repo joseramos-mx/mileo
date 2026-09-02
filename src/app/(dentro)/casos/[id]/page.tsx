@@ -13,12 +13,13 @@ import { ChipDeEtapa } from "@/componentes/ChipDeEtapa";
 import { MarcoDeImagen } from "@/componentes/MarcoDeImagen";
 import { resumirUnidades } from "@/lib/casos";
 import {
-  COLORES_VITA,
+  ARCADAS_EN_PALABRAS,
   ETAPAS,
   INDICACIONES,
   MATERIALES,
   TIPOS_DE_ARCHIVO,
   ROLES_DE_UNIDAD,
+  nombreDelColor,
   nombreDelDiente,
 } from "@/lib/vocabulario";
 import { fechaCorta, cuandoFalta, fechaConHora, paraMaquina } from "@/lib/fechas";
@@ -162,20 +163,28 @@ export default async function PaginaDeCaso({
               key={unidad.id}
               className="flex flex-wrap items-baseline justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
             >
+              {/* No todo va en un diente: una guarda, una prótesis y un
+                  modelo van sobre una arcada entera. */}
               <span className="text-cuerpo font-medium text-primario">
-                Diente {unidad.diente}
-                <span className="font-normal text-secundario">
-                  {" · "}
-                  {nombreDelDiente(unidad.diente)}
-                </span>
+                {unidad.diente !== null ? (
+                  <>
+                    Diente {unidad.diente}
+                    <span className="font-normal text-secundario">
+                      {" · "}
+                      {nombreDelDiente(unidad.diente)}
+                    </span>
+                  </>
+                ) : unidad.arcada ? (
+                  ARCADAS_EN_PALABRAS[unidad.arcada]
+                ) : (
+                  "Todo el caso"
+                )}
               </span>
               <span className="text-menor text-secundario">
                 {[
                   ROLES_DE_UNIDAD[unidad.rol],
                   unidad.material ? MATERIALES[unidad.material] : null,
-                  unidad.color && COLORES_VITA.includes(unidad.color)
-                    ? `color ${unidad.color}`
-                    : null,
+                  unidad.color ? `color ${nombreDelColor(unidad.color)}` : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}

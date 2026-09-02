@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Escribe src/lib/trabajos.ts con la paleta verificada.
+"""Escribe src/lib/trabajos.ts: el catalogo de trabajos del laboratorio.
 
     python scripts/generar-catalogo.py
 
-Se corre a mano cuando se agrega un tipo de trabajo. Falla si algun color no
-alcanza 4.5:1, para que no entre a la interfaz.
+Aqui vive la tabla completa —alcance, campos, materiales y color de cada tipo—
+y de aqui sale el modulo que usan la pantalla y el servidor. Se corre a mano
+cuando se agrega o se cambia un tipo.
+
+Falla y no escribe nada si algun color no llega a 4.5:1 con su texto, para que
+un color bonito que no se lee no entre a la interfaz (SKILL.md §7).
 """
 import io
 
@@ -34,73 +38,165 @@ def tenue(h, blanco=0.75):
 
 BLANCO, TINTA = "#ffffff", "#1d2126"
 
-CORONA = ["ZIRCONIO_MONOLITICO", "ZIRCONIO_ESTRATIFICADO", "DISILICATO_DE_LITIO", "METAL_PORCELANA"]
-SUBESTR = ["ZIRCONIO_MONOLITICO", "CROMO_COBALTO", "METAL_PORCELANA", "TITANIO"]
-PRENSA = ["DISILICATO_DE_LITIO", "ZIRCONIO_ESTRATIFICADO"]
-TEMP = ["PMMA", "RESINA_IMPRESION"]
-CERA = ["CERA_CALCINABLE", "PMMA"]
-METAL = ["TITANIO", "CROMO_COBALTO"]
+# --------------------------------------------------------------- materiales
+# Grupos que se repiten. Salen de la tabla de material -> metodo del catalogo.
+CORONA_COMPLETA = [
+    "ZIRCONIO_MONOLITICO", "ZIRCONIO_ESTRATIFICADO", "DISILICATO_DE_LITIO",
+    "PMMA", "RESINA_IMPRESION", "METAL_PORCELANA", "TITANIO",
+]
+SUBESTRUCTURA = [
+    "ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO", "TITANIO",
+]
+PRENSADO = ["DISILICATO_DE_LITIO", "CERAMICA_PRENSADA"]
+PONTICO_REDUCIDO = ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO"]
+PROVISIONAL = ["PMMA", "RESINA_IMPRESION"]
+MOCKUP = ["PMMA", "RESINA_IMPRESION", "CERA_CALCINABLE"]
+COPIADO = ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"]
+INCRUSTACION = ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO", "RESINA_IMPRESION"]
+INCRUSTACION_ALIVIO = ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO"]
+CARILLA = ["DISILICATO_DE_LITIO", "ZIRCONIO_ULTRAFINO", "RESINA_IMPRESION"]
+ADITAMENTO = ["TITANIO", "ZIRCONIO_SOBRE_TITANIO"]
+BARRA = ["TITANIO", "CROMO_COBALTO"]
+SUBESTRUCTURA_ALIVIO = ["ZIRCONIO_MONOLITICO", "CROMO_COBALTO", "TITANIO"]
+TELESCOPICA_PRIMARIA = ["TITANIO", "CROMO_COBALTO", "ZIRCONIO_MONOLITICO"]
+TELESCOPICA_SECUNDARIA = ["CROMO_COBALTO", "TITANIO"]
+PROTESIS_TOTAL = ["RESINA_TERMOPOLIMERIZABLE", "RESINA_IMPRESION"]
+ESQUELETO = ["CROMO_COBALTO", "TITANIO", "RESINA_FLEXIBLE"]
+GUARDA = ["PMMA_TRANSPARENTE", "RESINA_IMPRESION", "RESINA_FLEXIBLE"]
+MODELO = ["RESINA_IMPRESION"]
 
+# -------------------------------------------------------------- el catalogo
+# clave, nombre, que es, color, materiales, alcance, campos extra, lista corta
+#
+# `campos` son los que van ADEMAS de material, metodo y notas, que se resuelven
+# solos: el material siempre que haya materiales, el metodo siempre que haya
+# material, y las notas siempre.
 CATALOGO = [
  ("Coronas y cofias", [
-  ("CORONA_ANATOMICA", "Corona anatómica", "La corona completa, con su forma y su anatomía.", "#7b3ff2", CORONA, True, "CORONA"),
-  ("COFIA", "Cofia", "La estructura interna. Encima va la porcelana.", "#0f7b6c", SUBESTR, True, "CORONA"),
-  ("CORONA_PRENSADA", "Corona prensada", "Corona hecha por inyección, no fresada.", "#7cb342", PRENSA, True, "CORONA"),
-  ("CORONA_CASCARON", "Corona cascarón (provisional)", "Provisional delgada, para que el paciente salga con algo puesto.", "#6a1fd0", TEMP, True, "CORONA"),
-  ("COFIA_CON_ALIVIO", "Cofia con alivio", "Cofia con espacio reservado para el recubrimiento.", "#2b833c", SUBESTR, True, "CORONA"),
-  ("MOCKUP", "Mockup", "Una prueba en boca antes de fabricar en definitivo.", "#c74767", TEMP, True, "CORONA"),
+  ("CORONA_ANATOMICA", "Corona anatómica",
+   "La corona completa, con su forma y su anatomía.",
+   "#7b3ff2", CORONA_COMPLETA, "DIENTE", ["color"], True),
+  ("COFIA", "Cofia",
+   "La estructura interna. Se recubre después con cerámica.",
+   "#0f7b6c", SUBESTRUCTURA, "DIENTE", [], True),
+  ("CORONA_PRENSADA", "Corona prensada",
+   "Corona completa fabricada por técnica de prensado.",
+   "#7cb342", PRENSADO, "DIENTE", ["color"], False),
+  ("CORONA_CASCARON", "Corona cascarón (provisional)",
+   "Cascarón hueco, para el provisional del paciente.",
+   "#6a1fd0", PROVISIONAL, "DIENTE", ["color"], True),
+  ("COFIA_CON_ALIVIO", "Cofia con alivio",
+   "Cofia con espacio adicional para el material que va encima.",
+   "#2b833c", SUBESTRUCTURA, "DIENTE", ["espesorAlivio"], False),
+  ("MOCKUP", "Mockup",
+   "Prueba de forma para enseñarle el resultado al paciente antes de tallar.",
+   "#c74767", MOCKUP, "DIENTE", [], False),
  ]),
  ("Pónticos", [
-  ("PONTICO_ANATOMICO", "Póntico anatómico", "Reemplaza el diente ausente. Cuelga de los pilares.", "#8e1a3a", CORONA, True, "PONTICO"),
-  ("PONTICO_REDUCIDO", "Póntico reducido", "Póntico rebajado, para recubrirlo con porcelana.", "#c2185b", SUBESTR, True, "PONTICO"),
-  ("PONTICO_PRENSADO", "Póntico prensado", "Póntico hecho por inyección.", "#3d8fd1", PRENSA, True, "PONTICO"),
-  ("PONTICO_CASCARON", "Póntico cascarón (provisional)", "Póntico provisional, mientras se fabrica el definitivo.", "#a3216b", TEMP, True, "PONTICO"),
+  ("PONTICO_ANATOMICO", "Póntico anatómico",
+   "El diente que va en el espacio, con su forma completa.",
+   "#8e1a3a", CORONA_COMPLETA, "DIENTE", ["color"], True),
+  ("PONTICO_REDUCIDO", "Póntico reducido",
+   "Póntico con la forma reducida para recubrirlo con cerámica.",
+   "#c2185b", PONTICO_REDUCIDO, "DIENTE", [], False),
+  ("PONTICO_PRENSADO", "Póntico prensado",
+   "Póntico fabricado por técnica de prensado.",
+   "#3d8fd1", PRENSADO, "DIENTE", ["color"], False),
+  ("PONTICO_CASCARON", "Póntico cascarón (provisional)",
+   "Póntico hueco, para el puente provisional.",
+   "#a3216b", PROVISIONAL, "DIENTE", ["color"], False),
  ]),
  ("Incrustaciones y carillas", [
-  ("INCRUSTACION", "Incrustación inlay u onlay", "Rellena la parte del diente que falta.", "#2e7d32", PRENSA, True, "PARCIAL"),
-  ("INCRUSTACION_CON_ALIVIO", "Incrustación con alivio", "Incrustación con espacio para el recubrimiento.", "#1565c0", PRENSA, True, "PARCIAL"),
-  ("CARILLA", "Carilla", "Sólo la cara visible del diente.", "#00796b", PRENSA, True, "PARCIAL"),
+  ("INCRUSTACION", "Incrustación inlay u onlay",
+   "Restauración parcial que va dentro o sobre la cúspide.",
+   "#2e7d32", INCRUSTACION, "DIENTE", ["color"], True),
+  ("INCRUSTACION_CON_ALIVIO", "Incrustación con alivio",
+   "Incrustación con espacio para el recubrimiento.",
+   "#1565c0", INCRUSTACION_ALIVIO, "DIENTE", ["espesorAlivio"], False),
+  ("CARILLA", "Carilla",
+   "Lámina que cubre sólo la cara visible del diente.",
+   "#00796b", CARILLA, "DIENTE", ["color"], True),
  ]),
  ("Copiado digital", [
-  ("ENCERADO_ANATOMICO", "Encerado anatómico", "El encerado completo, para copiarlo o colarlo.", "#00a878", CERA, False, "CORONA"),
-  ("ENCERADO_REDUCIDO", "Encerado reducido", "Encerado rebajado, para recubrirlo después.", "#6d4c41", CERA, False, "CORONA"),
-  ("ENCERADO_DE_PONTICO", "Encerado de póntico", "El encerado del póntico de un puente.", "#5e35b1", CERA, False, "PONTICO"),
+  ("ENCERADO_ANATOMICO", "Encerado anatómico",
+   "Copia la forma completa de un encerado o provisional que ya existe.",
+   "#00a878", COPIADO, "DIENTE", [], False),
+  ("ENCERADO_REDUCIDO", "Encerado reducido",
+   "Copia esa forma, reducida para recubrir con cerámica.",
+   "#6d4c41", COPIADO, "DIENTE", [], False),
+  ("ENCERADO_DE_PONTICO", "Encerado de póntico",
+   "Copia la forma del póntico de un encerado existente.",
+   "#5e35b1", COPIADO, "DIENTE", [], False),
+ ]),
+ ("Sobre implante", [
+  ("ADITAMENTO", "Aditamento",
+   "Pieza que conecta el implante con la restauración.",
+   "#00494d", ADITAMENTO, "DIENTE", ["sistemaImplante", "color"], True),
+  ("PILAR_DE_BARRA", "Pilar de barra",
+   "El punto donde la barra se atornilla al implante.",
+   "#5a4a1f", BARRA, "DIENTE", ["sistemaImplante"], False),
+ ]),
+ ("Barras y estructuras", [
+  ("SEGMENTO_DE_BARRA", "Segmento de barra",
+   "El tramo de barra entre dos pilares.",
+   "#5f4b9e", BARRA, "TRAMO", [], False),
+  ("SUBESTRUCTURA_CON_ALIVIO", "Subestructura con alivio",
+   "Estructura con espacio para el material que va encima.",
+   "#7d7455", SUBESTRUCTURA_ALIVIO, "TRAMO", ["espesorAlivio"], False),
  ]),
  ("Removibles y aparatos", [
-  ("PROTESIS_TOTAL", "Prótesis total", "La dentadura completa de una arcada.", "#0097a7", TEMP, True, "APARATO"),
-  ("PROTESIS_PARCIAL", "Prótesis parcial", "Repone varios dientes y se apoya en los que quedan.", "#9a673c", TEMP, True, "APARATO"),
-  ("GUARDA_OCLUSAL", "Guarda oclusal", "Para el bruxismo. No va sobre un diente en particular.", "#37474f", TEMP, False, "APARATO"),
-  ("TELESCOPICA_PRIMARIA", "Corona telescópica primaria", "La que va cementada sobre el diente.", "#a8536b", SUBESTR, True, "CORONA"),
-  ("TELESCOPICA_SECUNDARIA", "Corona telescópica secundaria", "La que embona sobre la primaria y sostiene la prótesis.", "#795548", SUBESTR, True, "CORONA"),
-  ("ADITAMENTO", "Aditamento", "La pieza que une el implante con la corona.", "#00494d", METAL, False, "APARATO"),
- ]),
- ("Barras", [
-  ("PILAR_DE_BARRA", "Pilar de barra", "El apoyo de la barra sobre el implante.", "#5a4a1f", METAL, False, "BARRA"),
-  ("SEGMENTO_DE_BARRA", "Segmento de barra", "El tramo de barra entre dos pilares.", "#5f4b9e", METAL, False, "BARRA"),
-  ("SUBESTRUCTURA_CON_ALIVIO", "Subestructura con alivio", "Estructura con espacio reservado para el recubrimiento.", "#7d7455", METAL, False, "BARRA"),
+  ("PROTESIS_TOTAL", "Prótesis total",
+   "Dentadura completa para una arcada sin dientes.",
+   "#0097a7", PROTESIS_TOTAL, "ARCADA", ["colorBase", "colorDientes"], True),
+  ("PROTESIS_PARCIAL", "Prótesis parcial",
+   "Prótesis removible que se apoya en los dientes que quedan.",
+   "#9a673c", ESQUELETO, "ARCADA", ["colorBase", "colorDientes"], True),
+  ("GUARDA_OCLUSAL", "Guarda oclusal",
+   "Férula para bruxismo o para proteger la oclusión.",
+   "#37474f", GUARDA, "ARCADA", ["grosor"], True),
+  ("TELESCOPICA_PRIMARIA", "Corona telescópica primaria",
+   "La corona interna, fija sobre el diente.",
+   "#a8536b", TELESCOPICA_PRIMARIA, "DIENTE", [], False),
+  ("TELESCOPICA_SECUNDARIA", "Corona telescópica secundaria",
+   "La corona externa, unida a la prótesis removible.",
+   "#795548", TELESCOPICA_SECUNDARIA, "DIENTE", [], False),
  ]),
  ("Modelos", [
-  ("MODELO", "Modelo", "El modelo impreso de la arcada.", "#455a64", ["RESINA_IMPRESION"], False, "APARATO"),
+  ("MODELO", "Modelo",
+   "Modelo impreso en 3D del caso.",
+   "#455a64", MODELO, "ARCADA", ["troqueles"], True),
  ]),
  ("Dentición restante", [
-  ("ANTAGONISTA", "Antagonista", "No se fabrica: se escanea para revisar la mordida.", "#c44e00", [], False, "MARCA"),
-  ("DIENTE_VECINO", "Diente vecino", "No se fabrica: se escanea para revisar el contacto.", "#8a6d1f", [], False, "MARCA"),
-  ("OMITIR_EN_PUENTE", "Omitir en el puente", "El puente pasa de largo por aquí, sin pieza.", "#c62828", [], False, "MARCA"),
+  ("ANTAGONISTA", "Antagonista",
+   "La arcada opuesta. Se usa para ajustar la oclusión.",
+   "#c44e00", [], "CONTEXTO", [], True),
+  ("DIENTE_VECINO", "Diente vecino",
+   "Diente contiguo que se toma como referencia.",
+   "#8a6d1f", [], "CONTEXTO", [], True),
+  ("OMITIR_EN_PUENTE", "Omitir en el puente",
+   "Espacio que el puente cruza sin colocar diente.",
+   "#c62828", [], "CONTEXTO", [], True),
  ]),
 ]
 
 filas, errores = [], []
 for categoria, tipos in CATALOGO:
-    for clave, nombre, que, color, materiales, vita, familia in tipos:
+    for clave, nombre, que, color, materiales, alcance, extra, corta in tipos:
         texto = BLANCO if razon(BLANCO, color) >= 4.5 else TINTA
         r = razon(texto, color)
         suave = tenue(color)
         rn = razon(TINTA, suave)
         if r < 4.5 or rn < 4.5:
             errores.append("%s: pastilla %.2f, numero %.2f" % (clave, r, rn))
+
+        campos = list(extra)
+        if materiales:
+            campos = ["material", "metodo"] + campos
+        campos.append("notas")
+
         filas.append(dict(clave=clave, nombre=nombre, que=que, categoria=categoria,
-                          color=color, suave=suave, texto=texto,
-                          materiales=materiales, vita=vita, familia=familia))
+                          color=color, suave=suave, texto=texto, alcance=alcance,
+                          materiales=materiales, campos=campos, corta=corta))
 
 if errores:
     print("CONTRASTE INSUFICIENTE:")
@@ -118,16 +214,17 @@ cuerpo = "\n".join(
     '    nombre: "%s",\n'
     '    queEs: "%s",\n'
     '    categoria: "%s",\n'
-    '    familia: "%s",\n'
+    '    alcance: "%s",\n'
     '    color: "%s",\n'
     '    colorTenue: "%s",\n'
     '    colorDelTexto: "%s",\n'
     '    materiales: %s,\n'
-    '    llevaColorVita: %s,\n'
+    '    campos: %s,\n'
+    '    enListaCorta: %s,\n'
     '  },'
-    % (f["clave"], f["nombre"], f["que"], f["categoria"], f["familia"],
+    % (f["clave"], f["nombre"], f["que"], f["categoria"], f["alcance"],
        f["color"], f["suave"], f["texto"], lista(f["materiales"]),
-       "true" if f["vita"] else "false")
+       lista(f["campos"]), "true" if f["corta"] else "false")
     for f in filas
 )
 
@@ -136,56 +233,77 @@ categorias = "\n".join(
     for categoria, tipos in CATALOGO
 )
 
-CABECERA = '''import type { Material, RolDeUnidad } from "@/generated/prisma/enums";
+CABECERA = '''import type {
+  Indicacion,
+  Material,
+  RolDeUnidad,
+} from "@/generated/prisma/enums";
 
 /**
- * El catálogo de trabajos, con la misma estructura que el que ya usan los
- * técnicos en exocad: agrupado por categoría y con un color por tipo.
+ * El catálogo de trabajos del laboratorio.
  *
- * GENERADO por `python scripts/generar-catalogo.py`. Agregar un tipo es
- * agregar un renglón allá, su valor en el enum de Prisma y su migración.
+ * GENERADO por `python scripts/generar-catalogo.py`. Agregar un tipo es agregar
+ * un renglón allá, su valor en el enum de Prisma y su migración.
  *
- * Por qué el color vive aquí y no en `globals.css`: son veintinueve, y no son
- * roles de la interfaz —no hay un "color de acción" ni un "color de borde"—
- * sino un dato del catálogo. Meterlos como tokens obligaría a nombrar 58
- * variables y a escribir la clase literal de cada una para que Tailwind las
- * genere. Aquí es una tabla, que es lo que son.
+ * Cada tipo dice tres cosas que el resto del sistema obedece:
  *
- * Tres colores por tipo, y no uno, porque cada uno tiene su trabajo:
- *   color         el de la pastilla y el contorno del diente
- *   colorTenue    el relleno del diente, para que el número se siga leyendo
- *   colorDelTexto el que va encima de la pastilla
+ *   alcance   sobre qué se asigna. No todo se pone en un diente: una barra va
+ *             sobre un tramo de dientes unidos, una guarda sobre una arcada
+ *             entera, y el antagonista no es una pieza sino una anotación.
+ *   campos    qué se le pregunta al doctor. Un campo que no aplica no se
+ *             enseña apagado: no se enseña (§6.5).
+ *   color     el suyo, para el diente y la pastilla. Son veintinueve y no son
+ *             roles de la interfaz sino un dato del catálogo, por eso viven en
+ *             esta tabla y no en `globals.css`.
  *
- * Los dos pares están medidos: la pastilla llega a 4.5:1 y el número sobre el
- * relleno también (§7). El guion que genera esto se niega a escribir un color
- * que no alcance, y `npm run prueba:odontograma` lo vuelve a medir en pantalla.
+ * Los dos pares de color están medidos: la pastilla llega a 4.5:1 y el número
+ * del diente sobre el relleno también (§7). El guion que genera esto se niega a
+ * escribir un color que no alcance, y `npm run prueba:odontograma` lo vuelve a
+ * medir en pantalla.
  */
 
-export type FamiliaDeTrabajo =
-  /** Va sobre un diente preparado. Sirve de extremo de un puente. */
-  | "CORONA"
-  /** Cuelga entre dos pilares. Sólo va en medio de un puente. */
-  | "PONTICO"
-  /** Cubre parte del diente. No entra en un puente. */
-  | "PARCIAL"
-  /** No va sobre un diente en particular. */
-  | "APARATO"
-  /** Estructura sobre implantes. */
-  | "BARRA"
-  /** No se fabrica: es una anotación sobre ese diente. */
-  | "MARCA";
+/** Sobre qué se asigna un trabajo. */
+export type AlcanceDeTrabajo =
+  /** Un toque en el odontograma: una unidad, un diente. */
+  | "DIENTE"
+  /** Sobre dos o más dientes vecinos unidos entre sí. */
+  | "TRAMO"
+  /** Sobre una arcada completa. No se toca ningún diente. */
+  | "ARCADA"
+  /** Una anotación sobre el diente. No se fabrica ni se cotiza. */
+  | "CONTEXTO";
+
+/** Lo que se le pregunta al doctor de una unidad. */
+export type CampoDeUnidad =
+  | "material"
+  | "metodo"
+  | "color"
+  | "sistemaImplante"
+  | "retencion"
+  | "espesorAlivio"
+  | "grosor"
+  | "colorBase"
+  | "colorDientes"
+  | "troqueles"
+  | "notas";
 
 export type TipoDeTrabajo = {
   nombre: string;
   /** Qué es, en una línea, para el doctor (§8). */
   queEs: string;
   categoria: string;
-  familia: FamiliaDeTrabajo;
+  alcance: AlcanceDeTrabajo;
   color: string;
   colorTenue: string;
   colorDelTexto: string;
   materiales: Material[];
-  llevaColorVita: boolean;
+  campos: CampoDeUnidad[];
+  /**
+   * Si sale en la lista corta del doctor. Veintinueve opciones paralizan a un
+   * dentista y le cuestan al laboratorio en errores de captura; el laboratorio
+   * ve la lista entera y afina el tipo al diseñar.
+   */
+  enListaCorta: boolean;
 };
 
 export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
@@ -198,22 +316,128 @@ export const CATEGORIAS: { nombre: string; tipos: RolDeUnidad[] }[] = [
 %s
 ];
 
-/** Lo que sí se fabrica. Una marca no es una unidad que el laboratorio haga. */
+export const TODOS_LOS_ROLES = Object.keys(TRABAJOS) as RolDeUnidad[];
+
+/**
+ * Lo que sí se fabrica y se cotiza.
+ *
+ * Una anotación —antagonista, diente vecino, omitir en el puente— se captura
+ * porque el técnico necesita saberla, pero no es una unidad: no cuenta para el
+ * resumen del caso, no se cotiza y no suma puntos del comodato.
+ */
 export function seFabrica(rol: RolDeUnidad) {
-  return TRABAJOS[rol].familia !== "MARCA";
+  return TRABAJOS[rol].alcance !== "CONTEXTO";
 }
 
-/** Sirve de extremo de un puente: se apoya en un diente preparado. */
+/** Si el trabajo le pregunta este campo al doctor. */
+export function pregunta(rol: RolDeUnidad, campo: CampoDeUnidad) {
+  return TRABAJOS[rol].campos.includes(campo);
+}
+
+/** Sirve de extremo de un tramo: se apoya en un diente preparado. */
 export function puedeSerPilar(rol: RolDeUnidad) {
-  return TRABAJOS[rol].familia === "CORONA";
+  return PILARES.includes(rol);
 }
 
-/** Va en medio de un puente. */
+/** Va en medio de un tramo, colgando de los pilares. */
 export function esPontico(rol: RolDeUnidad) {
-  return TRABAJOS[rol].familia === "PONTICO";
+  return PONTICOS.includes(rol);
 }
+
+/** Los que se apoyan en un diente preparado y pueden cerrar un tramo. */
+const PILARES: RolDeUnidad[] = [
+  "CORONA_ANATOMICA",
+  "COFIA",
+  "CORONA_PRENSADA",
+  "CORONA_CASCARON",
+  "COFIA_CON_ALIVIO",
+  "ENCERADO_ANATOMICO",
+  "ENCERADO_REDUCIDO",
+  "TELESCOPICA_PRIMARIA",
+  "TELESCOPICA_SECUNDARIA",
+  "PILAR_DE_BARRA",
+];
+
+/**
+ * A que indicacion pertenece cada tipo de trabajo.
+ *
+ * La indicacion no se pregunta: se deduce de lo capturado, y de ella sale el
+ * kit que va en la caja (O-6).
+ */
+const INDICACION_DE_CADA_ROL: Partial<Record<RolDeUnidad, Indicacion>> = {
+  CORONA_ANATOMICA: "CORONA_Y_PUENTE",
+  COFIA: "CORONA_Y_PUENTE",
+  CORONA_PRENSADA: "CORONA_Y_PUENTE",
+  CORONA_CASCARON: "PROVISIONAL",
+  COFIA_CON_ALIVIO: "CORONA_Y_PUENTE",
+  MOCKUP: "PROVISIONAL",
+  PONTICO_ANATOMICO: "CORONA_Y_PUENTE",
+  PONTICO_REDUCIDO: "CORONA_Y_PUENTE",
+  PONTICO_PRENSADO: "CORONA_Y_PUENTE",
+  PONTICO_CASCARON: "PROVISIONAL",
+  INCRUSTACION: "INCRUSTACION_Y_CARILLA",
+  INCRUSTACION_CON_ALIVIO: "INCRUSTACION_Y_CARILLA",
+  CARILLA: "INCRUSTACION_Y_CARILLA",
+  ENCERADO_ANATOMICO: "CORONA_Y_PUENTE",
+  ENCERADO_REDUCIDO: "CORONA_Y_PUENTE",
+  ENCERADO_DE_PONTICO: "CORONA_Y_PUENTE",
+  ADITAMENTO: "SOBRE_IMPLANTE",
+  PILAR_DE_BARRA: "SOBRE_IMPLANTE",
+  SEGMENTO_DE_BARRA: "SOBRE_IMPLANTE",
+  SUBESTRUCTURA_CON_ALIVIO: "SOBRE_IMPLANTE",
+  TELESCOPICA_PRIMARIA: "CORONA_Y_PUENTE",
+  TELESCOPICA_SECUNDARIA: "CORONA_Y_PUENTE",
+  PROTESIS_TOTAL: "GUARDA_OCLUSAL",
+  PROTESIS_PARCIAL: "GUARDA_OCLUSAL",
+  GUARDA_OCLUSAL: "GUARDA_OCLUSAL",
+  MODELO: "MODELO_3D",
+};
+
+/**
+ * De mayor a menor exigencia de kit. Un caso con coronas y un aditamento sale
+ * como "sobre implante" porque su caja lleva tornillo, desarmador y analogo: si
+ * se resolviera al reves, la pieza llegaria a la clinica sin con que ponerla.
+ */
+const INDICACIONES_POR_EXIGENCIA: Indicacion[] = [
+  "SOBRE_IMPLANTE",
+  "CORONA_Y_PUENTE",
+  "INCRUSTACION_Y_CARILLA",
+  "PROVISIONAL",
+  "GUARDA_OCLUSAL",
+  "MODELO_3D",
+];
+
+/** Que indicacion resume lo que el doctor capturo. */
+export function indicacionDeLasUnidades(
+  unidades: { rol: RolDeUnidad }[],
+): Indicacion {
+  const presentes = new Set(
+    unidades.map((u) => INDICACION_DE_CADA_ROL[u.rol]).filter(Boolean),
+  );
+  return (
+    INDICACIONES_POR_EXIGENCIA.find((i) => presentes.has(i)) ??
+    "CORONA_Y_PUENTE"
+  );
+}
+
+/** Los que cuelgan entre dos pilares. */
+const PONTICOS: RolDeUnidad[] = [
+  "PONTICO_ANATOMICO",
+  "PONTICO_REDUCIDO",
+  "PONTICO_PRENSADO",
+  "PONTICO_CASCARON",
+  "ENCERADO_DE_PONTICO",
+  "SEGMENTO_DE_BARRA",
+  "SUBESTRUCTURA_CON_ALIVIO",
+];
 ''' % categorias
 
 io.open("src/lib/trabajos.ts", "w", encoding="utf-8").write(CABECERA + cuerpo + "\n" + PIE)
+
+por_alcance = {}
+for f in filas:
+    por_alcance.setdefault(f["alcance"], []).append(f["clave"])
 print("%d tipos en %d categorias. Contraste: todos pasan." % (len(filas), len(CATALOGO)))
-print(" ".join(f["clave"] for f in filas))
+for alcance, claves in por_alcance.items():
+    print("  %-9s %2d: %s" % (alcance, len(claves), " ".join(claves)))
+print("  lista corta del doctor: %s" % " ".join(f["clave"] for f in filas if f["corta"]))

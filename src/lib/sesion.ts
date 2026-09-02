@@ -25,6 +25,8 @@ export type UsuarioEnSesion = {
   fotoUrl: string | null;
   avisoPrivacidadAceptadoEn: Date | null;
   avisoPrivacidadVersion: string | null;
+  /** Si ve el catalogo entero de trabajos o la lista corta. */
+  catalogoCompleto: boolean;
 };
 
 function hashDelToken(token: string) {
@@ -89,6 +91,7 @@ export const usuarioActual = cache(
       fotoUrl: usuario.fotoUrl,
       avisoPrivacidadAceptadoEn: usuario.avisoPrivacidadAceptadoEn,
       avisoPrivacidadVersion: usuario.avisoPrivacidadVersion,
+      catalogoCompleto: usuario.catalogoCompleto,
     };
   },
 );

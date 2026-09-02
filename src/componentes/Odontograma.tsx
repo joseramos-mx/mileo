@@ -17,27 +17,39 @@ import {
 import {
   ARCADAS,
   arcadaDe,
-  conMaterialValido,
+  conCamposValidos,
+  conDiente,
   conMetodoValido,
   esSuperior,
-  nombreDelPuente,
+  nombreDelTramo,
   desunir,
   estanUnidos,
   ordenarPorBoca,
-  puenteDe,
+  tramoDe,
   conectar,
   unidadNueva,
   type UnidadDelCaso,
-} from "@/lib/puentes";
+} from "@/lib/tramos";
 import {
-  COLORES_VITA,
+  COLORES_DE_ENCIA,
+  GRUPOS_DE_COLOR,
+  COLOR_SEGUN_FOTO,
   MATERIALES,
   METODOS,
   METODOS_POR_MATERIAL,
+  RETENCIONES,
+  nombreDelColor,
+  seEscogeElMetodo,
   nombreDelDiente,
 } from "@/lib/vocabulario";
-import { CATEGORIAS, TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
-import { CampoDeSeleccion, CampoDeTexto } from "@/componentes/Campo";
+import {
+  CATEGORIAS,
+  TRABAJOS,
+  esPontico,
+  pregunta,
+  puedeSerPilar,
+} from "@/lib/trabajos";
+import { Campo, CampoDeSeleccion, CampoDeTexto } from "@/componentes/Campo";
 import { usePantallaAngosta } from "@/lib/pantalla";
 import { cn } from "@/lib/utilidades";
 
@@ -84,6 +96,8 @@ export function Odontograma({
   abierto,
   alAbrir: alAbrirDeAfuera,
   alCambiar,
+  catalogoCompleto,
+  alCambiarCatalogo,
   detalle,
   className,
 }: {
@@ -95,6 +109,9 @@ export function Odontograma({
   abierto: number | null;
   alAbrir: (diente: number | null) => void;
   alCambiar: (unidades: UnidadEnOdontograma[]) => void;
+  /** Si el doctor ve el catálogo entero o la lista corta. */
+  catalogoCompleto: boolean;
+  alCambiarCatalogo: (completo: boolean) => void;
   /**
    * El detalle del diente —material, color, notas—, cuando la pantalla no da
    * para ponerlo en su propia columna. Va al principio del catálogo, que es el
@@ -115,11 +132,15 @@ export function Odontograma({
   const enlacesEnPantalla = useRef(new Map<string, SVGGElement>());
 
   const angosta = usePantallaAngosta();
-  // Con qué tipo se estrena un diente: el último que se escogió en este caso.
-  // Quien está armando un puente de cuatro pónticos no quiere volver a
-  // escogerlo cuatro veces. Si el caso está vacío, una corona anatómica.
-  const porOmision: RolDeUnidad =
-    unidades[unidades.length - 1]?.rol ?? "CORONA_ANATOMICA";
+  // Con qué tipo se estrena un diente: el último que se escogió en este caso,
+  // siempre que sea un tipo que vaya en un diente. Quien está armando un puente
+  // de cuatro pónticos no quiere volver a escogerlo cuatro veces; pero si lo
+  // último que agregó fue una guarda —que va sobre la arcada—, el diente nuevo
+  // no puede heredar eso. Si no hay de dónde, una corona anatómica.
+  const ultimoDeDiente = conDiente(unidades)
+    .filter((u) => TRABAJOS[u.rol].alcance === "DIENTE")
+    .at(-1);
+  const porOmision: RolDeUnidad = ultimoDeDiente?.rol ?? "CORONA_ANATOMICA";
   const porDiente = new Map(unidades.map((u) => [u.diente, u]));
 
   /** En el celular sólo se ve una arcada a la vez: no caben las dos. */
@@ -304,7 +325,7 @@ export function Odontograma({
                   strokeWidth={1}
                   className={cn(
                     "pointer-events-none stroke-diente-contorno",
-                    porDiente.get(trazo.numero)?.puenteId
+                    porDiente.get(trazo.numero)?.tramoId
                       ? "fill-diente-puente stroke-diente-puente"
                       : "fill-diente-cuerpo",
                   )}
@@ -361,7 +382,9 @@ export function Odontograma({
       <CatalogoDelDiente
         diente={abierto}
         unidades={unidades}
+        catalogoCompleto={catalogoCompleto}
         alCambiar={alCambiar}
+        alCambiarCatalogo={alCambiarCatalogo}
         alCerrar={() => alAbrirDeAfuera(null)}
         detalle={detalle}
       />
@@ -450,13 +473,18 @@ function Diente({
   registrar: (nodo: SVGGElement | null) => void;
 }) {
   const tipo = unidad ? TRABAJOS[unidad.rol] : null;
+  // Una anotación no es una pieza: se dibuja con el contorno punteado para que
+  // nadie la confunda con algo que el laboratorio va a fabricar.
+  const esAnotacion = tipo?.alcance === "CONTEXTO";
 
   const comoEsta = !unidad
     ? "sin trabajo"
     : [
         TRABAJOS[unidad.rol].nombre.toLowerCase(),
+        esAnotacion ? "(anotación, no se fabrica)" : "",
         unidad.material ? `de ${MATERIALES[unidad.material].toLowerCase()}` : "",
-        unidad.color ? `color ${unidad.color}` : "",
+        unidad.color ? `color ${nombreDelColor(unidad.color)}` : "",
+        unidad.esImplante ? "sobre implante" : "",
       ]
         .filter(Boolean)
         .join(" ");
@@ -467,6 +495,7 @@ function Diente({
       id={`d-${trazo.numero}`}
       data-diente={trazo.numero}
       data-rol={unidad?.rol ?? ""}
+      data-anotacion={esAnotacion ? "si" : undefined}
       role="button"
       tabIndex={enfocable ? 0 : -1}
       aria-pressed={abierto}
@@ -481,13 +510,25 @@ function Diente({
           interfaz: son veintinueve y viven en `src/lib/trabajos.ts`. */}
       <path
         d={trazo.cuerpo}
-        fill={tipo ? tipo.colorTenue : "var(--diente-cuerpo)"}
+        fill={
+          !tipo || esAnotacion ? "var(--diente-cuerpo)" : tipo.colorTenue
+        }
       />
 
-      {/* Contorno: el trazo que entregó diseño, en el color del tipo. */}
+      {/* Contorno: el trazo que entregó diseño, en el color del tipo. En una
+          anotación va punteado y sin relleno: se ve que ahí no hay pieza. */}
+      {esAnotacion ? (
+        <path
+          d={trazo.cuerpo}
+          fill="none"
+          stroke={tipo.color}
+          strokeWidth={3}
+          strokeDasharray="7 5"
+        />
+      ) : null}
       <path
         d={trazo.contorno}
-        fill={tipo ? tipo.color : "var(--diente-contorno)"}
+        fill={!tipo || esAnotacion ? "var(--diente-contorno)" : tipo.color}
       />
 
       {/* Anillo del diente abierto. Refuerza; no es lo único que lo dice: su
@@ -511,7 +552,7 @@ function Diente({
  * la lee nadie, y los que no están en el caso no ayudan a leer el dibujo.
  */
 function Leyenda({ unidades }: { unidades: UnidadDelCaso[] }) {
-  const usados = [...new Set(unidades.map((u) => u.rol))];
+  const usados = [...new Set(conDiente(unidades).map((u) => u.rol))];
   if (usados.length === 0) return null;
 
   return (
@@ -526,11 +567,19 @@ function Leyenda({ unidades }: { unidades: UnidadDelCaso[] }) {
               height="10"
               rx="3"
               strokeWidth="1.5"
-              fill={TRABAJOS[rol].colorTenue}
+              fill={
+                TRABAJOS[rol].alcance === "CONTEXTO"
+                  ? "none"
+                  : TRABAJOS[rol].colorTenue
+              }
               stroke={TRABAJOS[rol].color}
+              strokeDasharray={
+                TRABAJOS[rol].alcance === "CONTEXTO" ? "2.5 2" : undefined
+              }
             />
           </svg>
           {TRABAJOS[rol].nombre}
+          {TRABAJOS[rol].alcance === "CONTEXTO" ? " (no se fabrica)" : ""}
         </li>
       ))}
     </ul>
@@ -582,13 +631,17 @@ function CambioDeArcada({
 function CatalogoDelDiente({
   diente,
   unidades,
+  catalogoCompleto,
   alCambiar,
+  alCambiarCatalogo,
   alCerrar,
   detalle,
 }: {
   diente: number | null;
   unidades: UnidadDelCaso[];
+  catalogoCompleto: boolean;
   alCambiar: (unidades: UnidadDelCaso[]) => void;
+  alCambiarCatalogo: (completo: boolean) => void;
   alCerrar: () => void;
   detalle?: ReactNode;
 }) {
@@ -609,19 +662,31 @@ function CatalogoDelDiente({
     );
   }
 
-  const grupo = puenteDe(unidades, diente);
+  const grupo = tramoDe(unidades, diente);
   const enPuente = Boolean(grupo && grupo.length > 1);
 
   // Dentro de un puente, el lugar manda qué puede ir ahí: en las puntas, algo
-  // que se apoye en el diente preparado; en medio, un póntico. Lo que sí
+  // que se apoye en el diente preparado; en medio, algo que cuelgue. Lo que sí
   // escoge el doctor es cuál de todos, y para eso se filtra el catálogo en vez
   // de dejarlo escoger algo que después habría que corregirle.
   const enLaPunta =
     enPuente && grupo
       ? grupo[0].diente === diente || grupo[grupo.length - 1].diente === diente
       : false;
-  const cabeAqui = (rol: RolDeUnidad) =>
-    !enPuente || (enLaPunta ? puedeSerPilar(rol) : esPontico(rol));
+
+  const cabeAqui = (rol: RolDeUnidad) => {
+    const tipo = TRABAJOS[rol];
+    // Una prótesis o una guarda no se ponen en un diente: van sobre la arcada
+    // entera y se agregan con su propio botón.
+    if (tipo.alcance === "ARCADA") return false;
+    // Un tramo no se estrena desde un diente suelto: primero se unen dos
+    // vecinos, y ahí sí aparece el segmento de barra.
+    if (tipo.alcance === "TRAMO" && !enPuente) return false;
+    // La lista corta se salta los que el laboratorio afina al diseñar.
+    if (!catalogoCompleto && !tipo.enListaCorta) return false;
+    if (!enPuente) return true;
+    return enLaPunta ? puedeSerPilar(rol) : esPontico(rol);
+  };
 
   return (
     <aside
@@ -646,7 +711,7 @@ function CatalogoDelDiente({
       {enPuente && grupo ? (
         <div className="flex flex-col gap-1 rounded-control bg-superficie-suave p-3">
           <p className="text-menor font-medium text-primario">
-            Puente {nombreDelPuente(grupo)}
+            Puente {nombreDelTramo(grupo)}
           </p>
           <p className="text-minimo text-secundario">
             {enLaPunta
@@ -661,9 +726,25 @@ function CatalogoDelDiente({
           Cada tipo con su color, y el escogido marcado con aria-pressed: el
           color no es lo único que dice cuál está puesto (§7). */}
       <div className="flex flex-col gap-3">
-        <p className="text-menor font-medium text-primario">
-          Qué se le va a hacer
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-menor font-medium text-primario">
+            Qué se le va a hacer
+          </p>
+          {/* Veintinueve opciones paralizan a un dentista, y los errores de
+              captura los paga el laboratorio: por omisión ve los once que
+              escoge de verdad. Quien quiera el catálogo entero lo enciende
+              aquí, y se le queda encendido en su perfil. */}
+          <button
+            type="button"
+            aria-pressed={catalogoCompleto}
+            onClick={() => alCambiarCatalogo(!catalogoCompleto)}
+            className="alto-tactil text-minimo text-enlace underline underline-offset-4"
+          >
+            {catalogoCompleto
+              ? "Ver sólo los tipos de siempre"
+              : "Ver el catálogo completo"}
+          </button>
+        </div>
 
         {/* En un panel ancho las categorías van en dos columnas: ocho
             apiladas hacían del panel una segunda pantalla. */}
@@ -690,7 +771,7 @@ function CatalogoDelDiente({
                         alCambiar(
                           unidades.map((u) =>
                             u.diente === diente
-                              ? { ...u, ...conMaterialValido(rol, u) }
+                              ? { ...u, ...conCamposValidos(rol, u) }
                               : u,
                           ),
                         )
@@ -733,23 +814,123 @@ export function DetalleDelDiente({
   const unidad = unidades.find((u) => u.diente === diente) ?? null;
   if (diente === null || !unidad) return null;
 
+  return (
+    <CamposDeLaUnidad
+      unidad={unidad}
+      titulo={`Diente ${diente} · ${TRABAJOS[unidad.rol].nombre}`}
+      debajo={nombreDelDiente(diente)}
+      alCambiar={(cambio) =>
+        alCambiar(
+          unidades.map((u) => (u.diente === diente ? { ...u, ...cambio } : u)),
+        )
+      }
+    />
+  );
+}
+
+/**
+ * Los campos de una unidad, los que su tipo de trabajo pregunta y nada más.
+ *
+ * Un campo que no aplica no se enseña apagado: no se enseña (§6.5). Enseñar un
+ * "Color" gris en una cofia, que va cubierta, es prometerle al doctor una
+ * decisión que no existe.
+ *
+ * El mismo panel sirve para una unidad de diente y para una de arcada: lo que
+ * cambia es el encabezado, porque las preguntas salen del tipo, no de dónde va.
+ */
+export function CamposDeLaUnidad({
+  unidad,
+  titulo,
+  debajo,
+  alCambiar,
+}: {
+  unidad: UnidadDelCaso;
+  titulo: string;
+  debajo: string;
+  alCambiar: (cambio: Partial<UnidadDelCaso>) => void;
+}) {
   const tipo = TRABAJOS[unidad.rol];
-  const cambiar = (cambio: Partial<UnidadDelCaso>) =>
-    alCambiar(
-      unidades.map((u) => (u.diente === diente ? { ...u, ...cambio } : u)),
-    );
+  const tiene = (campo: Parameters<typeof pregunta>[1]) =>
+    pregunta(unidad.rol, campo);
+
+  // Los campos de implante salen si el trabajo es de implante o si el doctor
+  // marcó que ese diente lleva implante: una corona sobre implante se sujeta
+  // atornillada o cementada, y eso el taller lo necesita saber.
+  const sobreImplante = tiene("sistemaImplante") || unidad.esImplante;
+  const puedeLlevarImplante =
+    tipo.alcance === "DIENTE" && puedeSerPilar(unidad.rol);
 
   return (
     <section
-      aria-label={`Detalle del diente ${diente}`}
+      aria-label={`Detalle de ${titulo}`}
       className="flex flex-col gap-4 rounded-tarjeta border border-borde bg-superficie p-4"
     >
       <div>
-        <h3 className="text-menor font-medium text-primario">
-          Diente {diente} · {tipo.nombre}
-        </h3>
-        <p className="text-minimo text-secundario">{nombreDelDiente(diente)}</p>
+        <h3 className="text-menor font-medium text-primario">{titulo}</h3>
+        <p className="text-minimo text-secundario">{debajo}</p>
       </div>
+
+      {tipo.alcance === "CONTEXTO" ? (
+        <p className="text-minimo text-secundario">
+          {tipo.queEs} No se fabrica ni se cotiza: es una anotación para el
+          técnico.
+        </p>
+      ) : null}
+
+      {puedeLlevarImplante ? (
+        <label className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={unidad.esImplante}
+            onChange={(e) =>
+              alCambiar({
+                esImplante: e.target.checked,
+                retencion: e.target.checked
+                  ? (unidad.retencion ?? "ATORNILLADA")
+                  : null,
+                sistemaImplante: e.target.checked
+                  ? unidad.sistemaImplante
+                  : tiene("sistemaImplante")
+                    ? unidad.sistemaImplante
+                    : null,
+              })
+            }
+            className="mt-0.5 size-4 shrink-0 accent-[var(--rol-accion)]"
+          />
+          <span className="text-menor text-primario">
+            Va sobre implante
+            <span className="block text-minimo text-secundario">
+              No sobre un diente preparado.
+            </span>
+          </span>
+        </label>
+      ) : null}
+
+      {sobreImplante ? (
+        <>
+          <Campo
+            etiqueta="Sistema de implante"
+            requerido
+            value={unidad.sistemaImplante ?? ""}
+            onChange={(e) =>
+              alCambiar({ sistemaImplante: e.target.value || null })
+            }
+            ayuda="Como lo nombra su fabricante. Sin esto no puedo pedir la pieza."
+            placeholder="Straumann BLX 4.0"
+          />
+          <CampoDeOpciones
+            etiqueta="Cómo se sujeta"
+            valor={unidad.retencion ?? "ATORNILLADA"}
+            opciones={Object.entries(RETENCIONES).map(([clave, nombre]) => ({
+              clave,
+              nombre,
+            }))}
+            alEscoger={(clave) =>
+              alCambiar({ retencion: clave as UnidadDelCaso["retencion"] })
+            }
+          />
+        </>
+      ) : null}
 
       {tipo.materiales.length > 0 ? (
         <CampoDeSeleccion
@@ -760,7 +941,10 @@ export function DetalleDelDiente({
             const material = e.target.value as Material;
             // El método sigue al material: si el que estaba ya no se puede, se
             // corrige solo en vez de dejar una combinación imposible.
-            cambiar({ material, ...conMetodoValido(material, unidad.metodo) });
+            alCambiar({
+              material,
+              ...conMetodoValido(material, unidad.metodo),
+            });
           }}
         >
           {tipo.materiales.map((material) => (
@@ -769,19 +953,18 @@ export function DetalleDelDiente({
             </option>
           ))}
         </CampoDeSeleccion>
-      ) : (
-        <p className="text-minimo text-secundario">
-          {tipo.nombre} no se fabrica, así que no lleva material ni color.
-        </p>
-      )}
+      ) : null}
 
       {unidad.material ? (
         <CampoDeSeleccion
           etiqueta="Método"
           requerido
+          // Con un solo método no hay nada que escoger: se enseña, para que el
+          // doctor sepa con qué se va a hacer, pero apagado.
+          disabled={!seEscogeElMetodo(unidad.material)}
           value={unidad.metodo ?? METODOS_POR_MATERIAL[unidad.material][0]}
           onChange={(e) =>
-            cambiar({ metodo: e.target.value as MetodoDeFabricacion })
+            alCambiar({ metodo: e.target.value as MetodoDeFabricacion })
           }
           ayuda="Con qué se fabrica. Sale del material."
         >
@@ -793,14 +976,58 @@ export function DetalleDelDiente({
         </CampoDeSeleccion>
       ) : null}
 
-      {tipo.llevaColorVita ? (
-        <CampoDeSeleccion
-          etiqueta="Color"
+      {tiene("espesorAlivio") ? (
+        <Campo
+          etiqueta="Espesor del alivio"
           requerido
-          value={unidad.color ?? "A2"}
-          onChange={(e) => cambiar({ color: e.target.value })}
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="0.1"
+          max="3"
+          value={unidad.espesorAlivioMm ?? ""}
+          onChange={(e) =>
+            alCambiar({
+              espesorAlivioMm: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+          ayuda="En milímetros. El espacio que le dejo al material que va encima."
+        />
+      ) : null}
+
+      {tiene("grosor") ? (
+        <Campo
+          etiqueta="Grosor"
+          requerido
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="0.5"
+          max="6"
+          value={unidad.grosorMm ?? ""}
+          onChange={(e) =>
+            alCambiar({ grosorMm: e.target.value ? Number(e.target.value) : null })
+          }
+          ayuda="En milímetros."
+        />
+      ) : null}
+
+      {tiene("color") ? (
+        <CampoDeColor
+          etiqueta="Color"
+          valor={unidad.color}
+          alEscoger={(color) => alCambiar({ color })}
+        />
+      ) : null}
+
+      {tiene("colorBase") ? (
+        <CampoDeSeleccion
+          etiqueta="Color de la encía"
+          requerido
+          value={unidad.colorBase ?? COLORES_DE_ENCIA[0]}
+          onChange={(e) => alCambiar({ colorBase: e.target.value })}
         >
-          {COLORES_VITA.map((color) => (
+          {COLORES_DE_ENCIA.map((color) => (
             <option key={color} value={color}>
               {color}
             </option>
@@ -808,13 +1035,119 @@ export function DetalleDelDiente({
         </CampoDeSeleccion>
       ) : null}
 
+      {tiene("colorDientes") ? (
+        <CampoDeColor
+          etiqueta="Color de los dientes"
+          valor={unidad.colorDientes}
+          alEscoger={(color) => alCambiar({ colorDientes: color })}
+        />
+      ) : null}
+
+      {tiene("troqueles") ? (
+        <label className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={unidad.troqueles}
+            onChange={(e) => alCambiar({ troqueles: e.target.checked })}
+            className="mt-0.5 size-4 shrink-0 accent-[var(--rol-accion)]"
+          />
+          <span className="text-menor text-primario">
+            Con troqueles removibles
+            <span className="block text-minimo text-secundario">
+              Para poder sacar cada diente del modelo.
+            </span>
+          </span>
+        </label>
+      ) : null}
+
       <CampoDeTexto
-        etiqueta="Notas de este diente"
+        etiqueta="Notas"
         value={unidad.notas ?? ""}
-        onChange={(e) => cambiar({ notas: e.target.value || null })}
+        onChange={(e) => alCambiar({ notas: e.target.value || null })}
         ayuda="Opcional. Lo que el técnico tenga que saber de esta pieza."
       />
     </section>
+  );
+}
+
+/**
+ * El color, agrupado como viene en las guías.
+ *
+ * "Según la foto que adjunté" va primero: en un caso estético el doctor manda
+ * la foto con la guía en boca, y obligarlo a escoger una clave que no
+ * representa lo que quiere es empujarlo a mentir en el formulario.
+ */
+function CampoDeColor({
+  etiqueta,
+  valor,
+  alEscoger,
+}: {
+  etiqueta: string;
+  valor: string | null;
+  alEscoger: (color: string) => void;
+}) {
+  return (
+    <CampoDeSeleccion
+      etiqueta={etiqueta}
+      requerido
+      value={valor ?? "A2"}
+      onChange={(e) => alEscoger(e.target.value)}
+    >
+      <option value={COLOR_SEGUN_FOTO}>Según la foto que adjunté</option>
+      {GRUPOS_DE_COLOR.map((grupo) => (
+        <optgroup key={grupo.nombre} label={grupo.nombre}>
+          {grupo.colores.map((color) => (
+            <option key={color} value={color}>
+              {color}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </CampoDeSeleccion>
+  );
+}
+
+/** Dos o tres opciones que caben a la vista, en vez de una lista desplegable. */
+function CampoDeOpciones({
+  etiqueta,
+  valor,
+  opciones,
+  alEscoger,
+}: {
+  etiqueta: string;
+  valor: string;
+  opciones: { clave: string; nombre: string }[];
+  alEscoger: (clave: string) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="mb-1.5 text-menor font-medium text-primario">
+        {etiqueta}
+      </legend>
+      <div className="flex flex-wrap gap-2">
+        {opciones.map((opcion) => (
+          <label
+            key={opcion.clave}
+            className={cn(
+              "alto-tactil flex cursor-pointer items-center gap-2 rounded-control",
+              "border px-3 text-menor",
+              valor === opcion.clave
+                ? "border-accion bg-superficie-suave text-primario"
+                : "border-borde text-secundario hover:bg-superficie-suave",
+            )}
+          >
+            <input
+              type="radio"
+              name={etiqueta}
+              checked={valor === opcion.clave}
+              onChange={() => alEscoger(opcion.clave)}
+              className="size-4 accent-[var(--rol-accion)]"
+            />
+            {opcion.nombre}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

@@ -1,7 +1,9 @@
 import { TRABAJOS } from "@/lib/trabajos";
 import type {
+  Arcada,
   Etapa,
   MetodoDeFabricacion,
+  Retencion,
   Indicacion,
   Material,
   Prioridad,
@@ -187,7 +189,7 @@ export const MATERIALES_POR_ROL = Object.fromEntries(
 
 /** Los que no llevan color: nadie escoge tono de una barra de titanio. */
 export const ROLES_SIN_COLOR = (Object.keys(TRABAJOS) as RolDeUnidad[]).filter(
-  (rol) => !TRABAJOS[rol].llevaColorVita,
+  (rol) => !TRABAJOS[rol].campos.includes("color"),
 );
 
 export const METODOS: Record<MetodoDeFabricacion, string> = {
@@ -195,59 +197,128 @@ export const METODOS: Record<MetodoDeFabricacion, string> = {
   IMPRESO_3D: "Impreso en 3D",
   PRENSADO: "Prensado",
   COLADO: "Colado",
+  SINTERIZADO_LASER: "Sinterizado láser",
   TERMOFORMADO: "Termoformado",
+};
+
+export const MATERIALES: Record<Material, string> = {
+  ZIRCONIO_MONOLITICO: "Zirconio monolítico",
+  ZIRCONIO_ESTRATIFICADO: "Zirconio multicapa",
+  ZIRCONIO_ULTRAFINO: "Zirconio ultrafino",
+  ZIRCONIO_SOBRE_TITANIO: "Zirconio sobre base de titanio",
+  DISILICATO_DE_LITIO: "Disilicato de litio",
+  CERAMICA_PRENSADA: "Cerámica prensada",
+  METAL_PORCELANA: "Metal-cerámica",
+  CROMO_COBALTO: "Cobalto-cromo",
+  TITANIO: "Titanio grado 5",
+  PMMA: "PMMA",
+  PMMA_TRANSPARENTE: "PMMA transparente",
+  RESINA_IMPRESION: "Resina impresa",
+  RESINA_TERMOPOLIMERIZABLE: "Resina termopolimerizable",
+  RESINA_FLEXIBLE: "Resina flexible",
+  CERA_CALCINABLE: "Cera",
 };
 
 /**
  * Con qué se puede hacer cada material.
  *
  * El método sale del material, no del tipo de trabajo: el zirconio se fresa, la
- * resina se imprime, el disilicato se fresa o se prensa. Poner la lista
- * completa en cada diente dejaría escoger "colado" para una guarda de resina,
- * que ninguna máquina del taller puede hacer.
+ * resina impresa se imprime, el disilicato se fresa o se prensa. Los que traen
+ * una sola opción se enseñan apagados —no hay nada que escoger—; los que traen
+ * dos, encendidos.
  */
 export const METODOS_POR_MATERIAL: Record<Material, MetodoDeFabricacion[]> = {
   ZIRCONIO_MONOLITICO: ["FRESADO"],
   ZIRCONIO_ESTRATIFICADO: ["FRESADO"],
+  ZIRCONIO_ULTRAFINO: ["FRESADO"],
+  ZIRCONIO_SOBRE_TITANIO: ["FRESADO"],
   DISILICATO_DE_LITIO: ["FRESADO", "PRENSADO"],
+  CERAMICA_PRENSADA: ["PRENSADO"],
+  // El catálogo no la menciona; en el taller se cuela o se fresa.
   METAL_PORCELANA: ["COLADO", "FRESADO"],
-  CROMO_COBALTO: ["FRESADO", "COLADO", "IMPRESO_3D"],
+  CROMO_COBALTO: ["FRESADO", "SINTERIZADO_LASER"],
   TITANIO: ["FRESADO"],
-  PMMA: ["FRESADO", "IMPRESO_3D", "TERMOFORMADO"],
+  PMMA: ["FRESADO"],
+  PMMA_TRANSPARENTE: ["FRESADO"],
   RESINA_IMPRESION: ["IMPRESO_3D"],
+  // La termopolimerizable se empaca y se prensa en mufla.
+  RESINA_TERMOPOLIMERIZABLE: ["PRENSADO"],
+  RESINA_FLEXIBLE: ["PRENSADO"],
   CERA_CALCINABLE: ["FRESADO", "IMPRESO_3D"],
 };
 
-export const MATERIALES: Record<Material, string> = {
-  ZIRCONIO_MONOLITICO: "Zirconio monolítico",
-  ZIRCONIO_ESTRATIFICADO: "Zirconio estratificado",
-  DISILICATO_DE_LITIO: "Disilicato de litio",
-  METAL_PORCELANA: "Metal porcelana",
-  CROMO_COBALTO: "Cromo cobalto",
-  TITANIO: "Titanio",
-  PMMA: "PMMA",
-  RESINA_IMPRESION: "Resina de impresión",
-  CERA_CALCINABLE: "Cera calcinable",
-};
+/** Si el doctor puede escoger el método, o si el material ya lo decidió. */
+export function seEscogeElMetodo(material: Material) {
+  return METODOS_POR_MATERIAL[material].length > 1;
+}
+
+// --------------------------------------------------------------- el color
+
+/** Cuando el color va en una foto y no en una clave de la guía. */
+export const COLOR_SEGUN_FOTO = "SEGUN_FOTO";
 
 /** Guía Vita clásica, en el orden en que la usa el doctor. */
 export const COLORES_VITA = [
-  "A1",
-  "A2",
-  "A3",
-  "A3.5",
-  "A4",
-  "B1",
-  "B2",
-  "B3",
-  "B4",
-  "C1",
-  "C2",
-  "C3",
-  "C4",
-  "D2",
-  "D3",
-  "D4",
+  "A1", "A2", "A3", "A3.5", "A4",
+  "B1", "B2", "B3", "B4",
+  "C1", "C2", "C3", "C4",
+  "D2", "D3", "D4",
+];
+
+/** Vita 3D-Master, para quien trabaja con esa guía. */
+export const COLORES_3D_MASTER = [
+  "0M1", "0M2", "0M3",
+  "1M1", "1M2",
+  "2L1.5", "2L2.5", "2M1", "2M2", "2M3", "2R1.5", "2R2.5",
+  "3L1.5", "3L2.5", "3M1", "3M2", "3M3", "3R1.5", "3R2.5",
+  "4L1.5", "4L2.5", "4M1", "4M2", "4M3", "4R1.5", "4R2.5",
+  "5M1", "5M2", "5M3",
+];
+
+/** Blanqueamiento. */
+export const COLORES_BLANQUEAMIENTO = ["BL1", "BL2", "BL3", "BL4"];
+
+/**
+ * El color, agrupado como viene en las guías.
+ *
+ * "Según la foto que adjunté" va siempre al principio: en un caso estético el
+ * doctor manda la foto con la guía en boca, y obligarlo a escoger una clave
+ * que no representa lo que quiere es empujarlo a mentir en el formulario.
+ */
+export const GRUPOS_DE_COLOR: { nombre: string; colores: string[] }[] = [
+  { nombre: "Vita clásica", colores: COLORES_VITA },
+  { nombre: "Vita 3D-Master", colores: COLORES_3D_MASTER },
+  { nombre: "Blanqueamiento", colores: COLORES_BLANQUEAMIENTO },
+];
+
+export const TODOS_LOS_COLORES = [
+  COLOR_SEGUN_FOTO,
+  ...GRUPOS_DE_COLOR.flatMap((g) => g.colores),
+];
+
+export function nombreDelColor(color: string) {
+  return color === COLOR_SEGUN_FOTO ? "Según la foto que adjunté" : color;
+}
+
+/** Sobre qué arcada va un trabajo de arcada. */
+export const ARCADAS_EN_PALABRAS: Record<Arcada, string> = {
+  SUPERIOR: "Arcada superior",
+  INFERIOR: "Arcada inferior",
+};
+
+/** Cómo se sujeta una restauración sobre implante. */
+export const RETENCIONES: Record<Retencion, string> = {
+  ATORNILLADA: "Atornillada",
+  CEMENTADA: "Cementada",
+};
+
+/** El color de la encía en una prótesis. */
+export const COLORES_DE_ENCIA = [
+  "Rosa claro",
+  "Rosa",
+  "Rosa intenso",
+  "Rosa veteado",
+  "Transparente",
 ];
 
 // -------------------------------------------------------------------- otros

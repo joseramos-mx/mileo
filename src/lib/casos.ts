@@ -45,7 +45,8 @@ export const seleccionDeTarjeta = {
 } as const;
 
 type UnidadResumible = {
-  diente: number;
+  /** Vacío en los trabajos que van sobre una arcada entera. */
+  diente?: number | null;
   rol: string;
   /** Vacío en las anotaciones: un antagonista no se fabrica. */
   material?: string | null;
@@ -110,7 +111,13 @@ export function cuantasUnidades(unidades: unknown[]) {
 export function unidadesYDientes(unidades: UnidadResumible[]) {
   const piezas = soloPiezas(unidades);
   if (piezas.length === 0) return "Sin unidades todavía";
-  return `${cuantasUnidades(piezas)} · ${piezas.map((u) => u.diente).join(", ")}`;
+
+  // Los trabajos de arcada no van en un diente, así que no tienen número que
+  // enseñar: se cuentan, pero no se listan.
+  const dientes = piezas.map((u) => u.diente).filter((d) => d != null);
+  return [cuantasUnidades(piezas), dientes.join(", ")]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /**

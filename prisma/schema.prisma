@@ -50,6 +50,10 @@ model Usuario {
   hashContrasena String?
   rol            Rol
   activo         Boolean @default(true)
+  /// Si ve el catalogo entero de trabajos en vez de la lista corta.
+  /// Por omision, corta: veintinueve opciones paralizan a un dentista y los
+  /// errores de captura los paga el laboratorio.
+  catalogoCompleto Boolean @default(false)
   fotoUrl        String?
 
   clinicaId String?
@@ -166,7 +170,20 @@ enum MetodoDeFabricacion {
   IMPRESO_3D
   PRENSADO
   COLADO
+  SINTERIZADO_LASER
   TERMOFORMADO
+}
+
+/// Que arcada, para los trabajos que van sobre una entera y no sobre un diente.
+enum Arcada {
+  SUPERIOR
+  INFERIOR
+}
+
+/// Como se sujeta una restauracion sobre implante.
+enum Retencion {
+  ATORNILLADA
+  CEMENTADA
 }
 
 enum RolDeUnidad {
@@ -219,12 +236,18 @@ enum RolDeUnidad {
 enum Material {
   ZIRCONIO_MONOLITICO
   ZIRCONIO_ESTRATIFICADO
+  ZIRCONIO_ULTRAFINO
+  ZIRCONIO_SOBRE_TITANIO
   DISILICATO_DE_LITIO
+  CERAMICA_PRENSADA
   METAL_PORCELANA
   CROMO_COBALTO
   TITANIO
   PMMA
+  PMMA_TRANSPARENTE
   RESINA_IMPRESION
+  RESINA_TERMOPOLIMERIZABLE
+  RESINA_FLEXIBLE
   CERA_CALCINABLE
 }
 
@@ -279,7 +302,7 @@ model Caso {
   actualizadoEn DateTime @updatedAt
 
   unidades    Unidad[]
-  puentes     Puente[]
+  tramos      Tramo[]
   archivos    Archivo[]
   eventos     EventoBitacora[]
   aprobaciones Aprobacion[]
@@ -298,32 +321,61 @@ model Unidad {
   casoId String
   caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
 
-  diente   Int // notacion FDI: 11-18, 21-28, 31-38, 41-48
+  /// Notacion FDI: 11-18, 21-28, 31-38, 41-48.
+  /// Vacio en los trabajos que van sobre una arcada entera y no sobre un
+  /// diente: una guarda oclusal, una protesis, un modelo.
+  diente   Int?
+  /// Sobre que arcada va, cuando el trabajo es de arcada.
+  arcada   Arcada?
   rol      RolDeUnidad
   /// Vacio en las anotaciones: un antagonista no se fabrica.
   material Material?
   /// Con que se hace: fresado, impreso en 3D, prensado. Vacio si no se fabrica.
   metodo   MetodoDeFabricacion?
-  color    String? // guia Vita: A1, A2, B1...
+  color    String? // guia Vita: A1, A2, B1... o "SEGUN_FOTO"
   /// Lo que el doctor quiera decirle al tecnico de esta unidad en concreto.
   notas    String?
 
-  /// Las unidades de un mismo puente comparten este grupo.
-  puenteId String?
-  puente   Puente? @relation(fields: [puenteId], references: [id], onDelete: SetNull)
+  /// Este diente lleva implante, no diente preparado.
+  esImplante      Boolean    @default(false)
+  /// Que sistema de implante, tal como lo nombra su fabricante.
+  sistemaImplante String?
+  /// Como se sujeta la restauracion sobre el implante.
+  retencion       Retencion?
+  /// Espacio reservado para el material que va encima, en milimetros.
+  espesorAlivioMm Float?
+  /// Grosor de la guarda oclusal, en milimetros.
+  grosorMm        Float?
+  /// Color de la enci­a, en las protesis.
+  colorBase       String?
+  /// Color de los dientes, en las protesis.
+  colorDientes    String?
+  /// Si el modelo lleva troqueles removibles.
+  troqueles       Boolean    @default(false)
+
+  /// Las unidades de un mismo tramo comparten este grupo.
+  tramoId String?
+  tramo   Tramo? @relation(fields: [tramoId], references: [id], onDelete: SetNull)
 
   creadoEn DateTime @default(now())
 
   @@unique([casoId, diente])
+  /// De cada trabajo de arcada, uno por arcada: no hay dos guardas de arriba.
+  @@unique([casoId, rol, arcada])
   @@index([casoId])
-  @@index([puenteId])
+  @@index([tramoId])
 }
 
 /// Un puente: el grupo de unidades conectadas entre si.
 ///
 /// No guarda datos propios porque no los necesita: lo que define al puente es
 /// que sus unidades lo comparten, y cual de ellas es pilar y cual pontico.
-model Puente {
+/// Dos o mas dientes vecinos unidos entre si.
+///
+/// Se llamaba Puente, pero un puente es solo uno de los trabajos que van sobre
+/// un tramo: tambien van ahi el segmento de barra y la subestructura con
+/// alivio. El nombre tenia que decir la verdad de los tres (SKILL.md §8).
+model Tramo {
   id     String @id @default(cuid())
   casoId String
   caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)

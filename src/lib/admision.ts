@@ -1,3 +1,6 @@
+import type { RolDeUnidad } from "@/generated/prisma/enums";
+import { seFabrica } from "@/lib/trabajos";
+
 /**
  * Lista de admisión (SKILL.md O-2).
  *
@@ -16,7 +19,7 @@ export type EstadoDeAdmision = {
 };
 
 export type CasoParaAdmision = {
-  unidades: { id: string }[];
+  unidades: { rol: RolDeUnidad }[];
   archivos: { tipo: string; estado: string }[];
 };
 
@@ -25,13 +28,22 @@ function hayArchivo(caso: CasoParaAdmision, tipo: string) {
 }
 
 export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
+  // Una anotación no es una unidad: un caso que sólo trae "antagonista" y
+  // "diente vecino" no tiene nada que fabricar, y mandarlo así le costaría al
+  // laboratorio una llamada para preguntar qué se hace.
+  const piezas = caso.unidades.filter((u) => seFabrica(u.rol));
+
+  // Si hay algo que se cementa en boca, el antagonista deja de ser opcional:
+  // sin él no se ajusta la oclusión.
+  const necesitaAntagonista = piezas.some((u) => NECESITAN_OCLUSION.has(u.rol));
+
   return [
     {
       clave: "tipo-de-trabajo",
-      titulo: "En qué dientes va el trabajo",
+      titulo: "Qué se va a fabricar",
       queHacer:
-        "Regrese al paso del trabajo y toque en el odontograma los dientes de este caso.",
-      cumplido: caso.unidades.length > 0,
+        "Regrese al paso del trabajo y escoja los dientes de este caso, o agregue un trabajo de arcada completa.",
+      cumplido: piezas.length > 0,
     },
     {
       clave: "preparacion",
@@ -42,8 +54,9 @@ export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
     {
       clave: "antagonista",
       titulo: "El escaneo del antagonista",
-      queHacer:
-        "Me falta el antagonista. Súbalo aquí para poder ajustar la oclusión.",
+      queHacer: necesitaAntagonista
+        ? "No marcó el antagonista. Sin él no puedo ajustar la oclusión."
+        : "Me falta el antagonista. Súbalo aquí para poder ajustar la oclusión.",
       cumplido: hayArchivo(caso, "ESCANEO_ANTAGONISTA"),
     },
     {
@@ -55,6 +68,21 @@ export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
     },
   ];
 }
+
+/** Los trabajos que terminan en boca y necesitan que la mordida cierre bien. */
+const NECESITAN_OCLUSION = new Set<RolDeUnidad>([
+  "CORONA_ANATOMICA",
+  "CORONA_PRENSADA",
+  "CORONA_CASCARON",
+  "PONTICO_ANATOMICO",
+  "PONTICO_PRENSADO",
+  "PONTICO_CASCARON",
+  "INCRUSTACION",
+  "CARILLA",
+  "PROTESIS_TOTAL",
+  "PROTESIS_PARCIAL",
+  "GUARDA_OCLUSAL",
+]);
 
 export function loQueFalta(caso: CasoParaAdmision) {
   return revisarAdmision(caso).filter((punto) => !punto.cumplido);

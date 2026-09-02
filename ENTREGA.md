@@ -241,6 +241,67 @@ con los colores que devuelve el navegador. Cuatro de los colores de exocad no
 alcanzaban y se oscurecieron; en las pastillas sin escoger el color va en el
 borde y en un cuadrito, nunca en la letra.
 
+### No todo se asigna a un diente
+
+Cada tipo de trabajo dice sobre qué va, y de eso depende cómo se captura:
+
+| Alcance | Cómo se captura | Trabajos |
+|---|---|---|
+| Por diente | Un toque en el odontograma | Coronas, cofias, pónticos, incrustaciones, carillas, encerados, aditamentos, telescópicas, pilar de barra, mockup |
+| Por tramo | Se unen dos o más dientes vecinos en el riel | Segmento de barra, subestructura con alivio, y el puente mismo |
+| Por arcada | Un botón aparte, no un diente | Prótesis total, prótesis parcial, guarda oclusal, modelo |
+| Contexto | Marca en el odontograma, sin unidad | Antagonista, diente vecino, omitir en el puente |
+
+Es la razón por la que `Unidad.diente` dejó de ser obligatorio y apareció
+`arcada`. Si todo se capturara con un toque en un diente, una guarda oclusal
+acabaría colgada de un premolar cualquiera y el taller la fabricaría creyendo
+que va ahí.
+
+Por lo mismo, `Puente` pasó a llamarse `Tramo`: un puente es sólo uno de los
+tres trabajos que van sobre dos o más dientes unidos.
+
+### Cada trabajo pregunta lo suyo
+
+El catálogo dice qué campos abre cada tipo, y **un campo que no aplica no se
+enseña apagado: no se enseña** (§6.5). Enseñar un "Color" gris en una cofia, que
+va cubierta, es prometerle al doctor una decisión que no existe.
+
+| Campo | Cuándo aparece |
+|---|---|
+| `material` | Casi siempre, con las opciones del tipo |
+| `metodo` | Sale del material. Apagado si el material sólo admite uno |
+| `color` | Sólo si la pieza se ve en boca |
+| `sistemaImplante`, `retencion` | Sólo sobre implante |
+| `espesorAlivioMm` | Sólo los trabajos "con alivio" |
+| `grosorMm` | Sólo la guarda oclusal |
+| `colorBase`, `colorDientes` | Sólo las prótesis |
+| `troqueles` | Sólo el modelo |
+| `notas` | Siempre, opcional |
+
+El color trae la guía Vita clásica, la 3D-Master, el blanqueamiento y **"Según
+la foto que adjunté"**: en un caso estético el doctor manda la foto con la guía
+en boca, y obligarlo a escoger una clave que no representa lo que quiere es
+empujarlo a mentir en el formulario.
+
+### La lista corta del doctor
+
+Veintinueve opciones paralizan a un dentista y los errores de captura los paga
+el laboratorio. Por omisión el doctor ve **once**: corona, cofia, provisional,
+póntico, incrustación, carilla, aditamento, prótesis total, prótesis parcial,
+guarda y modelo, más las tres anotaciones. El laboratorio ve el catálogo entero
+y afina el tipo al diseñar.
+
+El modelo de datos guarda **siempre el tipo exacto**; lo único que cambia es
+quién lo escoge. Un doctor que quiera el catálogo completo lo enciende desde la
+misma pantalla y se le queda encendido en su perfil (`Usuario.catalogoCompleto`).
+
+Una desviación de lo que pidió el Product Owner, y por qué: su lista corta traía
+diez, con "prótesis" como una sola entrada. Se partió en total y parcial. Las
+demás cosas que el laboratorio afina son variantes de fabricación —prensada,
+reducida, con alivio, encerados—, pero total contra parcial no lo es: el doctor
+sabe cuál es, y guardar "prótesis total" para una parcial sería escribir en el
+caso un dato falso.
+
 ### La dentición restante no cuenta como unidad
 
 "Antagonista", "Diente vecino" y "Omitir en el puente" se capturan porque el

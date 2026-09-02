@@ -2,12 +2,19 @@
 
 import { Trash } from "@phosphor-icons/react";
 import { TRABAJOS } from "@/lib/trabajos";
-import { MATERIALES, METODOS, nombreDelDiente } from "@/lib/vocabulario";
 import {
-  nombreDelPuente,
-  puentesDe,
+  ARCADAS_EN_PALABRAS,
+  MATERIALES,
+  METODOS,
+  RETENCIONES,
+  nombreDelColor,
+  nombreDelDiente,
+} from "@/lib/vocabulario";
+import {
+  nombreDelTramo,
+  tramosDe,
   type UnidadDelCaso,
-} from "@/lib/puentes";
+} from "@/lib/tramos";
 import { cn } from "@/lib/utilidades";
 
 /**
@@ -32,7 +39,7 @@ export function TablaDelCaso({
   unidades: UnidadDelCaso[];
   abierto: number | null;
   alAbrir: (diente: number) => void;
-  alQuitar: (diente: number) => void;
+  alQuitar: (unidad: UnidadDelCaso) => void;
 }) {
   if (unidades.length === 0) {
     return (
@@ -43,13 +50,32 @@ export function TablaDelCaso({
     );
   }
 
-  // A qué puente pertenece cada diente, para decirlo en su renglón.
-  const puenteDelDiente = new Map<number, string>();
-  for (const grupo of puentesDe(unidades).values()) {
+  // A qué tramo pertenece cada diente, para decirlo en su renglón.
+  const tramoDelDiente = new Map<number, string>();
+  for (const grupo of tramosDe(unidades).values()) {
     if (grupo.length < 2) continue;
-    const nombre = nombreDelPuente(grupo);
-    for (const u of grupo) puenteDelDiente.set(u.diente, nombre);
+    const nombre = nombreDelTramo(grupo);
+    for (const u of grupo) tramoDelDiente.set(u.diente, nombre);
   }
+
+  /** Sobre qué va la unidad: un diente, o una arcada entera. */
+  const sobreQue = (unidad: UnidadDelCaso) => {
+    if (unidad.diente === null) {
+      return {
+        titulo: unidad.arcada ? ARCADAS_EN_PALABRAS[unidad.arcada] : "Arcada",
+        debajo: "Arcada entera",
+        paraLeer: "no va en un diente, va en la arcada completa",
+        clave: `a-${unidad.arcada}-${unidad.rol}`,
+      };
+    }
+    const tramo = tramoDelDiente.get(unidad.diente);
+    return {
+      titulo: String(unidad.diente),
+      debajo: tramo ? `Tramo ${tramo}` : null,
+      paraLeer: nombreDelDiente(unidad.diente),
+      clave: `d-${unidad.diente}`,
+    };
+  };
 
   return (
     <div className="min-w-0 overflow-hidden rounded-contenedor border border-borde bg-superficie">
@@ -75,40 +101,36 @@ export function TablaDelCaso({
           <tbody>
             {unidades.map((unidad) => {
               const tipo = TRABAJOS[unidad.rol];
-              const enPuente = puenteDelDiente.get(unidad.diente);
-              const puesto = abierto === unidad.diente;
+              const donde = sobreQue(unidad);
+              const detalles = detallesDe(unidad);
+              const puesto =
+                unidad.diente !== null && abierto === unidad.diente;
 
               return (
                 <tr
-                  key={unidad.diente}
+                  key={donde.clave}
                   aria-selected={puesto}
-                  onClick={() => alAbrir(unidad.diente)}
+                  onClick={() =>
+                    unidad.diente !== null && alAbrir(unidad.diente)
+                  }
                   className={cn(
-                    "cursor-pointer border-b border-borde last:border-b-0",
+                    "border-b border-borde last:border-b-0",
+                    unidad.diente !== null && "cursor-pointer",
                     puesto ? "bg-proceso-fondo" : "hover:bg-superficie-suave",
                   )}
                 >
                   <th scope="row" className="px-3 py-2 font-normal">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        alAbrir(unidad.diente);
-                      }}
-                      className="alto-tactil text-left"
-                    >
+                    <span className="alto-tactil flex flex-col justify-center">
                       <span className="block text-menor font-medium text-primario">
-                        {unidad.diente}
-                        <span className="sr-only">
-                          , {nombreDelDiente(unidad.diente)}
-                        </span>
+                        {donde.titulo}
+                        <span className="sr-only">, {donde.paraLeer}</span>
                       </span>
-                      {enPuente ? (
+                      {donde.debajo ? (
                         <span className="block text-minimo text-secundario">
-                          Puente {enPuente}
+                          {donde.debajo}
                         </span>
                       ) : null}
-                    </button>
+                    </span>
                   </th>
 
                   <td className="px-3 py-2 text-menor text-primario">
@@ -118,28 +140,41 @@ export function TablaDelCaso({
                         style={{ backgroundColor: tipo.color }}
                         className="size-2.5 shrink-0 rounded-[3px]"
                       />
-                      {tipo.nombre}
+                      {/* Lo que el tipo pregunta de mas va debajo del nombre y
+                          no en columnas propias: son campos de unos cuantos
+                          tipos, y una columna vacia en veinticinco renglones no
+                          dice nada. */}
+                      <span className="min-w-0">
+                        {tipo.nombre}
+                        {detalles.length > 0 ? (
+                          <span className="block text-minimo text-secundario">
+                            {detalles.join(" \u00b7 ")}
+                          </span>
+                        ) : null}
+                      </span>
                     </span>
                   </td>
 
-                  <Celda>{unidad.metodo ? METODOS[unidad.metodo] : "—"}</Celda>
+                  <Celda>{unidad.metodo ? METODOS[unidad.metodo] : "\u2014"}</Celda>
                   <Celda>
-                    {unidad.material ? MATERIALES[unidad.material] : "—"}
+                    {unidad.material ? MATERIALES[unidad.material] : "\u2014"}
                   </Celda>
-                  <Celda>{unidad.color ?? "—"}</Celda>
+                  <Celda>
+                    {unidad.color ? nombreDelColor(unidad.color) : "\u2014"}
+                  </Celda>
 
                   <td className="px-3 py-2 text-right">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        alQuitar(unidad.diente);
+                        alQuitar(unidad);
                       }}
                       className="area-tactil inline-flex items-center justify-center rounded-control text-secundario hover:bg-superficie-suave hover:text-primario"
                     >
                       <Trash aria-hidden="true" size={16} />
                       <span className="sr-only">
-                        Quitar el diente {unidad.diente} del caso
+                        Quitar {tipo.nombre.toLowerCase()} de {donde.titulo}
                       </span>
                     </button>
                   </td>
@@ -166,4 +201,22 @@ function Encabezado({ children }: { children: React.ReactNode }) {
 
 function Celda({ children }: { children: React.ReactNode }) {
   return <td className="px-3 py-2 text-menor text-secundario">{children}</td>;
+}
+
+/** Lo que este tipo de trabajo pregunta de mas, dicho en corto. */
+function detallesDe(unidad: UnidadDelCaso) {
+  const partes: string[] = [];
+  if (unidad.esImplante) partes.push("Sobre implante");
+  if (unidad.sistemaImplante) partes.push(unidad.sistemaImplante);
+  if (unidad.retencion) partes.push(RETENCIONES[unidad.retencion]);
+  if (unidad.espesorAlivioMm !== null) {
+    partes.push(`Alivio ${unidad.espesorAlivioMm} mm`);
+  }
+  if (unidad.grosorMm !== null) partes.push(`${unidad.grosorMm} mm de grosor`);
+  if (unidad.colorBase) partes.push(`Enc\u00eda ${unidad.colorBase}`);
+  if (unidad.colorDientes) {
+    partes.push(`Dientes ${nombreDelColor(unidad.colorDientes)}`);
+  }
+  if (unidad.troqueles) partes.push("Con troqueles");
+  return partes;
 }

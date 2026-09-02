@@ -8,16 +8,18 @@ import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
 import { registrarEvento } from "@/lib/bitacora";
 import { siguienteFolio, siguienteFolioDePaciente } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
-import { arcadaDe, nombreDelPuente, puentesDe } from "@/lib/puentes";
+import { arcadaDe, nombreDelTramo, tramosDe } from "@/lib/tramos";
 import {
   TRABAJOS,
   esPontico,
   indicacionDeLasUnidades,
+  pregunta,
   puedeSerPilar,
 } from "@/lib/trabajos";
 import {
   DIENTES_INFERIORES,
   DIENTES_SUPERIORES,
+  ARCADAS_EN_PALABRAS,
   MATERIALES,
   METODOS,
   METODOS_POR_MATERIAL,
@@ -156,9 +158,15 @@ export async function crearBorrador(
 // ---------------------------------------------------------------- unidades
 
 const esquemaUnidad = z.object({
-  diente: z.number().int().refine((d) => DIENTES_VALIDOS.includes(d), {
-    message: "Ese diente no existe en el odontograma.",
-  }),
+  // Vacío en los trabajos de arcada: una guarda no va en un diente.
+  diente: z
+    .number()
+    .int()
+    .refine((d) => DIENTES_VALIDOS.includes(d), {
+      message: "Ese diente no existe en el odontograma.",
+    })
+    .nullable(),
+  arcada: z.enum(["SUPERIOR", "INFERIOR"]).nullable(),
   rol: z.enum(
     Object.keys(ROLES_DE_UNIDAD) as [keyof typeof ROLES_DE_UNIDAD],
   ),
@@ -166,40 +174,131 @@ const esquemaUnidad = z.object({
     .enum(Object.keys(MATERIALES) as [keyof typeof MATERIALES])
     .nullable(),
   metodo: z.enum(Object.keys(METODOS) as [keyof typeof METODOS]).nullable(),
-  color: z.string().trim().max(8).nullable(),
+  color: z.string().trim().max(12).nullable(),
   notas: z.string().trim().max(500).nullable(),
+
+  esImplante: z.boolean(),
+  sistemaImplante: z.string().trim().max(80).nullable(),
+  retencion: z.enum(["ATORNILLADA", "CEMENTADA"]).nullable(),
+  espesorAlivioMm: z.number().min(0.1).max(3).nullable(),
+  grosorMm: z.number().min(0.5).max(6).nullable(),
+  colorBase: z.string().trim().max(30).nullable(),
+  colorDientes: z.string().trim().max(12).nullable(),
+  troqueles: z.boolean(),
+
   /**
-   * La clave del puente al que pertenece, tal como la armó la pantalla. Aquí
-   * se cambia por la del renglón real de Puente: el cliente no inventa llaves
-   * de la base.
+   * La clave del tramo al que pertenece, tal como la armó la pantalla. Aquí se
+   * cambia por la del renglón real de Tramo: el cliente no inventa llaves de
+   * la base.
    */
-  puenteId: z.string().trim().max(60).nullable(),
+  tramoId: z.string().trim().max(60).nullable(),
 });
 
+type UnidadLeida = z.infer<typeof esquemaUnidad>;
+
+/** Cómo se nombra la unidad cuando hay que decir dónde está el problema. */
+function donde(unidad: UnidadLeida) {
+  if (unidad.diente !== null) return `el diente ${unidad.diente}`;
+  if (unidad.arcada) return ARCADAS_EN_PALABRAS[unidad.arcada].toLowerCase();
+  return TRABAJOS[unidad.rol].nombre.toLowerCase();
+}
+
 /**
- * Un puente tiene que ser un tramo seguido de una misma arcada, con dos
- * unidades o más, pilares en los extremos y pónticos en medio. Si no, el caso
- * no se puede fabricar y hay que decirlo con palabras del consultorio.
+ * Que cada unidad traiga lo que su tipo de trabajo pide.
+ *
+ * Los mensajes dicen qué falta y dónde, en lenguaje del consultorio. Nunca
+ * "campo requerido" (§6.5).
  */
-function revisarPuentes(
-  unidades: {
-    diente: number;
-    rol: keyof typeof TRABAJOS;
-    puenteId: string | null;
-  }[],
-) {
-  for (const grupo of puentesDe(
-    unidades as Parameters<typeof puentesDe>[0],
+function revisarCampos(unidades: UnidadLeida[]) {
+  for (const unidad of unidades) {
+    const tipo = TRABAJOS[unidad.rol];
+    const nombre = tipo.nombre.toLowerCase();
+
+    // Donde va: una unidad de diente sin diente, o una de arcada sin arcada,
+    // es una unidad que el taller no sabría dónde poner.
+    if (tipo.alcance === "ARCADA") {
+      if (unidad.diente !== null || unidad.arcada === null) {
+        return `${tipo.nombre} va sobre una arcada completa, no sobre un diente.`;
+      }
+    } else if (unidad.diente === null) {
+      return `${tipo.nombre} va sobre un diente y no se dijo cuál.`;
+    }
+
+    if (tipo.materiales.length === 0) {
+      if (unidad.material !== null) {
+        return `${tipo.nombre} no se fabrica, así que no lleva material.`;
+      }
+    } else {
+      if (!unidad.material) {
+        return `Falta el material de ${nombre} en ${donde(unidad)}.`;
+      }
+      if (!tipo.materiales.includes(unidad.material)) {
+        return `${MATERIALES[unidad.material]} no aplica para ${nombre}.`;
+      }
+
+      // El método sale del material: ninguna máquina del taller cuela resina.
+      const metodos = METODOS_POR_MATERIAL[unidad.material];
+      if (!unidad.metodo) {
+        return `Falta decir con qué se hace ${donde(unidad)}: ${metodos
+          .map((m) => METODOS[m].toLowerCase())
+          .join(" o ")}.`;
+      }
+      if (!metodos.includes(unidad.metodo)) {
+        return `${MATERIALES[unidad.material]} no se puede ${METODOS[
+          unidad.metodo
+        ].toLowerCase()}.`;
+      }
+    }
+
+    if (pregunta(unidad.rol, "color") && !unidad.color) {
+      return `Falta el color de ${nombre} en ${donde(unidad)}.`;
+    }
+    if (pregunta(unidad.rol, "colorBase") && !unidad.colorBase) {
+      return `Falta el color de la encía de ${nombre} en ${donde(unidad)}.`;
+    }
+    if (pregunta(unidad.rol, "colorDientes") && !unidad.colorDientes) {
+      return `Falta el color de los dientes de ${nombre} en ${donde(unidad)}.`;
+    }
+    if (pregunta(unidad.rol, "espesorAlivio") && unidad.espesorAlivioMm === null) {
+      return `Falta el espesor del alivio de ${nombre} en ${donde(unidad)}.`;
+    }
+    if (pregunta(unidad.rol, "grosor") && unidad.grosorMm === null) {
+      return `Falta el grosor de ${nombre} en ${donde(unidad)}.`;
+    }
+
+    // Sobre implante hay que saber de qué sistema es: sin eso no se pide la
+    // pieza, y la corona llega sin con qué atornillarla.
+    const sobreImplante = pregunta(unidad.rol, "sistemaImplante") || unidad.esImplante;
+    if (sobreImplante && !unidad.sistemaImplante) {
+      return `Falta el sistema de implante de ${donde(unidad)}.`;
+    }
+    if (sobreImplante && !unidad.retencion) {
+      return `Falta decir si ${donde(unidad)} va atornillada o cementada.`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Un tramo tiene que ser un tramo seguido de una misma arcada, con dos
+ * unidades o más, algo que se apoye en el diente preparado en las puntas y
+ * algo que cuelgue en medio. Si no, no se puede fabricar, y hay que decirlo
+ * con palabras del consultorio.
+ */
+function revisarTramos(unidades: UnidadLeida[]) {
+  for (const grupo of tramosDe(
+    unidades as unknown as Parameters<typeof tramosDe>[0],
   ).values()) {
     const dientes = grupo.map((u) => u.diente);
 
     if (grupo.length < 2) {
-      return `El diente ${dientes[0]} está marcado como puente él solo. Un puente lleva al menos dos piezas unidas.`;
+      return `El diente ${dientes[0]} está unido él solo. Un tramo lleva al menos dos piezas unidas.`;
     }
 
     const arcada = arcadaDe(dientes[0]);
     if (!arcada || dientes.some((d) => !arcada.includes(d))) {
-      return `Un puente no puede unir la arcada de arriba con la de abajo. Revise los dientes ${dientes.join(", ")}.`;
+      return `Un tramo no puede unir la arcada de arriba con la de abajo. Revise los dientes ${dientes.join(", ")}.`;
     }
 
     const posiciones = dientes.map((d) => arcada.indexOf(d));
@@ -207,11 +306,11 @@ function revisarPuentes(
       (p, i) => i === 0 || p === posiciones[i - 1] + 1,
     );
     if (!seguido) {
-      return `El puente ${nombreDelPuente(grupo)} tiene un hueco. Un puente une dientes pegados.`;
+      return `El tramo ${nombreDelTramo(grupo)} tiene un hueco. Un tramo une dientes pegados.`;
     }
 
     // En las puntas va algo que se apoya en un diente preparado; en medio,
-    // algo que cuelga. Si no, el puente no se puede fabricar.
+    // algo que cuelga. Si no, el tramo no se puede fabricar.
     const malo = grupo.findIndex((u, i) => {
       const enLaPunta = i === 0 || i === grupo.length - 1;
       return enLaPunta ? !puedeSerPilar(u.rol) : !esPontico(u.rol);
@@ -220,8 +319,8 @@ function revisarPuentes(
       const enLaPunta = malo === 0 || malo === grupo.length - 1;
       const tipo = TRABAJOS[grupo[malo].rol].nombre.toLowerCase();
       return enLaPunta
-        ? `En el puente ${nombreDelPuente(grupo)}, el diente ${dientes[malo]} está en la punta: ahí va algo que se apoye en el diente preparado, no ${tipo}.`
-        : `En el puente ${nombreDelPuente(grupo)}, el diente ${dientes[malo]} va en medio: ahí va un póntico, no ${tipo}.`;
+        ? `En el tramo ${nombreDelTramo(grupo)}, el diente ${dientes[malo]} está en la punta: ahí va algo que se apoye en el diente preparado, no ${tipo}.`
+        : `En el tramo ${nombreDelTramo(grupo)}, el diente ${dientes[malo]} va en medio: ahí va algo que cuelgue, no ${tipo}.`;
     }
   }
 
@@ -254,67 +353,32 @@ export async function guardarUnidades(
     return { error: "Revise que cada diente tenga rol y material." };
   }
 
-  // Que el material corresponda al tipo de trabajo: la cascada también se
-  // valida aquí, no sólo en la pantalla. Una anotación no lleva material
-  // porque no hay pieza que hacer.
-  for (const unidad of leido.data) {
-    const tipo = TRABAJOS[unidad.rol];
+  const malCampo = revisarCampos(leido.data);
+  if (malCampo) return { error: malCampo };
 
-    if (tipo.materiales.length === 0) {
-      if (unidad.material !== null) {
-        return {
-          error: `${ROLES_DE_UNIDAD[unidad.rol]} no se fabrica, así que no lleva material.`,
-        };
-      }
-      continue;
-    }
-
-    if (!unidad.material) {
-      return { error: `Falta escoger el material de ${ROLES_DE_UNIDAD[unidad.rol].toLowerCase()}.` };
-    }
-    if (!tipo.materiales.includes(unidad.material)) {
-      return {
-        error: `${MATERIALES[unidad.material]} no aplica para ${ROLES_DE_UNIDAD[unidad.rol].toLowerCase()}.`,
-      };
-    }
-
-    // El método sale del material: ninguna máquina del taller cuela una resina.
-    const metodos = METODOS_POR_MATERIAL[unidad.material];
-    if (!unidad.metodo) {
-      return {
-        error: `Falta decir con qué se hace el diente ${unidad.diente}: ${metodos.map((m) => METODOS[m].toLowerCase()).join(" o ")}.`,
-      };
-    }
-    if (!metodos.includes(unidad.metodo)) {
-      return {
-        error: `${MATERIALES[unidad.material]} no se puede ${METODOS[unidad.metodo].toLowerCase()}.`,
-      };
-    }
-  }
-
-  const malPuente = revisarPuentes(leido.data);
+  const malPuente = revisarTramos(leido.data);
   if (malPuente) return { error: malPuente };
 
   await prisma.$transaction(async (bd) => {
     // Se rehace el caso completo: las unidades y sus puentes salen y entran
     // juntos, así no queda un puente apuntando a un diente que ya no está.
     await bd.unidad.deleteMany({ where: { casoId: caso.id } });
-    await bd.puente.deleteMany({ where: { casoId: caso.id } });
+    await bd.tramo.deleteMany({ where: { casoId: caso.id } });
 
     // La pantalla manda su propia clave de puente; aquí se cambia por la del
     // renglón real. El cliente nunca escribe una llave de la base.
     const clavesDeLaPantalla = [
       ...new Set(
-        leido.data.map((u) => u.puenteId).filter((c): c is string => Boolean(c)),
+        leido.data.map((u) => u.tramoId).filter((c): c is string => Boolean(c)),
       ),
     ];
-    const puenteReal = new Map<string, string>();
+    const tramoReal = new Map<string, string>();
     for (const clave of clavesDeLaPantalla) {
-      const puente = await bd.puente.create({
+      const puente = await bd.tramo.create({
         data: { casoId: caso.id },
         select: { id: true },
       });
-      puenteReal.set(clave, puente.id);
+      tramoReal.set(clave, puente.id);
     }
 
     if (leido.data.length > 0) {
@@ -322,7 +386,7 @@ export async function guardarUnidades(
         data: leido.data.map((u) => ({
           ...u,
           casoId: caso.id,
-          puenteId: u.puenteId ? (puenteReal.get(u.puenteId) ?? null) : null,
+          tramoId: u.tramoId ? (tramoReal.get(u.tramoId) ?? null) : null,
         })),
       });
     }
@@ -355,7 +419,7 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
       folio: true,
       esBorrador: true,
       indicacion: true,
-      unidades: { select: { id: true } },
+      unidades: { select: { id: true, rol: true } },
       archivos: { select: { tipo: true, estado: true } },
     },
   });
@@ -388,4 +452,21 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
 
   revalidatePath("/", "layout");
   redirect(`/casos/${caso.id}?enviado=1`);
+}
+
+// ------------------------------------------------------- catalogo del doctor
+
+/**
+ * Enciende o apaga el catalogo completo para quien esta capturando.
+ *
+ * Se guarda en su perfil y no en la pantalla: quien trabaja con el catalogo
+ * entero lo hace siempre, y volver a encenderlo en cada caso seria pedirselo
+ * cada vez.
+ */
+export async function cambiarCatalogo(completo: boolean) {
+  const usuario = await exigirUsuario();
+  await prisma.usuario.update({
+    where: { id: usuario.id },
+    data: { catalogoCompleto: completo },
+  });
 }

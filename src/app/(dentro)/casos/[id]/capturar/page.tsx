@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
 import { PasosDelCaso, pasosDelAlta } from "@/componentes/PasosDelCaso";
 import { BotonEnlace } from "@/componentes/Boton";
+import { desdeLaBase } from "@/lib/tramos";
 import { CapturaDeUnidades } from "./CapturaDeUnidades";
 
 export const metadata: Metadata = { title: "Capturar caso · Mileo" };
@@ -68,15 +69,8 @@ export default async function PaginaDeCaptura({
 
       <CapturaDeUnidades
         casoId={caso.id}
-        unidadesIniciales={caso.unidades.map((u) => ({
-          diente: u.diente,
-          rol: u.rol,
-          material: u.material,
-          metodo: u.metodo,
-          color: u.color,
-          notas: u.notas,
-          puenteId: u.puenteId,
-        }))}
+        catalogoCompleto={usuario.catalogoCompleto}
+        unidadesIniciales={caso.unidades.map(desdeLaBase)}
       />
     </div>
   );

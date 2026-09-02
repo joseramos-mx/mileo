@@ -11,6 +11,13 @@ await bd.connect();
 
 const { token, usuarioId } = await sesionPara(bd, "juan.valverde@prodental.mx");
 
+// El interruptor del catalogo se guarda en el perfil, asi que la prueba lo
+// deja como estaba antes de empezar: si no, la segunda corrida arrancaria con
+// el catalogo completo encendido por la primera.
+await bd.query('UPDATE "Usuario" SET "catalogoCompleto" = false WHERE id = $1', [
+  usuarioId,
+]);
+
 // Un borrador limpio para no ensuciar los que ya existen.
 const paciente = (
   await bd.query('SELECT id FROM "Paciente" LIMIT 1')
@@ -37,6 +44,9 @@ const pagina = await contexto.newPage();
 pagina.on("console", (m) => {
   if (m.type() === "error") console.log("CONSOLA:", m.text().slice(0, 250));
 });
+
+const panel = (p: typeof pagina, diente: number) =>
+  p.getByRole("region", { name: new RegExp(`^Detalle de Diente ${diente}`) });
 
 let fallas = 0;
 function comprobar(que: string, bien: boolean) {
@@ -74,7 +84,7 @@ comprobar(
 comprobar(
   "y su material y color salen arriba del resumen, no al fondo del panel",
   await pagina
-    .getByRole("region", { name: "Detalle del diente 14" })
+    .getByRole("region", { name: /^Detalle de Diente 14/ })
     .getByLabel(/^Material/)
     .isVisible(),
 );
@@ -204,14 +214,31 @@ comprobar(
 // Fuera del puente, el catalogo completo, en pastillas y no en una lista.
 await pagina.locator('g[data-diente="13"]').click();
 await pagina.waitForTimeout(300);
-const pastillas = await pagina.locator("aside button[data-trabajo]").count();
+const cortas = await pagina.locator("aside button[data-trabajo]").count();
 comprobar(
-  `el catálogo completo se ve en pastillas (${pastillas} tipos)`,
-  pastillas === 29,
+  `por omisión el doctor ve la lista corta (${cortas} tipos)`,
+  cortas === 10,
+);
+comprobar(
+  "y ninguna de arcada, que no se pone en un diente",
+  (await pagina.locator('aside button[data-trabajo="GUARDA_OCLUSAL"]').count()) === 0,
 );
 comprobar(
   "agrupadas por categoría, como en el programa del laboratorio",
   await pagina.getByText("Coronas y cofias").isVisible(),
+);
+
+// El catalogo completo se enciende desde la misma pantalla.
+await pagina.getByRole("button", { name: "Ver el catálogo completo" }).click();
+await pagina.waitForTimeout(400);
+const completas = await pagina.locator("aside button[data-trabajo]").count();
+comprobar(
+  `el catálogo completo trae bastantes más (${completas} tipos)`,
+  completas > cortas + 10,
+);
+comprobar(
+  "y ahí sí aparecen los que el laboratorio afina",
+  (await pagina.locator('aside button[data-trabajo="CORONA_PRENSADA"]').count()) === 1,
 );
 comprobar(
   "y ningún desplegable para escoger el tipo",
@@ -267,7 +294,9 @@ comprobar(
   contrastes.length === 0,
 );
 // Se deshace: el 13 no es de este caso.
-await pagina.getByRole("button", { name: "Quitar el diente 13 del caso" }).click();
+await pagina
+  .getByRole("button", { name: /^Quitar corona anatómica de 13/ })
+  .click();
 await pagina.waitForTimeout(300);
 await pagina.locator('g[data-diente="15"]').click();
 await pagina.waitForTimeout(300);
@@ -346,14 +375,16 @@ comprobar(
   await pagina.getByRole("heading", { name: "Diente 47", exact: true }).isVisible(),
 );
 // Se deshace: este diente no es del caso.
-await pagina.getByRole("button", { name: "Quitar el diente 47 del caso" }).click();
+await pagina
+  .getByRole("button", { name: /^Quitar .* de 47/ })
+  .click();
 await pagina.waitForTimeout(250);
 
 // Lo que quedó guardado en la base.
 await pagina.waitForTimeout(1500);
 const guardadas = (
   await bd.query(
-    `SELECT u.diente, u.rol, u.metodo, u."puenteId" FROM "Unidad" u
+    `SELECT u.diente, u.rol, u.metodo, u."tramoId" FROM "Unidad" u
      WHERE u."casoId" = $1 ORDER BY u.diente`,
     [caso.id],
   )
@@ -364,7 +395,7 @@ comprobar(
 );
 comprobar(
   "las cuatro comparten el mismo puente",
-  new Set(guardadas.map((u) => u.puenteId)).size === 1 && guardadas[0].puenteId !== null,
+  new Set(guardadas.map((u) => u.tramoId)).size === 1 && guardadas[0].tramoId !== null,
 );
 comprobar(
   `en las puntas coronas y en medio pónticos (${guardadas.map((u) => `${u.diente}:${u.rol}`).join(" ")})`,
@@ -372,8 +403,8 @@ comprobar(
     "CORONA_ANATOMICA,PONTICO_ANATOMICO,PONTICO_ANATOMICO,CORONA_ANATOMICA",
 );
 
-const puentes = (
-  await bd.query('SELECT count(*)::int n FROM "Puente" WHERE "casoId" = $1', [caso.id])
+const tramos = (
+  await bd.query('SELECT count(*)::int n FROM "Tramo" WHERE "casoId" = $1', [caso.id])
 ).rows[0].n;
 const indicacion = (
   await bd.query('SELECT indicacion FROM "Caso" WHERE id = $1', [caso.id])
@@ -382,10 +413,127 @@ comprobar(
   `la indicación se dedujo de lo capturado (${indicacion})`,
   indicacion === "CORONA_Y_PUENTE",
 );
-comprobar(`quedó un solo renglón de Puente (${puentes})`, puentes === 1);
+comprobar(`quedó un solo renglón de Tramo (${tramos})`, tramos === 1);
 comprobar(
   `el método quedó guardado (${guardadas.map((u) => u.metodo).join(", ")})`,
   guardadas.every((u) => u.metodo !== null),
+);
+
+// ------------------------------------------------ el alcance de cada trabajo
+
+// Una anotacion no es una pieza: se dibuja punteada y no cuenta.
+await pagina.locator('g[data-diente="26"]').click();
+await pagina.waitForTimeout(300);
+await pagina.locator('aside button[data-trabajo="ANTAGONISTA"]').click();
+await pagina.waitForTimeout(400);
+comprobar(
+  "la anotación se dibuja con el contorno punteado",
+  (await pagina.locator('g[data-diente="26"][data-anotacion="si"]').count()) === 1,
+);
+comprobar(
+  "y no pregunta material ni color: no se fabrica",
+  (await pagina
+    .getByRole("region", { name: /^Detalle de Diente 26/ })
+    .getByLabel(/^Material/)
+    .count()) === 0,
+);
+
+// Un trabajo de arcada no se pone en un diente: tiene su propio boton.
+comprobar(
+  "la guarda no se ofrece en el diente",
+  (await pagina.locator('aside button[data-trabajo="GUARDA_OCLUSAL"]').count()) === 0,
+);
+await pagina
+  .getByRole("button", { name: "Agregar guarda oclusal a la arcada superior" })
+  .click();
+await pagina.waitForTimeout(400);
+comprobar(
+  "la guarda se agrega a la arcada y pide su grosor",
+  await pagina
+    .getByRole("region", { name: /^Detalle de Guarda oclusal/ })
+    .getByLabel(/^Grosor/)
+    .isVisible(),
+);
+comprobar(
+  "y no pide color: es transparente",
+  (await pagina
+    .getByRole("region", { name: /^Detalle de Guarda oclusal/ })
+    .getByLabel(/^Color/)
+    .count()) === 0,
+);
+comprobar(
+  "el mismo trabajo no se puede agregar dos veces a la misma arcada",
+  await pagina
+    .getByRole("button", { name: "Guarda oclusal ya está en la arcada superior" })
+    .isDisabled(),
+);
+
+// --------------------------------------------- los campos salen del trabajo
+await pagina.locator('g[data-diente="24"]').click();
+await pagina.waitForTimeout(300);
+await pagina.locator('aside button[data-trabajo="ADITAMENTO"]').click();
+await pagina.waitForTimeout(400);
+const panel24 = pagina.getByRole("region", { name: /^Detalle de Diente 24/ });
+comprobar(
+  "el aditamento pide el sistema de implante",
+  await panel24.getByLabel(/^Sistema de implante/).isVisible(),
+);
+comprobar(
+  "y cómo se sujeta",
+  await panel24.getByRole("radio", { name: "Atornillada" }).isVisible(),
+);
+await panel24.getByLabel(/^Sistema de implante/).fill("Straumann BLX 4.0");
+await pagina.waitForTimeout(400);
+
+// Al cambiar de tipo, lo que ya no aplica desaparece.
+await pagina.locator('aside button[data-trabajo="CORONA_ANATOMICA"]').click();
+await pagina.waitForTimeout(400);
+comprobar(
+  "al pasar a corona, el sistema de implante deja de preguntarse",
+  (await panel24.getByLabel(/^Sistema de implante/).count()) === 0,
+);
+comprobar(
+  "y en su lugar aparece el color",
+  await panel24.getByLabel(/^Color/).isVisible(),
+);
+
+// Lo capturado que sigue sirviendo no se pierde.
+await pagina.locator('g[data-diente="25"]').click();
+await pagina.waitForTimeout(300);
+await panel(pagina, 25).getByLabel(/^Color/).selectOption("B2");
+await pagina.waitForTimeout(400);
+await pagina.locator('aside button[data-trabajo="CARILLA"]').click();
+await pagina.waitForTimeout(400);
+comprobar(
+  "al cambiar de tipo, el color que sigue sirviendo se conserva",
+  (await panel(pagina, 25).getByLabel(/^Color/).inputValue()) === "B2",
+);
+
+// Lo que quedo guardado de todo esto.
+await pagina.waitForTimeout(1600);
+const deArcada = (
+  await bd.query(
+    `SELECT rol, arcada, "grosorMm", diente FROM "Unidad"
+     WHERE "casoId" = $1 AND diente IS NULL`,
+    [caso.id],
+  )
+).rows;
+comprobar(
+  `la guarda se guardó sin diente y con su arcada (${JSON.stringify(deArcada)})`,
+  deArcada.length === 1 &&
+    deArcada[0].rol === "GUARDA_OCLUSAL" &&
+    deArcada[0].arcada === "SUPERIOR" &&
+    deArcada[0].grosorMm !== null,
+);
+const anotacion = (
+  await bd.query(
+    `SELECT material, metodo FROM "Unidad" WHERE "casoId" = $1 AND diente = 26`,
+    [caso.id],
+  )
+).rows[0];
+comprobar(
+  `la anotación se guardó sin material (${JSON.stringify(anotacion)})`,
+  anotacion.material === null && anotacion.metodo === null,
 );
 
 // Accesibilidad de la pantalla con el odontograma.
@@ -411,9 +559,11 @@ comprobar(
 );
 comprobar(
   "y se puede cambiar a la de abajo",
-  await pm.getByRole("button", { name: "Arcada inferior" }).isVisible(),
+  await pm
+    .getByRole("button", { name: "Arcada inferior", exact: true })
+    .isVisible(),
 );
-await pm.getByRole("button", { name: "Arcada inferior" }).click();
+await pm.getByRole("button", { name: "Arcada inferior", exact: true }).click();
 await pm.waitForTimeout(300);
 comprobar(
   "al cambiar, se ven los dientes de abajo",
