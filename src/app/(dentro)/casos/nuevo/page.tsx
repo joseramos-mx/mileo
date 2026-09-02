@@ -10,11 +10,11 @@ export const metadata: Metadata = { title: "Crear caso · Mileo" };
 /**
  * Alta de caso, primer paso (SKILL.md O-2).
  *
- * Alta de caso, paso 1: el paciente y la indicación.
+ * Alta de caso, paso 1: de quién es el caso.
  *
- * El orden de la cascada es exacto: indicación → diente → tipo → material →
- * color. Aquí va la indicación; el diente y lo demás vienen en el paso 2, ya
- * con el odontograma, y los archivos en el 3.
+ * Sólo el paciente. Lo que se le va a hacer se captura diente por diente en el
+ * paso 2, con el odontograma y el catálogo completo enfrente; preguntar aquí
+ * "qué necesita" era pedir el mismo dato dos veces y en desorden.
  *
  * Celular primero: se usa de pie, con prisa, a veces con guantes (§6.2).
  */

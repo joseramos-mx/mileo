@@ -375,6 +375,13 @@ comprobar(
 const puentes = (
   await bd.query('SELECT count(*)::int n FROM "Puente" WHERE "casoId" = $1', [caso.id])
 ).rows[0].n;
+const indicacion = (
+  await bd.query('SELECT indicacion FROM "Caso" WHERE id = $1', [caso.id])
+).rows[0].indicacion;
+comprobar(
+  `la indicación se dedujo de lo capturado (${indicacion})`,
+  indicacion === "CORONA_Y_PUENTE",
+);
 comprobar(`quedó un solo renglón de Puente (${puentes})`, puentes === 1);
 comprobar(
   `el método quedó guardado (${guardadas.map((u) => u.metodo).join(", ")})`,

@@ -248,7 +248,17 @@ async function main() {
     await auditar(clinica, "inicio (celular)");
 
     await clinica.goto(`${BASE}/casos/nuevo`);
-    await clinica.getByText("Coronas y puentes").click();
+    comprobar(
+      (await clinica.getByText("¿Qué necesita?").count()) === 0,
+      "el paso del paciente ya no pregunta el tipo de trabajo: eso es del paso 2",
+    );
+    const folioPuesto = await clinica
+      .getByLabel(/Folio del paciente/)
+      .inputValue();
+    comprobar(
+      /^\d+$/.test(folioPuesto),
+      `el folio del paciente lo da el sistema (${folioPuesto})`,
+    );
     await clinica.getByLabel(/Folio del paciente/).fill("1041");
     await clinica.getByLabel(/^Iniciales/).fill("R.T.G.");
     await capturar(clinica, "03-alta-paso-1");
@@ -264,8 +274,15 @@ async function main() {
 
     // El odontograma es el dibujo que entregó diseño: cada diente es un trazo
     // del SVG con su número FDI, no un botón de una rejilla.
+    // El odontograma lo pinta un componente de cliente: se espera a que
+    // aparezca en vez de contarlo al vuelo, que en la primera carga de la ruta
+    // llegaba antes de la hidratación.
+    const dientesDelDibujo = clinica.locator(
+      "svg[aria-label^='Odontograma'] g[data-diente]",
+    );
+    await dientesDelDibujo.first().waitFor({ timeout: 20_000 });
     comprobar(
-      (await clinica.locator("svg[aria-label^='Odontograma'] g[data-diente]").count()) > 0,
+      (await dientesDelDibujo.count()) === 16,
       "el odontograma se pinta sobre el dibujo entregado",
     );
 

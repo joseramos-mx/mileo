@@ -1,10 +1,8 @@
-import type { Indicacion } from "@/generated/prisma/enums";
-
 /**
  * Lista de admisión (SKILL.md O-2).
  *
- * Bloquea el envío si falta el antagonista, el registro de mordida o el tipo de
- * trabajo. La misma función la usan la pantalla y la acción de enviar, para que
+ * Bloquea el envío si falta el antagonista, el registro de mordida o los
+ * dientes del trabajo. La misma función la usan la pantalla y la acción de enviar, para que
  * sea imposible saltarse la lista tanto desde la interfaz como desde la API.
  *
  * Los mensajes dicen qué hacer, no qué falló (§6.5).
@@ -18,7 +16,6 @@ export type EstadoDeAdmision = {
 };
 
 export type CasoParaAdmision = {
-  indicacion: Indicacion | null;
   unidades: { id: string }[];
   archivos: { tipo: string; estado: string }[];
 };
@@ -31,10 +28,10 @@ export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
   return [
     {
       clave: "tipo-de-trabajo",
-      titulo: "El tipo de trabajo",
+      titulo: "En qué dientes va el trabajo",
       queHacer:
-        "Escoja qué necesita y en qué diente, con su material y su color.",
-      cumplido: caso.indicacion !== null && caso.unidades.length > 0,
+        "Regrese al paso del trabajo y toque en el odontograma los dientes de este caso.",
+      cumplido: caso.unidades.length > 0,
     },
     {
       clave: "preparacion",

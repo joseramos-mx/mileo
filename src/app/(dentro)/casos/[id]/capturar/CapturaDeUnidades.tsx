@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import type { Indicacion } from "@/generated/prisma/enums";
 import { DetalleDelDiente, Odontograma } from "@/componentes/Odontograma";
 import { TablaDelCaso } from "@/componentes/TablaDelCaso";
 import {
@@ -31,11 +30,9 @@ export type UnidadCapturada = UnidadDelCaso;
  */
 export function CapturaDeUnidades({
   casoId,
-  indicacion,
   unidadesIniciales,
 }: {
   casoId: string;
-  indicacion: Indicacion;
   unidadesIniciales: UnidadCapturada[];
 }) {
   // Los casos capturados antes de que existiera el método vienen sin él. Se
@@ -122,7 +119,6 @@ export function CapturaDeUnidades({
         }
       >
         <Odontograma
-          indicacion={indicacion}
           unidades={unidades}
           abierto={abierto}
           alAbrir={setAbierto}

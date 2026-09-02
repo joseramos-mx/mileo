@@ -38,7 +38,11 @@ aviso de privacidad se acepta al primer ingreso y queda con fecha y versión.
 
 ### O-2 · Alta de caso — **cumplido**
 
-Cascada en el orden exacto: indicación → diente → tipo → material → color. El
+Cascada en el orden exacto: diente → tipo de trabajo → material → método →
+color. La indicación ya no se pregunta al dar de alta el caso: era pedirle al
+doctor que resumiera por adelantado lo que iba a capturar diente por diente, y
+podía quedar en desacuerdo con lo capturado. Se deduce de las unidades, que son
+el dato de verdad, y de ella sale el kit que va en la caja (§O-6). El
 diente se escoge en el odontograma, nunca escribiéndolo. Paciente por folio e
 iniciales; el nombre completo es opcional. Borrador guardado solo. Lista de
 admisión que bloquea el envío si falta el antagonista, el registro de mordida o

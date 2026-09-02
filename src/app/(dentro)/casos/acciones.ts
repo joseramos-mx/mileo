@@ -9,11 +9,15 @@ import { registrarEvento } from "@/lib/bitacora";
 import { siguienteFolio, siguienteFolioDePaciente } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
 import { arcadaDe, nombreDelPuente, puentesDe } from "@/lib/puentes";
-import { TRABAJOS, esPontico, puedeSerPilar } from "@/lib/trabajos";
+import {
+  TRABAJOS,
+  esPontico,
+  indicacionDeLasUnidades,
+  puedeSerPilar,
+} from "@/lib/trabajos";
 import {
   DIENTES_INFERIORES,
   DIENTES_SUPERIORES,
-  INDICACIONES,
   MATERIALES,
   METODOS,
   METODOS_POR_MATERIAL,
@@ -25,9 +29,6 @@ const DIENTES_VALIDOS = [...DIENTES_SUPERIORES, ...DIENTES_INFERIORES];
 // ------------------------------------------------------------ crear borrador
 
 const esquemaBorrador = z.object({
-  indicacion: z.enum(
-    Object.keys(INDICACIONES) as [keyof typeof INDICACIONES],
-  ),
   folioPaciente: z
     .string()
     .trim()
@@ -65,7 +66,6 @@ export async function crearBorrador(
   }
 
   const leido = esquemaBorrador.safeParse({
-    indicacion: datos.get("indicacion"),
     folioPaciente: datos.get("folioPaciente"),
     folioSugerido: datos.get("folioSugerido") || undefined,
     iniciales: datos.get("iniciales"),
@@ -80,7 +80,7 @@ export async function crearBorrador(
     return { errores };
   }
 
-  const { indicacion, iniciales, nombreCompleto, folioSugerido } = leido.data;
+  const { iniciales, nombreCompleto, folioSugerido } = leido.data;
   let { folioPaciente } = leido.data;
 
   // Si dejó el número que le propuse y entre tanto alguien más lo ocupó, tomo
@@ -134,7 +134,9 @@ export async function crearBorrador(
       doctorId,
       creadoPorId: usuario.id,
       pacienteId: paciente.id,
-      indicacion,
+      // Arranca en lo más común y se recalcula sola con cada guardado del
+      // paso 2, según lo que el doctor vaya capturando.
+      indicacion: "CORONA_Y_PUENTE",
       etapa: "RECIBIDO",
       esBorrador: true,
     },
@@ -145,7 +147,7 @@ export async function crearBorrador(
     resumen: `${usuario.nombreCompleto} empezó el caso ${caso.folio} para el paciente ${paciente.folio}.`,
     casoId: caso.id,
     usuarioId: usuario.id,
-    datos: { indicacion, paciente: paciente.folio },
+    datos: { paciente: paciente.folio },
   });
 
   redirect(`/casos/${caso.id}/capturar`);
@@ -327,7 +329,13 @@ export async function guardarUnidades(
 
     await bd.caso.update({
       where: { id: caso.id },
-      data: { actualizadoEn: new Date() },
+      data: {
+        actualizadoEn: new Date(),
+        // La indicación resume lo capturado, y de ella sale el kit que va en
+        // la caja: se recalcula aquí para que no se quede en lo que se dijo
+        // al principio.
+        indicacion: indicacionDeLasUnidades(leido.data),
+      },
     });
   });
 

@@ -4,7 +4,6 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { prisma } from "@/lib/prisma";
 import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
-import { INDICACIONES } from "@/lib/vocabulario";
 import { PasosDelCaso, pasosDelAlta } from "@/componentes/PasosDelCaso";
 import { BotonEnlace } from "@/componentes/Boton";
 import { CapturaDeUnidades } from "./CapturaDeUnidades";
@@ -56,8 +55,7 @@ export default async function PaginaDeCaptura({
               Paciente {caso.paciente.folio} · {caso.paciente.iniciales}
             </h1>
             <p className="mt-1 text-cuerpo text-secundario">
-              {INDICACIONES[caso.indicacion].nombre}. Guardo solo lo que
-              capture.
+              Guardo solo lo que capture; si se sale, lo encuentra igual.
             </p>
           </div>
 
@@ -70,7 +68,6 @@ export default async function PaginaDeCaptura({
 
       <CapturaDeUnidades
         casoId={caso.id}
-        indicacion={caso.indicacion}
         unidadesIniciales={caso.unidades.map((u) => ({
           diente: u.diente,
           rol: u.rol,

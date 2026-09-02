@@ -2,7 +2,6 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import type {
-  Indicacion,
   Material,
   MetodoDeFabricacion,
   RolDeUnidad,
@@ -32,7 +31,6 @@ import {
 } from "@/lib/puentes";
 import {
   COLORES_VITA,
-  INDICACIONES,
   MATERIALES,
   METODOS,
   METODOS_POR_MATERIAL,
@@ -82,7 +80,6 @@ export type UnidadEnOdontograma = UnidadDelCaso;
 const TAMANO_DEL_NUMERO = 11;
 
 export function Odontograma({
-  indicacion,
   unidades,
   abierto,
   alAbrir: alAbrirDeAfuera,
@@ -90,7 +87,6 @@ export function Odontograma({
   detalle,
   className,
 }: {
-  indicacion: Indicacion;
   unidades: UnidadEnOdontograma[];
   /**
    * El diente abierto. Lo manda quien usa el odontograma porque su detalle
@@ -119,7 +115,11 @@ export function Odontograma({
   const enlacesEnPantalla = useRef(new Map<string, SVGGElement>());
 
   const angosta = usePantallaAngosta();
-  const porOmision = INDICACIONES[indicacion].porOmision;
+  // Con qué tipo se estrena un diente: el último que se escogió en este caso.
+  // Quien está armando un puente de cuatro pónticos no quiere volver a
+  // escogerlo cuatro veces. Si el caso está vacío, una corona anatómica.
+  const porOmision: RolDeUnidad =
+    unidades[unidades.length - 1]?.rol ?? "CORONA_ANATOMICA";
   const porDiente = new Map(unidades.map((u) => [u.diente, u]));
 
   /** En el celular sólo se ve una arcada a la vez: no caben las dos. */

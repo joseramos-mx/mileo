@@ -1,4 +1,4 @@
-import type { Material, RolDeUnidad } from "@/generated/prisma/enums";
+import type { Indicacion, Material, RolDeUnidad } from "@/generated/prisma/enums";
 
 /**
  * El catálogo de trabajos, con la misma estructura que el que ya usan los
@@ -397,4 +397,72 @@ export function puedeSerPilar(rol: RolDeUnidad) {
 /** Va en medio de un puente. */
 export function esPontico(rol: RolDeUnidad) {
   return TRABAJOS[rol].familia === "PONTICO";
+}
+
+/**
+ * A qué indicación pertenece cada tipo de trabajo.
+ *
+ * La indicación dejó de preguntarse al dar de alta el caso: era pedirle al
+ * doctor que resumiera por adelantado lo que iba a capturar diente por diente
+ * en el paso siguiente, y podía quedar en desacuerdo con lo capturado. Ahora se
+ * deduce de las unidades, que son el dato de verdad.
+ */
+const INDICACION_DE_CADA_ROL: Record<RolDeUnidad, Indicacion | null> = {
+  CORONA_ANATOMICA: "CORONA_Y_PUENTE",
+  COFIA: "CORONA_Y_PUENTE",
+  CORONA_PRENSADA: "CORONA_Y_PUENTE",
+  CORONA_CASCARON: "PROVISIONAL",
+  COFIA_CON_ALIVIO: "CORONA_Y_PUENTE",
+  MOCKUP: "PROVISIONAL",
+  PONTICO_ANATOMICO: "CORONA_Y_PUENTE",
+  PONTICO_REDUCIDO: "CORONA_Y_PUENTE",
+  PONTICO_PRENSADO: "CORONA_Y_PUENTE",
+  PONTICO_CASCARON: "PROVISIONAL",
+  INCRUSTACION: "INCRUSTACION_Y_CARILLA",
+  INCRUSTACION_CON_ALIVIO: "INCRUSTACION_Y_CARILLA",
+  CARILLA: "INCRUSTACION_Y_CARILLA",
+  ENCERADO_ANATOMICO: "CORONA_Y_PUENTE",
+  ENCERADO_REDUCIDO: "CORONA_Y_PUENTE",
+  ENCERADO_DE_PONTICO: "CORONA_Y_PUENTE",
+  PROTESIS_TOTAL: "GUARDA_OCLUSAL",
+  PROTESIS_PARCIAL: "GUARDA_OCLUSAL",
+  GUARDA_OCLUSAL: "GUARDA_OCLUSAL",
+  TELESCOPICA_PRIMARIA: "CORONA_Y_PUENTE",
+  TELESCOPICA_SECUNDARIA: "CORONA_Y_PUENTE",
+  ADITAMENTO: "SOBRE_IMPLANTE",
+  PILAR_DE_BARRA: "SOBRE_IMPLANTE",
+  SEGMENTO_DE_BARRA: "SOBRE_IMPLANTE",
+  SUBESTRUCTURA_CON_ALIVIO: "SOBRE_IMPLANTE",
+  MODELO: "MODELO_3D",
+  // Las anotaciones no piden nada en la caja.
+  ANTAGONISTA: null,
+  DIENTE_VECINO: null,
+  OMITIR_EN_PUENTE: null,
+};
+
+/**
+ * De mayor a menor exigencia de kit. Un caso con coronas y un aditamento sale
+ * como "sobre implante" porque su caja lleva tornillo, desarmador y análogo: si
+ * se resolviera al revés, la pieza llegaría a la clínica sin con qué ponerla.
+ */
+const INDICACIONES_POR_EXIGENCIA: Indicacion[] = [
+  "SOBRE_IMPLANTE",
+  "CORONA_Y_PUENTE",
+  "INCRUSTACION_Y_CARILLA",
+  "PROVISIONAL",
+  "GUARDA_OCLUSAL",
+  "MODELO_3D",
+];
+
+/** Qué indicación resume lo que el doctor capturó. */
+export function indicacionDeLasUnidades(
+  unidades: { rol: RolDeUnidad }[],
+): Indicacion {
+  const presentes = new Set(
+    unidades.map((u) => INDICACION_DE_CADA_ROL[u.rol]).filter(Boolean),
+  );
+  return (
+    INDICACIONES_POR_EXIGENCIA.find((i) => presentes.has(i)) ??
+    "CORONA_Y_PUENTE"
+  );
 }
