@@ -114,18 +114,25 @@ export function Pestanas({
       {/* Los paneles que no se ven siguen montados: cambiar de pestaña no
           puede borrar lo capturado en la otra, y desmontarlos tiraría su
           estado. */}
-      {pestanas.map((pestana) => (
-        <div
-          key={pestana.clave}
-          role="tabpanel"
-          id={idPanel(pestana.clave)}
-          aria-labelledby={idPestana(pestana.clave)}
-          hidden={pestana.clave !== puesta}
-          className="flex flex-col gap-4"
-        >
-          {pestana.contenido}
-        </div>
-      ))}
+      {pestanas.map((pestana) => {
+        const escondido = pestana.clave !== puesta;
+
+        return (
+          <div
+            key={pestana.clave}
+            role="tabpanel"
+            id={idPanel(pestana.clave)}
+            aria-labelledby={idPestana(pestana.clave)}
+            hidden={escondido}
+            // El `hidden` solo no basta: una clase `flex` le gana al
+            // `display: none` que trae el atributo, y los dos paneles se
+            // pintaban encimados. Se esconde con la clase, no con el atributo.
+            className={cn("flex-col gap-4", escondido ? "hidden" : "flex")}
+          >
+            {pestana.contenido}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -31,6 +31,13 @@ import { cn } from "@/lib/utilidades";
  * los que el doctor ya resolvió en la otra pestaña, y verlos aquí evita que
  * pida una prótesis total sobre una arcada donde acaba de pedir cuatro coronas.
  */
+/**
+ * El grosor del trazo, en unidades del dibujo. Diseño lo entregó en 2; a 1 se
+ * ve más fino sin perder el contorno, que es lo que separa un diente del de
+ * al lado.
+ */
+const TRAZO = 1;
+
 export function VistaDeArcadas({
   unidades,
   catalogoCompleto,
@@ -157,7 +164,7 @@ export function VistaDeArcadas({
                             : "var(--mandibula-relleno)"
                       }
                       stroke="var(--diente-contorno)"
-                      strokeWidth={2}
+                      strokeWidth={TRAZO}
                     />
                   );
                 })}
@@ -170,7 +177,7 @@ export function VistaDeArcadas({
                   <path
                     d={CONTORNO_DE_ARCADA[arcada]}
                     fill="none"
-                    strokeWidth={2.5}
+                    strokeWidth={TRAZO * 1.5}
                     strokeLinejoin="round"
                     className="stroke-diente-anillo"
                   />

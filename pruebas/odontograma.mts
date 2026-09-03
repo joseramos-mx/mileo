@@ -472,6 +472,15 @@ comprobar(
   "y el panel de la pestaña queda a la vista",
   await panelArcadas.isVisible(),
 );
+// El panel de la otra tiene que desaparecer de verdad. Con `hidden` a secas no
+// bastaba: una clase `flex` le gana al `display: none` del atributo y los dos
+// se pintaban encimados.
+comprobar(
+  "y el de la otra pestaña se esconde de verdad",
+  (await pagina
+    .getByRole("tabpanel", { name: /^Dientes/, includeHidden: true })
+    .evaluate((e) => e.getBoundingClientRect().height)) === 0,
+);
 
 // Los dientes con trabajo se ven en gris en el dibujo de las arcadas.
 comprobar(
