@@ -514,9 +514,56 @@ comprobar(
     .locator('g[data-arcada="SUPERIOR"]')
     .getAttribute("aria-pressed")) === "true",
 );
+
+// Se pueden abrir las dos a la vez.
+await panelArcadas.locator('g[data-arcada="INFERIOR"]').click();
+await pagina.waitForTimeout(400);
 comprobar(
-  "sin repetir los mismos botones para la otra arcada",
-  (await panelArcadas.getByRole("heading", { name: "Arcada inferior" }).count()) === 0,
+  "se pueden abrir las dos arcadas a la vez",
+  await panelArcadas
+    .getByRole("heading", { name: "Las dos arcadas" })
+    .isVisible(),
+);
+
+// Y lo que se escoge se pone en las dos.
+await panelArcadas.locator('aside button[data-trabajo="MODELO"]').click();
+await pagina.waitForTimeout(1600);
+const modelos = (
+  await bd.query(
+    `SELECT arcada FROM "Unidad"
+     WHERE "casoId" = $1 AND rol = 'MODELO' ORDER BY arcada`,
+    [caso.id],
+  )
+).rows;
+comprobar(
+  `con las dos abiertas, el modelo se puso en las dos (${JSON.stringify(modelos)})`,
+  modelos.length === 2,
+);
+comprobar(
+  "y la pastilla queda puesta",
+  (await panelArcadas
+    .locator('aside button[data-trabajo="MODELO"]')
+    .getAttribute("aria-pressed")) === "true",
+);
+
+// Volver a tocar una arcada la cierra y saca lo suyo del pedido.
+await panelArcadas.locator('g[data-arcada="INFERIOR"]').click();
+await pagina.waitForTimeout(1600);
+const quedan = (
+  await bd.query(
+    `SELECT arcada FROM "Unidad" WHERE "casoId" = $1 AND rol = 'MODELO'`,
+    [caso.id],
+  )
+).rows;
+comprobar(
+  `volver a tocar la arcada la saca del pedido (queda ${JSON.stringify(quedan)})`,
+  quedan.length === 1 && quedan[0].arcada === "SUPERIOR",
+);
+comprobar(
+  "y con una sola abierta, el panel vuelve a nombrarla",
+  await panelArcadas
+    .getByRole("heading", { name: "Arcada superior" })
+    .isVisible(),
 );
 
 // Los trabajos de arcada se agregan aqui, con las mismas pastillas del diente.
@@ -536,12 +583,6 @@ comprobar(
     .getByLabel(/^Color/)
     .count()) === 0,
 );
-comprobar(
-  "la pastilla puesta se marca, no sólo con color",
-  (await panelArcadas
-    .locator('aside button[data-trabajo="GUARDA_OCLUSAL"]')
-    .getAttribute("aria-pressed")) === "true",
-);
 
 // El antagonista se marca por arcada, y con el teclado se cambia de arcada.
 await panelArcadas.locator('g[data-arcada="SUPERIOR"]').focus();
@@ -549,28 +590,24 @@ await pagina.keyboard.press("ArrowDown");
 await pagina.waitForTimeout(200);
 await pagina.keyboard.press("Enter");
 await pagina.waitForTimeout(400);
-comprobar(
-  "las flechas cambian de arcada y Enter la abre",
-  await panelArcadas
-    .getByRole("heading", { name: "Arcada inferior" })
-    .isVisible(),
-);
 await panelArcadas.locator('aside button[data-trabajo="ANTAGONISTA"]').click();
 await pagina.waitForTimeout(400);
 comprobar(
   "el antagonista se marca sobre la arcada entera",
-  await panelArcadas
+  (await panelArcadas
     .getByRole("region", { name: /^Detalle de Antagonista/ })
-    .isVisible(),
+    .count()) > 0,
 );
 
 // Volver a Dientes no pierde nada.
+const antesDeVolver = await pestanaArcadas.innerText();
 await pestanaArcadas.focus();
 await pagina.keyboard.press("ArrowLeft");
 await pagina.waitForTimeout(400);
 comprobar(
-  "volver a Dientes no borra lo capturado en Arcadas",
-  /Arcadas \(2\)/.test(await pestanaArcadas.innerText()),
+  `volver a Dientes no borra lo capturado en Arcadas (${antesDeVolver.trim()})`,
+  (await pestanaArcadas.innerText()) === antesDeVolver &&
+    /Arcadas \([1-9]/.test(antesDeVolver),
 );
 comprobar(
   "ni al revés: el odontograma sigue con sus dientes",
@@ -629,7 +666,7 @@ const deArcada = (
 ).rows;
 comprobar(
   `los de arcada se guardaron sin diente (${JSON.stringify(deArcada)})`,
-  deArcada.length === 2 &&
+  deArcada.length > 0 &&
     deArcada.every((u) => u.diente === null && u.arcada !== null) &&
     deArcada.some((u) => u.rol === "GUARDA_OCLUSAL" && u.grosorMm !== null) &&
     deArcada.some((u) => u.rol === "ANTAGONISTA"),

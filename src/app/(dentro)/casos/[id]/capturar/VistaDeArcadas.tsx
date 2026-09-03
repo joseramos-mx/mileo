@@ -40,7 +40,7 @@ const TRAZO = 1;
 
 export function VistaDeArcadas({
   unidades,
-  abierta,
+  abiertas,
   alAbrir,
   catalogoCompleto,
   alAgregar,
@@ -49,11 +49,15 @@ export function VistaDeArcadas({
 }: {
   unidades: UnidadDelCaso[];
   /**
-   * La arcada abierta. La manda quien usa la vista porque sus campos se pintan
-   * afuera, en la tercera columna, igual que el detalle del diente.
+   * Las arcadas abiertas. Se pueden abrir las dos: una prótesis total, un
+   * modelo o una guarda casi siempre son de arriba y de abajo, y pedirlas dos
+   * veces es cobrarle al doctor el doble de toques por el mismo trabajo.
+   *
+   * Las manda quien usa la vista porque sus campos se pintan afuera, en la
+   * tercera columna, igual que el detalle del diente.
    */
-  abierta: Arcada | null;
-  alAbrir: (arcada: Arcada | null) => void;
+  abiertas: Arcada[];
+  alAbrir: (arcadas: Arcada[]) => void;
   catalogoCompleto: boolean;
   alAgregar: (arcada: Arcada, rol: RolDeUnidad) => void;
   alQuitar: (unidad: UnidadDelCaso) => void;
@@ -64,6 +68,7 @@ export function VistaDeArcadas({
   detalle?: ReactNode;
 }) {
   const [enfocada, setEnfocada] = useState<Arcada>("SUPERIOR");
+  const [aviso, setAviso] = useState("");
   const enPantalla = useRef(new Map<Arcada, SVGGElement>());
 
   const deArcada = unidades.filter((u) => u.diente === null);
@@ -90,6 +95,33 @@ export function VistaDeArcadas({
     requestAnimationFrame(() => enPantalla.current.get(arcada)?.focus());
   }
 
+  /**
+   * Tocar una arcada la abre; volver a tocarla la cierra y saca del caso lo
+   * que llevaba.
+   *
+   * Ojo: eso borra lo capturado en esa arcada. Se avisa en voz alta —el
+   * renglón de abajo lo anuncia— porque el segundo toque puede ser sin querer
+   * y §6.6 dice que nunca se pierde trabajo en silencio.
+   */
+  function alternar(arcada: Arcada) {
+    if (!abiertas.includes(arcada)) {
+      alAbrir([...abiertas, arcada]);
+      return;
+    }
+
+    const suyos = trabajosDeArcada(unidades, arcada);
+    for (const unidad of suyos) alQuitar(unidad);
+    alAbrir(abiertas.filter((a) => a !== arcada));
+
+    setAviso(
+      suyos.length === 0
+        ? `Cerré ${ARCADAS_EN_PALABRAS[arcada].toLowerCase()}.`
+        : `Quité de ${ARCADAS_EN_PALABRAS[arcada].toLowerCase()}: ${suyos
+            .map((u) => TRABAJOS[u.rol].nombre.toLowerCase())
+            .join(", ")}.`,
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -105,13 +137,13 @@ export function VistaDeArcadas({
         <svg
           viewBox={VISTA_MANDIBULAS}
           role="group"
-          aria-label="Maxilar y mandíbula. Toque una arcada para ver qué se le puede poner."
+          aria-label="Maxilar y mandíbula. Toque una arcada, o las dos, para ver qué se les puede poner."
           className="mx-auto h-auto w-full max-w-[34rem]"
         >
           {(["SUPERIOR", "INFERIOR"] as const).map((arcada) => {
             const suyas = PIEZAS_DEL_DIBUJO.filter((p) => p.arcada === arcada);
             const trabajos = trabajosDe(arcada);
-            const puesta = abierta === arcada;
+            const puesta = abiertas.includes(arcada);
 
             const comoEsta =
               trabajos.length === 0
@@ -133,13 +165,13 @@ export function VistaDeArcadas({
                 aria-pressed={puesta}
                 aria-label={`${ARCADAS_EN_PALABRAS[arcada]}: ${comoEsta}.`}
                 onClick={() => {
-                  alAbrir(arcada);
+                  alternar(arcada);
                   setEnfocada(arcada);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    alAbrir(arcada);
+                    alternar(arcada);
                     return;
                   }
                   if (e.key === "ArrowDown" || e.key === "ArrowRight") {
@@ -213,10 +245,15 @@ export function VistaDeArcadas({
         ) : null}
       </div>
 
+      {/* Lo que acaba de pasar, para quien no ve el dibujo. */}
+      <p aria-live="polite" className="sr-only">
+        {aviso}
+      </p>
+
       {/* --------------------------------------- el catálogo de la arcada */}
       <CatalogoDeLaArcada
-        arcada={abierta}
-        trabajos={abierta ? trabajosDe(abierta) : []}
+        abiertas={abiertas}
+        unidades={unidades}
         disponibles={disponibles}
         alAgregar={alAgregar}
         alQuitar={alQuitar}
@@ -238,45 +275,59 @@ export function VistaDeArcadas({
  * escoger una sola.
  */
 function CatalogoDeLaArcada({
-  arcada,
-  trabajos,
+  abiertas,
+  unidades,
   disponibles,
   alAgregar,
   alQuitar,
   detalle,
 }: {
-  arcada: Arcada | null;
-  trabajos: UnidadDelCaso[];
+  abiertas: Arcada[];
+  unidades: UnidadDelCaso[];
   disponibles: RolDeUnidad[];
   alAgregar: (arcada: Arcada, rol: RolDeUnidad) => void;
   alQuitar: (unidad: UnidadDelCaso) => void;
   detalle?: ReactNode;
 }) {
-  if (!arcada) {
+  if (abiertas.length === 0) {
     return (
       <aside className="rounded-tarjeta bg-superficie p-4 text-menor text-secundario">
         <p>
-          Toque una arcada en el dibujo. Aquí le pregunto qué se le va a poner:
-          una prótesis, una guarda, un modelo, o si es la arcada que escaneó de
-          antagonista.
+          Toque una arcada en el dibujo, o las dos. Aquí le pregunto qué se les
+          va a poner: una prótesis, una guarda, un modelo, o si es la arcada que
+          escaneó de antagonista.
         </p>
       </aside>
     );
   }
 
-  const puestos = new Map(trabajos.map((u) => [u.rol, u]));
+  const titulo =
+    abiertas.length === 2
+      ? "Las dos arcadas"
+      : ARCADAS_EN_PALABRAS[abiertas[0]];
+
+  /** Lo que ya está puesto en cada una de las arcadas abiertas. */
+  const puestoEn = (rol: RolDeUnidad) =>
+    abiertas
+      .map((arcada) =>
+        unidades.find(
+          (u) => u.diente === null && u.arcada === arcada && u.rol === rol,
+        ),
+      )
+      .filter((u): u is UnidadDelCaso => Boolean(u));
 
   return (
     <aside
-      aria-label={`Qué se le va a poner a la ${ARCADAS_EN_PALABRAS[arcada].toLowerCase()}`}
+      aria-label={`Qué se le va a poner a ${titulo.toLowerCase()}`}
       className="flex flex-col gap-4 rounded-tarjeta bg-superficie p-4"
     >
       <div>
-        <h3 className="text-subtitulo font-semibold text-primario">
-          {ARCADAS_EN_PALABRAS[arcada]}
-        </h3>
+        <h3 className="text-subtitulo font-semibold text-primario">{titulo}</h3>
         <p className="text-minimo text-secundario">
           Lo que va sobre la arcada entera, no sobre un diente.
+          {abiertas.length === 2
+            ? " Lo que escoja se pone en las dos."
+            : null}
         </p>
       </div>
 
@@ -285,34 +336,52 @@ function CatalogoDeLaArcada({
       <div className="flex flex-wrap gap-1.5">
         {disponibles.map((rol) => {
           const tipo = TRABAJOS[rol];
-          const puesta = puestos.get(rol);
+          const puestas = puestoEn(rol);
+          // En todas las abiertas, en algunas, o en ninguna. "mixed" es lo que
+          // ARIA tiene para el a medias, y evita decirle a un lector de
+          // pantalla que está puesto cuando sólo lo está en una.
+          const estado =
+            puestas.length === 0
+              ? false
+              : puestas.length === abiertas.length
+                ? true
+                : "mixed";
 
           return (
             <button
               key={rol}
               type="button"
               data-trabajo={rol}
-              aria-pressed={Boolean(puesta)}
-              onClick={() =>
-                puesta ? alQuitar(puesta) : alAgregar(arcada, rol)
-              }
+              aria-pressed={estado}
+              onClick={() => {
+                if (estado === true) {
+                  for (const unidad of puestas) alQuitar(unidad);
+                  return;
+                }
+                // A medias o sin poner: se completa en las que faltan.
+                for (const arcada of abiertas) {
+                  const yaEsta = puestas.some((u) => u.arcada === arcada);
+                  if (!yaEsta) alAgregar(arcada, rol);
+                }
+              }}
               style={
-                puesta
+                estado === true
                   ? { backgroundColor: tipo.color, color: tipo.colorDelTexto }
                   : { borderColor: tipo.color }
               }
               className={cn(
                 "alto-tactil inline-flex items-center gap-2 rounded-control px-3 py-1.5",
                 "text-left text-minimo font-medium transition-colors duration-150",
-                puesta
+                estado === true
                   ? "border border-transparent"
                   : "border bg-superficie text-primario",
+                estado === "mixed" && "border-dashed",
               )}
             >
               {/* Sin poner, el color va en el borde y en el cuadrito, nunca en
                   la letra: varios de los del catálogo no alcanzan 4.5:1 como
                   texto sobre blanco, y el nombre tiene que leerse (§7). */}
-              {puesta ? null : (
+              {estado === true ? null : (
                 <span
                   aria-hidden="true"
                   style={{ backgroundColor: tipo.color }}
@@ -323,18 +392,29 @@ function CatalogoDeLaArcada({
                 />
               )}
               {tipo.nombre}
+              {estado === "mixed" ? (
+                <span className="text-secundario">
+                  {" "}
+                  sólo en {ARCADAS_EN_PALABRAS[puestas[0].arcada!].toLowerCase()}
+                </span>
+              ) : null}
             </button>
           );
         })}
       </div>
 
-      {trabajos.length === 0 ? (
+      {abiertas.every((a) => trabajosDeArcada(unidades, a).length === 0) ? (
         <p className="text-minimo text-secundario">
-          Nada todavía en esta arcada. Toque lo que necesite.
+          Nada todavía. Toque lo que necesite.
         </p>
       ) : null}
     </aside>
   );
+}
+
+/** Lo que lleva una arcada. */
+function trabajosDeArcada(unidades: UnidadDelCaso[], arcada: Arcada) {
+  return unidades.filter((u) => u.diente === null && u.arcada === arcada);
 }
 
 /**
@@ -345,19 +425,21 @@ function CatalogoDeLaArcada({
  * quedaban abajo del pliegue.
  */
 export function CamposDeLaArcada({
-  arcada,
+  abiertas,
   unidades,
   alCambiar,
   alQuitar,
 }: {
-  arcada: Arcada | null;
+  abiertas: Arcada[];
   unidades: UnidadDelCaso[];
   alCambiar: (unidades: UnidadDelCaso[]) => void;
   alQuitar: (unidad: UnidadDelCaso) => void;
 }) {
-  if (!arcada) return null;
-  const trabajos = unidades.filter(
-    (u) => u.diente === null && u.arcada === arcada,
+  // Uno por arcada, aunque el trabajo sea el mismo: una prótesis de arriba y
+  // una de abajo pueden llevar distinto color de encía, y juntarlas en un solo
+  // formulario obligaría a que fueran iguales.
+  const trabajos = abiertas.flatMap((arcada) =>
+    trabajosDeArcada(unidades, arcada),
   );
   if (trabajos.length === 0) return null;
 
@@ -365,10 +447,12 @@ export function CamposDeLaArcada({
     <>
       {trabajos.map((unidad) => (
         <CamposDeLaUnidad
-          key={unidad.rol}
+          key={`${unidad.arcada}-${unidad.rol}`}
           unidad={unidad}
           titulo={TRABAJOS[unidad.rol].nombre}
-          debajo={ARCADAS_EN_PALABRAS[arcada]}
+          debajo={
+            unidad.arcada ? ARCADAS_EN_PALABRAS[unidad.arcada] : "Todo el caso"
+          }
           alQuitar={() => alQuitar(unidad)}
           alCambiar={(cambio) =>
             alCambiar(

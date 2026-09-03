@@ -53,7 +53,7 @@ export function CapturaDeUnidades({
 }) {
   const [catalogoCompleto, setCatalogoCompleto] = useState(catalogoInicial);
   const [pestana, setPestana] = useState("dientes");
-  const [arcadaAbierta, setArcadaAbierta] = useState<Arcada | null>(null);
+  const [arcadasAbiertas, setArcadasAbiertas] = useState<Arcada[]>([]);
   // Los casos capturados antes de que existiera el método vienen sin él. Se
   // les pone el que corresponde a su material —el mismo que ofrecería la
   // pantalla— y se guardan solos, para que nadie tenga que abrir diente por
@@ -110,12 +110,15 @@ export function CapturaDeUnidades({
     empezar(() => void cambiarCatalogo(completo));
   };
 
+  // Con la forma de función y no con `unidades` directo: la vista de arcadas
+  // agrega o quita varias en el mismo tick —una prótesis en las dos arcadas—,
+  // y partiendo todas del mismo estado la segunda pisaba a la primera.
   const quitarDeLaArcada = (unidad: UnidadDelCaso) =>
-    setUnidades(quitarUnidad(unidades, unidad));
+    setUnidades((previas) => quitarUnidad(previas, unidad));
 
   const camposDeArcada = (
     <CamposDeLaArcada
-      arcada={arcadaAbierta}
+      abiertas={arcadasAbiertas}
       unidades={unidades}
       alCambiar={setUnidades}
       alQuitar={quitarDeLaArcada}
@@ -213,15 +216,12 @@ export function CapturaDeUnidades({
               >
                 <VistaDeArcadas
                   unidades={unidades}
-                  abierta={arcadaAbierta}
-                  alAbrir={setArcadaAbierta}
+                  abiertas={arcadasAbiertas}
+                  alAbrir={setArcadasAbiertas}
                   catalogoCompleto={catalogoCompleto}
                   alAgregar={(arcada, rol) =>
-                    setUnidades(
-                      ordenarPorBoca([
-                        ...unidades,
-                        unidadDeArcada(arcada, rol),
-                      ]),
+                    setUnidades((previas) =>
+                      ordenarPorBoca([...previas, unidadDeArcada(arcada, rol)]),
                     )
                   }
                   alQuitar={quitarDeLaArcada}
