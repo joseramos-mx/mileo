@@ -737,6 +737,17 @@ async function main() {
 
     // ------------------------------------------------- 9. tema oscuro y zoom
     paso("9. Los dos temas y el zoom al 200%");
+
+    // El panel de bienvenida era una isla oscura: negro en medio de una
+    // pantalla clara. Se mide su fondo en los dos temas para que no vuelva.
+    const luzDelPanel = async (pagina: Page) =>
+      pagina.evaluate(() => {
+        const panel = document.querySelector('section[aria-labelledby="bienvenida"]');
+        if (!panel) return -1;
+        const color = getComputedStyle(panel).backgroundColor;
+        const [r, g, b] = (color.match(/\d+/g) ?? ["0", "0", "0"]).map(Number);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      });
     const delDoctorOtraVez = await contextoDe(navegador, doctor.token, CELULAR);
     const celular2 = await delDoctorOtraVez.newPage();
 
@@ -747,6 +758,11 @@ async function main() {
       () => document.documentElement.dataset.tema !== "claro",
     );
     comprobar(arrancaOscuro, "Mileo arranca en tema oscuro, como el diseño");
+    const panelOscuro = await luzDelPanel(celular2);
+    comprobar(
+      panelOscuro >= 0 && panelOscuro < 0.2,
+      `el panel de bienvenida va oscuro con el tema (luminancia ${panelOscuro.toFixed(2)})`,
+    );
     await capturar(celular2, "15-tema-oscuro");
     await auditar(celular2, "inicio en tema oscuro");
 
@@ -761,6 +777,11 @@ async function main() {
       () => document.documentElement.dataset.tema === "claro",
     );
     comprobar(quedoClaro, "el interruptor cambia a tema claro y se queda");
+    const panelClaro = await luzDelPanel(celular2);
+    comprobar(
+      panelClaro > 0.8,
+      `el panel de bienvenida sigue al tema claro (luminancia ${panelClaro.toFixed(2)})`,
+    );
     await capturar(celular2, "16-tema-claro");
     await auditar(celular2, "inicio en tema claro");
 

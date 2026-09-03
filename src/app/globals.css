@@ -184,7 +184,10 @@
   --rol-enlace: var(--azul-700);
   --rol-foco: var(--azul-700);
 
-  --rol-portada: var(--azul-950);
+  /* El panel de bienvenida ya no es una isla oscura: en claro es una
+     superficie más, como cualquier tarjeta de Mileo. Las tres categorías se
+     quedan azules, que es de donde el panel saca su presencia. */
+  --rol-portada: var(--rol-superficie);
   --rol-categoria: var(--azul-panel);
   --rol-superficie-marcada: var(--neutro-100);
 

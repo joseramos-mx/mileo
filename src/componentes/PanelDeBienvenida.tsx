@@ -50,21 +50,26 @@ export function PanelDeBienvenida({
         : `${cuantosLeTocan} casos necesitan de usted`;
 
   return (
-    // El panel es oscuro en los dos temas, así que su texto no puede seguir al
-    // tema: es una isla oscura. Con `siempre-oscuro`, `text-primario` vuelve a
-    // ser blanco aquí dentro aunque el resto de Mileo esté en claro.
+    // El panel sigue el tema. Era una isla oscura —negra en medio de una
+    // pantalla clara—, y quedaba como un hueco. En claro es una superficie
+    // más, con su borde, igual que las demás tarjetas; en oscuro se queda con
+    // el azul casi negro del diseño entregado. La presencia se la dan las tres
+    // categorías azules, que no cambian con el tema.
     //
     // En escritorio se queda con la mitad del alto, como el diseño entregado:
     // el titular y las categorías mandan, y lo de abajo cabe en lo que sobra.
     <section
       aria-labelledby="bienvenida"
-      className="siempre-oscuro shrink-0 overflow-hidden rounded-panel bg-portada lg:h-[50%] lg:max-h-[32rem]"
+      className={cn(
+        "shrink-0 overflow-hidden rounded-panel border border-borde bg-portada",
+        "lg:h-[50%] lg:max-h-[32rem]",
+      )}
     >
       <div className="flex h-full flex-col gap-8 xl:flex-row xl:items-stretch">
         {/* --- El titular ------------------------------------------------- */}
         <div className="flex shrink-0 flex-col justify-center gap-6 p-8 xl:w-[36%] xl:p-10">
           <div>
-            <p className="text-cuerpo text-primario/80">
+            <p className="text-cuerpo text-secundario">
               ¡Hola, {nombreDePila}!
             </p>
             <h1
