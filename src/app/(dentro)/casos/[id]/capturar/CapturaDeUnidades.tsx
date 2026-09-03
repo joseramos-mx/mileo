@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import type { Arcada } from "@/generated/prisma/enums";
 import { DetalleDelDiente, Odontograma } from "@/componentes/Odontograma";
 import { TablaDelCaso } from "@/componentes/TablaDelCaso";
 import { Pestanas } from "@/componentes/Pestanas";
@@ -13,7 +14,7 @@ import {
   type UnidadDelCaso,
 } from "@/lib/tramos";
 import { useTresColumnas } from "@/lib/pantalla";
-import { VistaDeArcadas } from "./VistaDeArcadas";
+import { CamposDeLaArcada, VistaDeArcadas } from "./VistaDeArcadas";
 import { cambiarCatalogo, guardarUnidades } from "../../acciones";
 
 export type UnidadCapturada = UnidadDelCaso;
@@ -52,6 +53,7 @@ export function CapturaDeUnidades({
 }) {
   const [catalogoCompleto, setCatalogoCompleto] = useState(catalogoInicial);
   const [pestana, setPestana] = useState("dientes");
+  const [arcadaAbierta, setArcadaAbierta] = useState<Arcada | null>(null);
   // Los casos capturados antes de que existiera el método vienen sin él. Se
   // les pone el que corresponde a su material —el mismo que ofrecería la
   // pantalla— y se guardan solos, para que nadie tenga que abrir diente por
@@ -107,6 +109,18 @@ export function CapturaDeUnidades({
     // entero lo hace siempre.
     empezar(() => void cambiarCatalogo(completo));
   };
+
+  const quitarDeLaArcada = (unidad: UnidadDelCaso) =>
+    setUnidades(quitarUnidad(unidades, unidad));
+
+  const camposDeArcada = (
+    <CamposDeLaArcada
+      arcada={arcadaAbierta}
+      unidades={unidades}
+      alCambiar={setUnidades}
+      alQuitar={quitarDeLaArcada}
+    />
+  );
 
   // El material y el color son obligatorios: al final del panel del catálogo
   // quedaban abajo del pliegue y se pasaban por alto. Van arriba, donde se
@@ -189,19 +203,39 @@ export function CapturaDeUnidades({
             titulo: "Arcadas",
             cuantas: enArcadas,
             contenido: (
-              <VistaDeArcadas
-                unidades={unidades}
-                catalogoCompleto={catalogoCompleto}
-                alAgregar={(arcada, rol) =>
-                  setUnidades(
-                    ordenarPorBoca([...unidades, unidadDeArcada(arcada, rol)]),
-                  )
+              // Las mismas tres columnas que Dientes: el dibujo, el catálogo
+              // pegado a él, y los campos aparte.
+              <div
+                className={
+                  "grid gap-4 min-[1440px]:grid-cols-[minmax(0,1fr)_20rem] " +
+                  "2xl:grid-cols-[minmax(0,1fr)_24rem]"
                 }
-                alCambiar={setUnidades}
-                alQuitar={(unidad) =>
-                  setUnidades(quitarUnidad(unidades, unidad))
-                }
-              />
+              >
+                <VistaDeArcadas
+                  unidades={unidades}
+                  abierta={arcadaAbierta}
+                  alAbrir={setArcadaAbierta}
+                  catalogoCompleto={catalogoCompleto}
+                  alAgregar={(arcada, rol) =>
+                    setUnidades(
+                      ordenarPorBoca([
+                        ...unidades,
+                        unidadDeArcada(arcada, rol),
+                      ]),
+                    )
+                  }
+                  alQuitar={quitarDeLaArcada}
+                  detalle={tresColumnas ? undefined : camposDeArcada}
+                />
+
+                <div className="flex min-w-0 flex-col gap-3">
+                  {tresColumnas ? (
+                    <div className="min-[1440px]:sticky min-[1440px]:top-0 min-[1440px]:z-10 flex flex-col gap-3">
+                      {camposDeArcada}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ),
           },
         ]}

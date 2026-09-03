@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { Arcada, RolDeUnidad } from "@/generated/prisma/enums";
 import {
   CONTORNO_DE_ARCADA,
@@ -40,18 +40,29 @@ const TRAZO = 1;
 
 export function VistaDeArcadas({
   unidades,
+  abierta,
+  alAbrir,
   catalogoCompleto,
   alAgregar,
-  alCambiar,
   alQuitar,
+  detalle,
 }: {
   unidades: UnidadDelCaso[];
+  /**
+   * La arcada abierta. La manda quien usa la vista porque sus campos se pintan
+   * afuera, en la tercera columna, igual que el detalle del diente.
+   */
+  abierta: Arcada | null;
+  alAbrir: (arcada: Arcada | null) => void;
   catalogoCompleto: boolean;
   alAgregar: (arcada: Arcada, rol: RolDeUnidad) => void;
-  alCambiar: (unidades: UnidadDelCaso[]) => void;
   alQuitar: (unidad: UnidadDelCaso) => void;
+  /**
+   * Los campos de lo que lleva la arcada, cuando la pantalla no da para
+   * ponerlos en su propia columna. Van al principio del catálogo.
+   */
+  detalle?: ReactNode;
 }) {
-  const [abierta, setAbierta] = useState<Arcada | null>(null);
   const [enfocada, setEnfocada] = useState<Arcada>("SUPERIOR");
   const enPantalla = useRef(new Map<Arcada, SVGGElement>());
 
@@ -83,6 +94,8 @@ export function VistaDeArcadas({
     <div
       className={cn(
         "siempre-claro grid gap-4 rounded-contenedor bg-diente-lienzo p-4",
+        // Las mismas medidas que el odontograma, para que las dos pestañas se
+        // vean iguales.
         "lg:grid-cols-[minmax(0,1fr)_22rem]",
         "xl:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_30rem]",
       )}
@@ -120,13 +133,13 @@ export function VistaDeArcadas({
                 aria-pressed={puesta}
                 aria-label={`${ARCADAS_EN_PALABRAS[arcada]}: ${comoEsta}.`}
                 onClick={() => {
-                  setAbierta(arcada);
+                  alAbrir(arcada);
                   setEnfocada(arcada);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setAbierta(arcada);
+                    alAbrir(arcada);
                     return;
                   }
                   if (e.key === "ArrowDown" || e.key === "ArrowRight") {
@@ -201,43 +214,43 @@ export function VistaDeArcadas({
       </div>
 
       {/* --------------------------------------- el catálogo de la arcada */}
-      <PanelDeLaArcada
+      <CatalogoDeLaArcada
         arcada={abierta}
         trabajos={abierta ? trabajosDe(abierta) : []}
         disponibles={disponibles}
-        unidades={unidades}
         alAgregar={alAgregar}
-        alCambiar={alCambiar}
         alQuitar={alQuitar}
+        detalle={detalle}
       />
     </div>
   );
 }
 
 /**
- * Qué se le puede poner a la arcada abierta, y lo que ya lleva.
+ * Qué se le puede poner a la arcada abierta.
  *
- * Es el mismo panel que el del diente: pastillas con el color de cada tipo y,
- * debajo, los campos de lo que ya está puesto. La diferencia es que una arcada
- * puede llevar varias cosas a la vez —una guarda y un modelo—, así que las
- * pastillas encienden y apagan en vez de escoger una sola.
+ * Es el gemelo del catálogo del diente: pastillas con el color de cada tipo,
+ * pegadas al dibujo, porque es lo que se escoge mirándolo. Los campos de lo que
+ * ya está puesto viven en la tercera columna, igual que allá.
+ *
+ * La diferencia es que una arcada puede llevar varias cosas a la vez —una
+ * guarda y un modelo—, así que las pastillas encienden y apagan en vez de
+ * escoger una sola.
  */
-function PanelDeLaArcada({
+function CatalogoDeLaArcada({
   arcada,
   trabajos,
   disponibles,
-  unidades,
   alAgregar,
-  alCambiar,
   alQuitar,
+  detalle,
 }: {
   arcada: Arcada | null;
   trabajos: UnidadDelCaso[];
   disponibles: RolDeUnidad[];
-  unidades: UnidadDelCaso[];
   alAgregar: (arcada: Arcada, rol: RolDeUnidad) => void;
-  alCambiar: (unidades: UnidadDelCaso[]) => void;
   alQuitar: (unidad: UnidadDelCaso) => void;
+  detalle?: ReactNode;
 }) {
   if (!arcada) {
     return (
@@ -266,6 +279,8 @@ function PanelDeLaArcada({
           Lo que va sobre la arcada entera, no sobre un diente.
         </p>
       </div>
+
+      {detalle}
 
       <div className="flex flex-wrap gap-1.5">
         {disponibles.map((rol) => {
@@ -317,29 +332,58 @@ function PanelDeLaArcada({
         <p className="text-minimo text-secundario">
           Nada todavía en esta arcada. Toque lo que necesite.
         </p>
-      ) : (
-        trabajos.map((unidad) => (
-          <CamposDeLaUnidad
-            key={unidad.rol}
-            unidad={unidad}
-            titulo={TRABAJOS[unidad.rol].nombre}
-            debajo={ARCADAS_EN_PALABRAS[arcada]}
-            alQuitar={() => alQuitar(unidad)}
-            alCambiar={(cambio) =>
-              alCambiar(
-                unidades.map((u) =>
-                  u.diente === null &&
-                  u.rol === unidad.rol &&
-                  u.arcada === unidad.arcada
-                    ? { ...u, ...cambio }
-                    : u,
-                ),
-              )
-            }
-          />
-        ))
-      )}
+      ) : null}
     </aside>
+  );
+}
+
+/**
+ * Los campos de todo lo que lleva la arcada abierta.
+ *
+ * Va en la tercera columna, como el detalle del diente: material, método y lo
+ * que cada tipo pregunte de más son obligatorios, y al final del catálogo
+ * quedaban abajo del pliegue.
+ */
+export function CamposDeLaArcada({
+  arcada,
+  unidades,
+  alCambiar,
+  alQuitar,
+}: {
+  arcada: Arcada | null;
+  unidades: UnidadDelCaso[];
+  alCambiar: (unidades: UnidadDelCaso[]) => void;
+  alQuitar: (unidad: UnidadDelCaso) => void;
+}) {
+  if (!arcada) return null;
+  const trabajos = unidades.filter(
+    (u) => u.diente === null && u.arcada === arcada,
+  );
+  if (trabajos.length === 0) return null;
+
+  return (
+    <>
+      {trabajos.map((unidad) => (
+        <CamposDeLaUnidad
+          key={unidad.rol}
+          unidad={unidad}
+          titulo={TRABAJOS[unidad.rol].nombre}
+          debajo={ARCADAS_EN_PALABRAS[arcada]}
+          alQuitar={() => alQuitar(unidad)}
+          alCambiar={(cambio) =>
+            alCambiar(
+              unidades.map((u) =>
+                u.diente === null &&
+                u.rol === unidad.rol &&
+                u.arcada === unidad.arcada
+                  ? { ...u, ...cambio }
+                  : u,
+              ),
+            )
+          }
+        />
+      ))}
+    </>
   );
 }
 
