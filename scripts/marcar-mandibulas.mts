@@ -66,33 +66,33 @@ const leido = await (async () => {
         };
       }
 
-      const numerados: {
-        numero: number;
-        d: string;
-        cx: number;
-        cy: number;
-      }[] = [];
+      // Se devuelve todo en el orden del archivo. Importa: hay una encía
+      // dibujada despues de seis dientes, y los tapa a proposito. Si se
+      // reordena —encias primero, dientes despues— con un solo color no se
+      // nota, pero al pintar un diente de otro color aparece entero, incluida
+      // la parte que el dibujo esconde.
+      const numeroDe = new Map<(typeof trazos)[number], number>();
       for (const [lista, numeros] of [
         [arriba, superiores],
         [abajo, inferiores],
       ] as const) {
         for (let i = 0; i < lista.length; i++) {
-          numerados.push({
-            numero: numeros[i],
-            d: lista[i].d,
-            cx: Number(lista[i].x.toFixed(2)),
-            cy: Number(lista[i].y.toFixed(2)),
-          });
+          numeroDe.set(lista[i], numeros[i]);
         }
       }
 
-      // Cada encía va con su arcada: la de arriba está más arriba.
-      const ordenadas = [...encias].sort((a, b) => a.y - b.y);
+      const piezas = trazos.map((t) => ({
+        numero: numeroDe.get(t) ?? null,
+        d: t.d,
+        cx: Number(t.x.toFixed(2)),
+        cy: Number(t.y.toFixed(2)),
+      }));
+
       return {
         vista: svg.getAttribute("viewBox") ?? "",
-        enciaSuperior: ordenadas.slice(0, encias.length - 1).map((e) => e.d),
-        enciaInferior: [ordenadas[ordenadas.length - 1].d],
-        dientes: numerados,
+        piezas,
+        cuantosDientes: dientes.length,
+        cuantasEncias: encias.length,
       };
     },
     { superiores: SUPERIORES, inferiores: INFERIORES },
@@ -105,12 +105,10 @@ if ("error" in leido && leido.error) {
   console.error(leido.error);
   process.exit(1);
 }
-if (!leido.dientes) {
+if (!leido.piezas) {
   console.error("El navegador no devolvió el dibujo.");
   process.exit(1);
 }
-
-const porNumero = [...leido.dientes].sort((a, b) => a.numero - b.numero);
 
 const modulo = `/**
  * Los trazos de maxilar y mandíbula, sacados de \`public/mandibles.svg\`.
@@ -121,11 +119,17 @@ const modulo = `/**
  * molares, así que este dibujo trae siete dientes por cuadrante: 11 a 17 y sus
  * simétricos. Lo que se capture en un 18, 28, 38 o 48 no tiene dónde pintarse
  * aquí, y la pantalla lo dice con palabras en vez de esconderlo.
+ *
+ * Las piezas van EN EL ORDEN DEL ARCHIVO y hay que pintarlas en ese orden. No
+ * es capricho: el dibujo trae una encía después de seis dientes, y los tapa a
+ * propósito. Reordenarlas —encías primero, dientes después— no se nota mientras
+ * todo va del mismo gris, pero en cuanto un diente se pinta de otro color
+ * aparece entero, incluida la parte que el dibujo esconde.
  */
 
-export type TrazoDeMandibula = {
-  /** Notación FDI. */
-  numero: number;
+export type PiezaDelDibujo = {
+  /** Notación FDI, o nulo si es encía. */
+  numero: number | null;
   d: string;
   cx: number;
   cy: number;
@@ -133,20 +137,18 @@ export type TrazoDeMandibula = {
 
 export const VISTA_MANDIBULAS = "${leido.vista}";
 
-/** Los trazos de la encía, que van debajo de los dientes. */
-export const ENCIA_SUPERIOR: string[] = ${JSON.stringify(leido.enciaSuperior, null, 2)};
-export const ENCIA_INFERIOR: string[] = ${JSON.stringify(leido.enciaInferior, null, 2)};
-
-export const DIENTES_DIBUJADOS: TrazoDeMandibula[] = ${JSON.stringify(porNumero, null, 2)};
+export const PIEZAS_DEL_DIBUJO: PiezaDelDibujo[] = ${JSON.stringify(leido.piezas, null, 2)};
 
 /** Los que este dibujo sí puede pintar. */
 export const NUMEROS_DIBUJADOS = new Set(
-  DIENTES_DIBUJADOS.map((d) => d.numero),
+  PIEZAS_DEL_DIBUJO.map((p) => p.numero).filter((n): n is number => n !== null),
 );
 `;
 
 await fsp.writeFile(DESTINO, modulo, "utf8");
 console.log(`Escrito ${path.relative(process.cwd(), DESTINO)}`);
-console.log(`  ${leido.dientes.length} dientes, ${leido.enciaSuperior.length + leido.enciaInferior.length} trazos de encía`);
+console.log(
+  `  ${leido.cuantosDientes} dientes y ${leido.cuantasEncias} trazos de encía, en el orden del archivo`,
+);
 console.log(`  arriba: ${SUPERIORES.join(" ")}`);
 console.log(`  abajo:  ${INFERIORES.join(" ")}`);

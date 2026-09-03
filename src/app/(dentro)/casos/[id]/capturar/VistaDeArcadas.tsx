@@ -3,10 +3,8 @@
 import { Plus } from "@phosphor-icons/react";
 import type { Arcada, RolDeUnidad } from "@/generated/prisma/enums";
 import {
-  DIENTES_DIBUJADOS,
-  ENCIA_INFERIOR,
-  ENCIA_SUPERIOR,
   NUMEROS_DIBUJADOS,
+  PIEZAS_DEL_DIBUJO,
   VISTA_MANDIBULAS,
 } from "@/lib/mandibulas-trazos";
 import { CamposDeLaUnidad } from "@/componentes/Odontograma";
@@ -77,32 +75,23 @@ export function VistaDeArcadas({
           }
           className="h-auto w-full"
         >
-          {/* La encía primero, que los dientes van encima. Va con el gris
-              del dibujo entregado, no en blanco: en el diseño la encía y los
-              dientes son del mismo gris y sólo los separa el contorno. */}
-          {[...ENCIA_SUPERIOR, ...ENCIA_INFERIOR].map((d, i) => (
-            <path
-              key={`encia-${i}`}
-              d={d}
-              fill="var(--mandibula-relleno)"
-              stroke="var(--diente-contorno)"
-              strokeWidth={2}
-            />
-          ))}
-
-          {DIENTES_DIBUJADOS.map((diente) => {
-            const ocupado = conTrabajo.has(diente.numero);
+          {/* En el orden del archivo, sin reordenar: el dibujo trae una
+              encía después de seis dientes y los tapa a propósito. Poner todas
+              las encías primero no se nota mientras todo va del mismo gris,
+              pero en cuanto un diente se pinta de otro color aparece entero,
+              incluida la parte que el dibujo esconde. */}
+          {PIEZAS_DEL_DIBUJO.map((pieza, i) => {
+            const ocupado =
+              pieza.numero !== null && conTrabajo.has(pieza.numero);
 
             return (
               <path
-                key={diente.numero}
-                data-diente={diente.numero}
+                key={pieza.numero ?? `encia-${i}`}
+                data-diente={pieza.numero ?? undefined}
                 data-ocupado={ocupado ? "si" : undefined}
-                d={diente.d}
-                // El diente sin nada va del gris del dibujo, como lo entregó
-                // diseño. El gris oscuro dice "aquí ya hay trabajo", y no va
-                // solo: está escrito en el aria-label y en la leyenda de al
-                // lado.
+                d={pieza.d}
+                // El gris oscuro dice "aquí ya hay trabajo", y no va solo:
+                // está escrito en el aria-label y en la leyenda de al lado.
                 fill={
                   ocupado
                     ? "var(--diente-ocupado)"
