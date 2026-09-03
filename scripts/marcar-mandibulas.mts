@@ -18,6 +18,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const ORIGEN = path.resolve(process.cwd(), "public/mandibles.svg");
+const BORDE = path.resolve(process.cwd(), "public/mandibles-borde.svg");
 const DESTINO = path.resolve(process.cwd(), "src/lib/mandibulas-trazos.ts");
 
 /** De izquierda a derecha en pantalla, que es la derecha del paciente. */
@@ -25,6 +26,7 @@ const SUPERIORES = [17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27];
 const INFERIORES = [47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37];
 
 const dibujo = await fsp.readFile(ORIGEN, "utf8");
+const borde = await fsp.readFile(BORDE, "utf8");
 const navegador = await chromium.launch();
 
 const leido = await (async () => {
@@ -81,12 +83,25 @@ const leido = await (async () => {
         }
       }
 
-      const piezas = trazos.map((t) => ({
-        numero: numeroDe.get(t) ?? null,
-        d: t.d,
-        cx: Number(t.x.toFixed(2)),
-        cy: Number(t.y.toFixed(2)),
-      }));
+      // A que arcada pertenece cada pieza. Los dientes lo dicen por su
+      // numero; las encias, por su altura.
+      const piezas = trazos.map((t) => {
+        const numero = numeroDe.get(t) ?? null;
+        return {
+          numero,
+          arcada:
+            numero !== null
+              ? numero >= 11 && numero <= 28
+                ? ("SUPERIOR" as const)
+                : ("INFERIOR" as const)
+              : t.y < corte
+                ? ("SUPERIOR" as const)
+                : ("INFERIOR" as const),
+          d: t.d,
+          cx: Number(t.x.toFixed(2)),
+          cy: Number(t.y.toFixed(2)),
+        };
+      });
 
       return {
         vista: svg.getAttribute("viewBox") ?? "",
@@ -99,6 +114,29 @@ const leido = await (async () => {
   );
 })();
 
+/**
+ * El contorno de cada arcada, que entrego diseño aparte. Sirve para marcar la
+ * que esta abierta con una linea limpia: repasar el trazo de la encia, que trae
+ * los huecos de los dientes, dibujaba un garabato.
+ */
+const contornos = await (async () => {
+  const pagina = await (await navegador.newContext()).newPage();
+  await pagina.setContent(borde, { waitUntil: "load" });
+
+  return pagina.evaluate(() => {
+    const svg = document.querySelector("svg")!;
+    const trazos = [...svg.querySelectorAll("path")].map((p) => {
+      const caja = p.getBBox();
+      return { d: p.getAttribute("d") ?? "", y: caja.y + caja.height / 2 };
+    });
+    if (trazos.length !== 2) {
+      return { error: `El borde trae ${trazos.length} trazos y no 2.` };
+    }
+    const [arriba, abajo] = trazos.sort((a, b) => a.y - b.y);
+    return { SUPERIOR: arriba.d, INFERIOR: abajo.d };
+  });
+})();
+
 await navegador.close();
 
 if ("error" in leido && leido.error) {
@@ -107,6 +145,14 @@ if ("error" in leido && leido.error) {
 }
 if (!leido.piezas) {
   console.error("El navegador no devolvió el dibujo.");
+  process.exit(1);
+}
+if ("error" in contornos && contornos.error) {
+  console.error(contornos.error);
+  process.exit(1);
+}
+if (!contornos.SUPERIOR || !contornos.INFERIOR) {
+  console.error("El navegador no devolvió el contorno.");
   process.exit(1);
 }
 
@@ -125,11 +171,16 @@ const modulo = `/**
  * propósito. Reordenarlas —encías primero, dientes después— no se nota mientras
  * todo va del mismo gris, pero en cuanto un diente se pinta de otro color
  * aparece entero, incluida la parte que el dibujo esconde.
+ *
+ * Sí se pueden agrupar por arcada sin romper nada, porque el maxilar y la
+ * mandíbula no se encinan entre sí: lo único que importa es el orden relativo
+ * dentro de cada uno.
  */
 
 export type PiezaDelDibujo = {
   /** Notación FDI, o nulo si es encía. */
   numero: number | null;
+  arcada: "SUPERIOR" | "INFERIOR";
   d: string;
   cx: number;
   cy: number;
@@ -138,6 +189,16 @@ export type PiezaDelDibujo = {
 export const VISTA_MANDIBULAS = "${leido.vista}";
 
 export const PIEZAS_DEL_DIBUJO: PiezaDelDibujo[] = ${JSON.stringify(leido.piezas, null, 2)};
+
+/**
+ * El contorno de cada arcada, de \`public/mandibles-borde.svg\`. Es lo que se
+ * repasa para marcar la arcada abierta: el trazo de la encía trae los huecos de
+ * los dientes y repasarlo dibujaba un garabato.
+ */
+export const CONTORNO_DE_ARCADA: Record<"SUPERIOR" | "INFERIOR", string> = {
+  SUPERIOR: "${contornos.SUPERIOR}",
+  INFERIOR: "${contornos.INFERIOR}",
+};
 
 /** Los que este dibujo sí puede pintar. */
 export const NUMEROS_DIBUJADOS = new Set(

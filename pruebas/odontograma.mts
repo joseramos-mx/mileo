@@ -486,10 +486,32 @@ comprobar(
     .isVisible(),
 );
 
-// Los trabajos de arcada se agregan aqui.
-await panelArcadas
-  .getByRole("button", { name: "Agregar guarda oclusal a la arcada superior" })
-  .click();
+// La arcada se escoge tocando el dibujo, igual que un diente.
+comprobar(
+  "de entrada el panel pide escoger una arcada",
+  (await panelArcadas.locator("aside button[data-trabajo]").count()) === 0,
+);
+await panelArcadas.locator('g[data-arcada="SUPERIOR"]').click();
+await pagina.waitForTimeout(400);
+comprobar(
+  "al tocar la arcada de arriba, se abre su panel",
+  await panelArcadas
+    .getByRole("heading", { name: "Arcada superior" })
+    .isVisible(),
+);
+comprobar(
+  "y la arcada tocada queda marcada",
+  (await panelArcadas
+    .locator('g[data-arcada="SUPERIOR"]')
+    .getAttribute("aria-pressed")) === "true",
+);
+comprobar(
+  "sin repetir los mismos botones para la otra arcada",
+  (await panelArcadas.getByRole("heading", { name: "Arcada inferior" }).count()) === 0,
+);
+
+// Los trabajos de arcada se agregan aqui, con las mismas pastillas del diente.
+await panelArcadas.locator('aside button[data-trabajo="GUARDA_OCLUSAL"]').click();
 await pagina.waitForTimeout(400);
 comprobar(
   "la guarda se agrega a la arcada y pide su grosor",
@@ -506,16 +528,25 @@ comprobar(
     .count()) === 0,
 );
 comprobar(
-  "el mismo trabajo no se puede agregar dos veces a la misma arcada",
-  await panelArcadas
-    .getByRole("button", { name: "Guarda oclusal ya está en la arcada superior" })
-    .isDisabled(),
+  "la pastilla puesta se marca, no sólo con color",
+  (await panelArcadas
+    .locator('aside button[data-trabajo="GUARDA_OCLUSAL"]')
+    .getAttribute("aria-pressed")) === "true",
 );
 
-// El antagonista se marca por arcada, no diente por diente.
-await panelArcadas
-  .getByRole("button", { name: "Agregar antagonista a la arcada inferior" })
-  .click();
+// El antagonista se marca por arcada, y con el teclado se cambia de arcada.
+await panelArcadas.locator('g[data-arcada="SUPERIOR"]').focus();
+await pagina.keyboard.press("ArrowDown");
+await pagina.waitForTimeout(200);
+await pagina.keyboard.press("Enter");
+await pagina.waitForTimeout(400);
+comprobar(
+  "las flechas cambian de arcada y Enter la abre",
+  await panelArcadas
+    .getByRole("heading", { name: "Arcada inferior" })
+    .isVisible(),
+);
+await panelArcadas.locator('aside button[data-trabajo="ANTAGONISTA"]').click();
 await pagina.waitForTimeout(400);
 comprobar(
   "el antagonista se marca sobre la arcada entera",
