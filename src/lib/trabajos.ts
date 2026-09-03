@@ -57,7 +57,6 @@ export type TipoDeTrabajo = {
   categoria: string;
   alcance: AlcanceDeTrabajo;
   color: string;
-  colorTenue: string;
   colorDelTexto: string;
   materiales: Material[];
   campos: CampoDeUnidad[];
@@ -83,7 +82,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Coronas y cofias",
     alcance: "DIENTE",
     color: "#7b3ff2",
-    colorTenue: "#decffc",
     colorDelTexto: "#ffffff",
     materiales: ["ZIRCONIO_MONOLITICO", "ZIRCONIO_ESTRATIFICADO", "DISILICATO_DE_LITIO", "PMMA", "RESINA_IMPRESION", "METAL_PORCELANA", "TITANIO"],
     campos: ["material", "metodo", "color", "notas"],
@@ -96,7 +94,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Coronas y cofias",
     alcance: "DIENTE",
     color: "#0f7b6c",
-    colorTenue: "#c3deda",
     colorDelTexto: "#ffffff",
     materiales: ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "notas"],
@@ -109,7 +106,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Coronas y cofias",
     alcance: "DIENTE",
     color: "#7cb342",
-    colorTenue: "#deecd0",
     colorDelTexto: "#1d2126",
     materiales: ["DISILICATO_DE_LITIO", "CERAMICA_PRENSADA"],
     campos: ["material", "metodo", "color", "notas"],
@@ -122,7 +118,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Coronas y cofias",
     alcance: "DIENTE",
     color: "#6a1fd0",
-    colorTenue: "#dac7f3",
     colorDelTexto: "#ffffff",
     materiales: ["PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
@@ -135,7 +130,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Coronas y cofias",
     alcance: "DIENTE",
     color: "#2b833c",
-    colorTenue: "#cae0ce",
     colorDelTexto: "#ffffff",
     materiales: ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "espesorAlivio", "notas"],
@@ -148,7 +142,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Coronas y cofias",
     alcance: "DIENTE",
     color: "#c74767",
-    colorTenue: "#f1d1d9",
     colorDelTexto: "#ffffff",
     materiales: ["PMMA", "RESINA_IMPRESION", "CERA_CALCINABLE"],
     campos: ["material", "metodo", "notas"],
@@ -161,7 +154,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Pónticos",
     alcance: "DIENTE",
     color: "#8e1a3a",
-    colorTenue: "#e3c6ce",
     colorDelTexto: "#ffffff",
     materiales: ["ZIRCONIO_MONOLITICO", "ZIRCONIO_ESTRATIFICADO", "DISILICATO_DE_LITIO", "PMMA", "RESINA_IMPRESION", "METAL_PORCELANA", "TITANIO"],
     campos: ["material", "metodo", "color", "notas"],
@@ -174,7 +166,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Pónticos",
     alcance: "DIENTE",
     color: "#c2185b",
-    colorTenue: "#f0c5d6",
     colorDelTexto: "#ffffff",
     materiales: ["ZIRCONIO_MONOLITICO", "DISILICATO_DE_LITIO", "CROMO_COBALTO"],
     campos: ["material", "metodo", "notas"],
@@ -187,7 +178,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Pónticos",
     alcance: "DIENTE",
     color: "#3d8fd1",
-    colorTenue: "#cee3f4",
     colorDelTexto: "#1d2126",
     materiales: ["DISILICATO_DE_LITIO", "CERAMICA_PRENSADA"],
     campos: ["material", "metodo", "color", "notas"],
@@ -200,7 +190,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Pónticos",
     alcance: "DIENTE",
     color: "#a3216b",
-    colorTenue: "#e8c8da",
     colorDelTexto: "#ffffff",
     materiales: ["PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
@@ -213,7 +202,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Incrustaciones y carillas",
     alcance: "DIENTE",
     color: "#2e7d32",
-    colorTenue: "#cbdecc",
     colorDelTexto: "#ffffff",
     materiales: ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
@@ -226,7 +214,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Incrustaciones y carillas",
     alcance: "DIENTE",
     color: "#1565c0",
-    colorTenue: "#c4d8ef",
     colorDelTexto: "#ffffff",
     materiales: ["DISILICATO_DE_LITIO", "ZIRCONIO_MONOLITICO"],
     campos: ["material", "metodo", "espesorAlivio", "notas"],
@@ -239,7 +226,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Incrustaciones y carillas",
     alcance: "DIENTE",
     color: "#00796b",
-    colorTenue: "#bfdeda",
     colorDelTexto: "#ffffff",
     materiales: ["DISILICATO_DE_LITIO", "ZIRCONIO_ULTRAFINO", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "color", "notas"],
@@ -252,7 +238,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Copiado digital",
     alcance: "DIENTE",
     color: "#00a878",
-    colorTenue: "#bfe9dd",
     colorDelTexto: "#1d2126",
     materiales: ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "notas"],
@@ -265,7 +250,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Copiado digital",
     alcance: "DIENTE",
     color: "#6d4c41",
-    colorTenue: "#dad2d0",
     colorDelTexto: "#ffffff",
     materiales: ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "notas"],
@@ -278,7 +262,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Copiado digital",
     alcance: "DIENTE",
     color: "#5e35b1",
-    colorTenue: "#d7ccec",
     colorDelTexto: "#ffffff",
     materiales: ["CERA_CALCINABLE", "PMMA", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "notas"],
@@ -291,7 +274,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Sobre implante",
     alcance: "DIENTE",
     color: "#00494d",
-    colorTenue: "#bfd2d2",
     colorDelTexto: "#ffffff",
     materiales: ["TITANIO", "ZIRCONIO_SOBRE_TITANIO"],
     campos: ["material", "metodo", "sistemaImplante", "color", "notas"],
@@ -304,7 +286,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Sobre implante",
     alcance: "DIENTE",
     color: "#5a4a1f",
-    colorTenue: "#d6d2c7",
     colorDelTexto: "#ffffff",
     materiales: ["TITANIO", "CROMO_COBALTO"],
     campos: ["material", "metodo", "sistemaImplante", "notas"],
@@ -317,7 +298,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Barras y estructuras",
     alcance: "TRAMO",
     color: "#5f4b9e",
-    colorTenue: "#d7d2e7",
     colorDelTexto: "#ffffff",
     materiales: ["TITANIO", "CROMO_COBALTO"],
     campos: ["material", "metodo", "notas"],
@@ -330,7 +310,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Barras y estructuras",
     alcance: "TRAMO",
     color: "#7d7455",
-    colorTenue: "#dedcd4",
     colorDelTexto: "#ffffff",
     materiales: ["ZIRCONIO_MONOLITICO", "CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "espesorAlivio", "notas"],
@@ -343,7 +322,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Removibles y aparatos",
     alcance: "ARCADA",
     color: "#0097a7",
-    colorTenue: "#bfe5e9",
     colorDelTexto: "#1d2126",
     materiales: ["RESINA_TERMOPOLIMERIZABLE", "RESINA_IMPRESION"],
     campos: ["material", "metodo", "colorBase", "colorDientes", "notas"],
@@ -356,7 +334,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Removibles y aparatos",
     alcance: "ARCADA",
     color: "#9a673c",
-    colorTenue: "#e6d9ce",
     colorDelTexto: "#ffffff",
     materiales: ["CROMO_COBALTO", "TITANIO", "RESINA_FLEXIBLE"],
     campos: ["material", "metodo", "colorBase", "colorDientes", "notas"],
@@ -369,7 +346,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Removibles y aparatos",
     alcance: "ARCADA",
     color: "#37474f",
-    colorTenue: "#cdd1d3",
     colorDelTexto: "#ffffff",
     materiales: ["PMMA_TRANSPARENTE", "RESINA_IMPRESION", "RESINA_FLEXIBLE"],
     campos: ["material", "metodo", "grosor", "notas"],
@@ -382,7 +358,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Removibles y aparatos",
     alcance: "DIENTE",
     color: "#a8536b",
-    colorTenue: "#e9d4da",
     colorDelTexto: "#ffffff",
     materiales: ["TITANIO", "CROMO_COBALTO", "ZIRCONIO_MONOLITICO"],
     campos: ["material", "metodo", "notas"],
@@ -395,7 +370,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Removibles y aparatos",
     alcance: "DIENTE",
     color: "#795548",
-    colorTenue: "#ded4d1",
     colorDelTexto: "#ffffff",
     materiales: ["CROMO_COBALTO", "TITANIO"],
     campos: ["material", "metodo", "notas"],
@@ -408,7 +382,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Modelos",
     alcance: "ARCADA",
     color: "#455a64",
-    colorTenue: "#d0d6d8",
     colorDelTexto: "#ffffff",
     materiales: ["RESINA_IMPRESION"],
     campos: ["material", "metodo", "troqueles", "notas"],
@@ -421,7 +394,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Dentición restante",
     alcance: "ARCADA",
     color: "#c44e00",
-    colorTenue: "#f0d3bf",
     colorDelTexto: "#ffffff",
     materiales: [],
     campos: ["notas"],
@@ -434,7 +406,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Dentición restante",
     alcance: "DIENTE",
     color: "#8a6d1f",
-    colorTenue: "#e2dac7",
     colorDelTexto: "#ffffff",
     materiales: [],
     campos: ["notas"],
@@ -447,7 +418,6 @@ export const TRABAJOS: Record<RolDeUnidad, TipoDeTrabajo> = {
     categoria: "Dentición restante",
     alcance: "DIENTE",
     color: "#c62828",
-    colorTenue: "#f1c9c9",
     colorDelTexto: "#ffffff",
     materiales: [],
     campos: ["notas"],
@@ -470,6 +440,21 @@ export const CATEGORIAS: { nombre: string; tipos: RolDeUnidad[] }[] = [
 ];
 
 export const TODOS_LOS_ROLES = Object.keys(TRABAJOS) as RolDeUnidad[];
+
+/**
+ * El color de un tipo, rebajado para rellenar un diente.
+ *
+ * No se guarda ya mezclado porque el resultado depende del tema: en claro se
+ * mezcla contra un diente blanco y sale un tinte pálido; en oscuro, contra el
+ * gris del diente, y sale uno profundo. Una sola cuenta, hecha por el
+ * navegador, y el número se sigue leyendo encima en los dos.
+ *
+ * `scripts/generar-catalogo.py` mide las dos mezclas y no escribe este archivo
+ * si alguna deja el número por debajo de 4.5:1 (§7).
+ */
+export function tinte(color: string) {
+  return `color-mix(in srgb, ${color} 25%, var(--diente-cuerpo))`;
+}
 
 /**
  * Lo que sí se fabrica y se cotiza.

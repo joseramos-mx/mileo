@@ -48,6 +48,7 @@ import {
   esPontico,
   pregunta,
   puedeSerPilar,
+  tinte,
 } from "@/lib/trabajos";
 import { Campo, CampoDeSeleccion, CampoDeTexto } from "@/componentes/Campo";
 import { usePantallaAngosta } from "@/lib/pantalla";
@@ -263,7 +264,7 @@ export function Odontograma({
   return (
     <div
       className={cn(
-        "siempre-claro grid gap-4 rounded-contenedor bg-diente-lienzo p-4",
+        "grid gap-4 rounded-contenedor bg-diente-lienzo p-4",
         // El panel se lleva lo que sobra a lo ancho: cuanto más ancho, menos
         // renglones de pastillas y menos alto el bloque entero.
         "lg:grid-cols-[minmax(0,1fr)_22rem]",
@@ -511,12 +512,15 @@ function Diente({
       {/* Cuerpo: se rellena con el color del tipo de trabajo, rebajado, para
           que el número se siga leyendo encima (§7). El color va como atributo y
           no como clase porque es un dato del catálogo, no un rol de la
-          interfaz: son veintinueve y viven en `src/lib/trabajos.ts`. */}
+          interfaz: son veintinueve y viven en `src/lib/trabajos.ts`.
+
+          Se rebaja mezclándolo con el diente, no con blanco: así el mismo dato
+          del catálogo da un tinte claro en el tema claro y uno oscuro en el
+          oscuro, y el número —que también cambia con el tema— se lee encima de
+          los dos. */}
       <path
         d={trazo.cuerpo}
-        fill={
-          !tipo || esAnotacion ? "var(--diente-cuerpo)" : tipo.colorTenue
-        }
+        fill={!tipo || esAnotacion ? "var(--diente-cuerpo)" : tinte(tipo.color)}
       />
 
       {/* Contorno: el trazo que entregó diseño, en el color del tipo. En una
@@ -574,7 +578,7 @@ function Leyenda({ unidades }: { unidades: UnidadDelCaso[] }) {
               fill={
                 TRABAJOS[rol].esAnotacion
                   ? "none"
-                  : TRABAJOS[rol].colorTenue
+                  : tinte(TRABAJOS[rol].color)
               }
               stroke={TRABAJOS[rol].color}
               strokeDasharray={

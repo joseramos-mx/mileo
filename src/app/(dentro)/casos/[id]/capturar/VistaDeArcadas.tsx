@@ -125,7 +125,7 @@ export function VistaDeArcadas({
   return (
     <div
       className={cn(
-        "siempre-claro grid gap-4 rounded-contenedor bg-diente-lienzo p-4",
+        "grid gap-4 rounded-contenedor bg-diente-lienzo p-4",
         // Las mismas medidas que el odontograma, para que las dos pestañas se
         // vean iguales.
         "lg:grid-cols-[minmax(0,1fr)_22rem]",

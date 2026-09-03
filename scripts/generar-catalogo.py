@@ -29,14 +29,23 @@ def razon(a, b):
     return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
 
-def tenue(h, blanco=0.75):
-    hh = h.lstrip("#")
-    r, g, b = (int(hh[i:i + 2], 16) for i in (0, 2, 4))
-    m = lambda c: round(c + (255 - c) * blanco)
-    return "#%02x%02x%02x" % (m(r), m(g), m(b))
+def mezcla(h, fondo, cuanto=0.25):
+    """El color rebajado sobre un fondo. Es el mismo color-mix que hace el CSS."""
+    hh, ff = h.lstrip("#"), fondo.lstrip("#")
+    o = [
+        round(int(hh[i:i + 2], 16) * cuanto + int(ff[i:i + 2], 16) * (1 - cuanto))
+        for i in (0, 2, 4)
+    ]
+    return "#%02x%02x%02x" % tuple(o)
 
 
 BLANCO, TINTA = "#ffffff", "#1d2126"
+
+# El diente y su numero en cada tema, como los define globals.css. El relleno
+# del trabajo sale de mezclar el color del tipo contra el cuerpo del diente, y
+# el numero tiene que leerse encima en los dos (§7).
+DIENTE_CLARO, NUMERO_CLARO = "#ffffff", TINTA
+DIENTE_OSCURO, NUMERO_OSCURO = "#3c4148", BLANCO
 
 # Lo que se anota pero no se fabrica. Es independiente del alcance: el
 # antagonista se marca sobre una arcada entera y sigue sin ser una pieza.
@@ -188,10 +197,13 @@ for categoria, tipos in CATALOGO:
     for clave, nombre, que, color, materiales, alcance, extra, corta in tipos:
         texto = BLANCO if razon(BLANCO, color) >= 4.5 else TINTA
         r = razon(texto, color)
-        suave = tenue(color)
-        rn = razon(TINTA, suave)
-        if r < 4.5 or rn < 4.5:
-            errores.append("%s: pastilla %.2f, numero %.2f" % (clave, r, rn))
+        claro = razon(NUMERO_CLARO, mezcla(color, DIENTE_CLARO))
+        oscuro = razon(NUMERO_OSCURO, mezcla(color, DIENTE_OSCURO))
+        if r < 4.5 or claro < 4.5 or oscuro < 4.5:
+            errores.append(
+                "%s: pastilla %.2f, numero claro %.2f, numero oscuro %.2f"
+                % (clave, r, claro, oscuro)
+            )
 
         campos = list(extra)
         if materiales:
@@ -199,7 +211,7 @@ for categoria, tipos in CATALOGO:
         campos.append("notas")
 
         filas.append(dict(clave=clave, nombre=nombre, que=que, categoria=categoria,
-                          color=color, suave=suave, texto=texto, alcance=alcance,
+                          color=color, texto=texto, alcance=alcance,
                           materiales=materiales, campos=campos, corta=corta,
                           anotacion=clave in ANOTACIONES))
 
@@ -221,7 +233,6 @@ cuerpo = "\n".join(
     '    categoria: "%s",\n'
     '    alcance: "%s",\n'
     '    color: "%s",\n'
-    '    colorTenue: "%s",\n'
     '    colorDelTexto: "%s",\n'
     '    materiales: %s,\n'
     '    campos: %s,\n'
@@ -229,7 +240,7 @@ cuerpo = "\n".join(
     '    esAnotacion: %s,\n'
     '  },'
     % (f["clave"], f["nombre"], f["que"], f["categoria"], f["alcance"],
-       f["color"], f["suave"], f["texto"], lista(f["materiales"]),
+       f["color"], f["texto"], lista(f["materiales"]),
        lista(f["campos"]), "true" if f["corta"] else "false",
        "true" if f["anotacion"] else "false")
     for f in filas
@@ -299,7 +310,6 @@ export type TipoDeTrabajo = {
   categoria: string;
   alcance: AlcanceDeTrabajo;
   color: string;
-  colorTenue: string;
   colorDelTexto: string;
   materiales: Material[];
   campos: CampoDeUnidad[];
@@ -329,6 +339,21 @@ export const CATEGORIAS: { nombre: string; tipos: RolDeUnidad[] }[] = [
 ];
 
 export const TODOS_LOS_ROLES = Object.keys(TRABAJOS) as RolDeUnidad[];
+
+/**
+ * El color de un tipo, rebajado para rellenar un diente.
+ *
+ * No se guarda ya mezclado porque el resultado depende del tema: en claro se
+ * mezcla contra un diente blanco y sale un tinte pálido; en oscuro, contra el
+ * gris del diente, y sale uno profundo. Una sola cuenta, hecha por el
+ * navegador, y el número se sigue leyendo encima en los dos.
+ *
+ * `scripts/generar-catalogo.py` mide las dos mezclas y no escribe este archivo
+ * si alguna deja el número por debajo de 4.5:1 (§7).
+ */
+export function tinte(color: string) {
+  return `color-mix(in srgb, ${color} 25%%, var(--diente-cuerpo))`;
+}
 
 /**
  * Lo que sí se fabrica y se cotiza.

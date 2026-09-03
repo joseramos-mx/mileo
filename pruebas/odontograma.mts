@@ -539,6 +539,7 @@ comprobar(
   `con las dos abiertas, el modelo se puso en las dos (${JSON.stringify(modelos)})`,
   modelos.length === 2,
 );
+await panelArcadas.screenshot({ path: "pruebas/capturas/arcadas.png" });
 comprobar(
   "y la pastilla queda puesta",
   (await panelArcadas
@@ -681,6 +682,108 @@ comprobar(
   `la anotación se guardó sin material (${JSON.stringify(anotacion)})`,
   anotacion.material === null && anotacion.metodo === null,
 );
+
+// ------------------------------------------------------- el dibujo y el tema
+
+// El odontograma ya no se fuerza claro: la excepción de §5.1 es para donde se
+// juzga color —el visor 3D y las fotos de calidad—, y aquí el tono se escoge de
+// una lista de Vita. Así que se mide en los dos temas: el lienzo tiene que
+// seguir al tema, y el número tiene que leerse encima del relleno del trabajo
+// en los dos, porque el relleno se mezcla contra el diente y el diente cambia.
+for (const tema of ["oscuro", "claro"]) {
+  await pagina.evaluate((cual) => {
+    document.documentElement.dataset.tema = cual === "claro" ? "claro" : "";
+  }, tema);
+  await pagina.waitForTimeout(200);
+
+  const medida = await pagina.evaluate(() => {
+    // Sin funciones con nombre aquí adentro: el empacador les inyecta un
+    // `__name` que no existe en el navegador.
+    const peso = [0.2126, 0.7152, 0.0722];
+    const flojos: string[] = [];
+    const aLuz: number[] = [];
+    const cola: string[] = [];
+
+    const lienzo = document.querySelector(".bg-diente-lienzo");
+    cola.push(lienzo ? getComputedStyle(lienzo).backgroundColor : "rgb(0,0,0)");
+
+    // El diente sin trabajo, resuelto por el navegador: leer la variable a
+    // secas devuelve el `var(...)` sin resolver, y nunca compararía igual.
+    const sonda = document.createElement("div");
+    sonda.style.backgroundColor = "var(--diente-cuerpo)";
+    document.body.appendChild(sonda);
+    const sinTrabajo = getComputedStyle(sonda).backgroundColor;
+    sonda.remove();
+
+    // El color del número: va en su propio grupo, encima de todos los
+    // dientes, para que ninguno se lo tape.
+    const rotulo = document.querySelector(
+      "svg[aria-label^='Odontograma'] text.fill-diente-numero",
+    );
+    const tinta = rotulo ? getComputedStyle(rotulo).fill : "rgb(0, 0, 0)";
+
+    // Cada diente con trabajo: su relleno, contra esa tinta.
+    const conTrabajo: string[] = [];
+    const rellenos: string[] = [];
+    const numeros: string[] = [];
+    for (const grupo of document.querySelectorAll(
+      "svg[aria-label^='Odontograma'] g[data-diente]",
+    )) {
+      const cuerpo = grupo.querySelector("path");
+      if (!cuerpo) continue;
+      const relleno = getComputedStyle(cuerpo).fill;
+      if (relleno === sinTrabajo) continue;
+      conTrabajo.push(grupo.getAttribute("data-diente") ?? "?");
+      rellenos.push(relleno);
+      numeros.push(tinta);
+    }
+
+    for (const color of cola.concat(rellenos, numeros)) {
+      // Un `color-mix` vuelve del navegador como `color(srgb 0.29 0.36 0.27)`,
+      // con los canales de 0 a 1; un color plano, como `rgb(29, 33, 38)`, de 0
+      // a 255. Medirlos con la misma regla daba casi negro y hundía la razón.
+      const escala = color.startsWith("color(") ? 1 : 255;
+      const partes = (color.match(/[\d.]+/g) ?? ["0", "0", "0"]).map(Number);
+      let total = 0;
+      for (let i = 0; i < 3; i++) {
+        const v = partes[i] / escala;
+        total +=
+          peso[i] *
+          (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      }
+      aLuz.push(total);
+    }
+
+    const luzDelLienzo = aLuz[0];
+    for (let i = 0; i < rellenos.length; i++) {
+      const a = aLuz[1 + i];
+      const b = aLuz[1 + rellenos.length + i];
+      const razon = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      if (razon < 4.5) flojos.push(`${conTrabajo[i]} ${razon.toFixed(2)}`);
+    }
+    return { luz: luzDelLienzo, cuantos: rellenos.length, flojos };
+  });
+
+  for (const flojo of medida.flojos) {
+    console.log(`   número poco legible en ${tema}: diente ${flojo}`);
+  }
+  comprobar(
+    `en tema ${tema} el lienzo del odontograma sigue al tema ` +
+      `(luminancia ${medida.luz.toFixed(2)})`,
+    tema === "claro" ? medida.luz > 0.8 : medida.luz < 0.1,
+  );
+  comprobar(
+    `en tema ${tema}, el número se lee sobre el relleno del trabajo ` +
+      `(${medida.cuantos} dientes, ${medida.flojos.length} por debajo de 4.5:1)`,
+    medida.cuantos > 0 && medida.flojos.length === 0,
+  );
+}
+await pagina.screenshot({ path: "pruebas/capturas/odontograma-claro.png" });
+await pagina.evaluate(() => {
+  document.documentElement.dataset.tema = "";
+});
+await pagina.waitForTimeout(200);
+await pagina.screenshot({ path: "pruebas/capturas/odontograma-oscuro.png" });
 
 // Accesibilidad de la pantalla con el odontograma.
 const axe = await new AxeBuilder({ page: pagina })

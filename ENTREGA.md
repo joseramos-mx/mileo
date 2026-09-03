@@ -234,10 +234,12 @@ va solo.**
   entero, para que el número siga leyéndose encima.
 
 Los colores viven en `src/lib/trabajos.ts`, en una tabla, no en `globals.css`:
-son un dato del catálogo, no roles de la interfaz. El guion que la genera
+son un dato del catálogo, no roles de la interfaz. El rebajado no se guarda: se
+mezcla contra el diente con `color-mix`, así que en tema claro sale un tinte
+pálido y en oscuro uno profundo, del mismo dato. El guion que la genera
 —`python scripts/generar-catalogo.py`— **se niega a escribir un color que no
-llegue a 4.5:1**, y `npm run prueba:odontograma` lo vuelve a medir en pantalla
-con los colores que devuelve el navegador. Cuatro de los colores de exocad no
+llegue a 4.5:1** con el número en los dos temas, y `npm run prueba:odontograma`
+lo vuelve a medir en pantalla con los colores que devuelve el navegador. Cuatro de los colores de exocad no
 alcanzaban y se oscurecieron; en las pastillas sin escoger el color va en el
 borde y en un cuadrito, nunca en la letra.
 
@@ -261,6 +263,13 @@ Por lo mismo, `Puente` pasó a llamarse `Tramo`: un puente es sólo uno de los
 tres trabajos que van sobre dos o más dientes unidos.
 
 ### El paso 2, en dos pestañas
+
+El odontograma y las arcadas **siguen el tema**. La excepción de §5.1 —fondo
+claro pase lo que pase— es para donde se juzga color: el visor 3D y las fotos de
+control de calidad, que siguen forzados. Aquí el tono se escoge de una lista de
+Vita, no a ojo, y un dibujo blanco sobre negro deslumbra al capturar de noche en
+el consultorio. Los valores del tema oscuro son el espejo de los del claro: cada
+par guarda la misma razón de contraste o mejor, y la prueba mide las dos.
 
 **Dientes** lleva el odontograma: lo que se pone diente por diente y los tramos.
 **Arcadas** lleva el dibujo de maxilar y mandíbula que entregó diseño

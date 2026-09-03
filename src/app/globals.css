@@ -66,27 +66,6 @@
   --pastilla-ambar-fondo: #fbe8c8;
   --pastilla-ambar-texto: #7a4f00;
 
-  /* Odontograma. Va siempre sobre fondo claro, sea cual sea el tema (§5.1):
-     es la pantalla donde se señala un diente, y ahí el gris del tema oscuro
-     estorba. Por eso estos colores son planos y no se reasignan.
-     El contorno es el que entregó diseño en el dibujo. */
-  --diente-lienzo: #f7faff;
-  --diente-cuerpo: #ffffff;
-  --diente-contorno: #a5a5a5;
-  --diente-trabajo: #c3dbff;
-  --diente-trabajo-contorno: #005fdb;
-  --diente-pontico: #e0ecff;
-  --diente-anillo: #77acff;
-  /* El dibujo de maxilar y mandíbula, tal como lo entregó diseño: la encía
-     y los dientes en el mismo gris, separados sólo por el contorno.
-     El de "aquí ya hay trabajo" está medido contra ese relleno: a 3.1:1
-     se distingue de verdad, y con #c0c4ca —que fue el primero que puse—
-     quedaba en 1.4:1, que no se ve. */
-  --mandibula-relleno: #e5e5e5;
-  --diente-ocupado: #7f8286;
-  --diente-numero: #1d2126;
-  --diente-puente: #005fdb;
-
   /* Mosaicos de estado del inicio.
      El diseño entregado los pide de colores distintos, uno por etapa, para que
      el doctor reconozca de un vistazo en qué va cada caso. Es un cambio a §5.1,
@@ -149,6 +128,36 @@
   --rol-terminado-texto: #7ee29b;
   --rol-validacion: #f08ad8;
 
+  /* Odontograma y arcadas, en oscuro.
+
+     Aquí no se juzga ningún color: el tono de la pieza se escoge de una lista
+     de Vita, no a ojo. La excepción de §5.1 —fondo claro siempre— es para el
+     visor 3D y las fotos de control de calidad, donde sí se mira el color de
+     la pieza; el dibujo de captura sigue el tema, porque tenerlo blanco sobre
+     negro deslumbra al capturar de noche en el consultorio.
+
+     Los valores son el espejo de los del tema claro: cada par guarda la misma
+     razón de contraste o mejor, para que el dibujo se lea igual de bien.
+     Medido: contorno 2.5:1 sobre el cuerpo (claro: 2.0), "ya hay trabajo"
+     4.5:1 sobre la encía (claro: 3.1), y el número blanco encima del relleno
+     de trabajo nunca baja de 7.0:1. */
+  --diente-lienzo: var(--rol-superficie);
+  --diente-cuerpo: var(--neutro-850);
+  --diente-contorno: var(--neutro-600);
+  --diente-trabajo: var(--azul-950);
+  --diente-trabajo-contorno: var(--azul-400);
+  /* La arcada abierta. Es un tinte, no una capa de pintura: en claro apenas
+     se separa de la encía (1.06:1) y aquí guarda la misma discreción (1.14:1).
+     Lo que dice cuál está abierta es el contorno azul y su panel al lado. */
+  --diente-pontico: #2b3a47;
+  --diente-anillo: var(--azul-400);
+  --mandibula-relleno: var(--neutro-850);
+  /* En claro, "aquí ya hay trabajo" es un gris más oscuro que la encía; en
+     oscuro tiene que ser más claro, o desaparecería contra el fondo. */
+  --diente-ocupado: var(--neutro-400);
+  --diente-numero: #ffffff;
+  --diente-puente: var(--azul-400);
+
   color-scheme: dark;
 }
 
@@ -189,6 +198,25 @@
   --rol-terminado-fondo: #e4f7e9;
   --rol-terminado-texto: #14622c;
   --rol-validacion: #8c1f74;
+
+  /* Odontograma y arcadas, en claro. El contorno es el que entregó diseño en
+     el dibujo. */
+  --diente-lienzo: var(--neutro-50);
+  --diente-cuerpo: #ffffff;
+  --diente-contorno: #a5a5a5;
+  --diente-trabajo: var(--azul-200);
+  --diente-trabajo-contorno: var(--azul-700);
+  --diente-pontico: var(--azul-100);
+  --diente-anillo: var(--azul-400);
+  /* El dibujo de maxilar y mandíbula, tal como lo entregó diseño: la encía
+     y los dientes en el mismo gris, separados sólo por el contorno.
+     El de "aquí ya hay trabajo" está medido contra ese relleno: a 3.1:1
+     se distingue de verdad, y con #c0c4ca —que fue el primero que puse—
+     quedaba en 1.4:1, que no se ve. */
+  --mandibula-relleno: #e5e5e5;
+  --diente-ocupado: #7f8286;
+  --diente-numero: var(--neutro-900);
+  --diente-puente: var(--azul-700);
 
   color-scheme: light;
 }
