@@ -3,6 +3,7 @@ import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import type { Etapa } from "@/generated/prisma/enums";
 import { ChipDeEtapa, colorDeEtapa } from "@/componentes/ChipDeEtapa";
 import { MarcoDeImagen } from "@/componentes/MarcoDeImagen";
+import { VistaDelDiseno } from "@/componentes/VistaDelDiseno";
 import { ETAPAS } from "@/lib/vocabulario";
 import { escalaDelRender, RENDERS_3D } from "@/lib/entrada";
 import {
@@ -47,6 +48,11 @@ export type CasoParaTarjeta = {
   unidades: string;
   /** "Zirconio monolítico A1" */
   materialYColor: string;
+  /**
+   * El retrato del diseño de este caso, cuando el laboratorio ya lo mandó.
+   * Manda sobre el render genérico: es su pieza, no un diente de catálogo.
+   */
+  vistaId: string | null;
   /** El render de la pieza, si el equipo de diseño ya lo entregó. */
   pieza: { ruta: string; escala: number } | null;
   tecnico: { nombre: string; fotoUrl: string | null } | null;
@@ -139,7 +145,7 @@ export function TarjetaDeCaso({
 
       {/* 2 · Qué se está fabricando. */}
       <div className="flex min-w-0 items-center gap-3">
-        <Pieza pieza={caso.pieza} />
+        <Pieza vistaId={caso.vistaId} pieza={caso.pieza} />
         <div className="min-w-0">
           <p className="text-menor wrap-break-word text-primario">
             {caso.unidades}
@@ -170,10 +176,34 @@ export function TarjetaDeCaso({
 }
 
 /**
- * La miniatura de la pieza, 40×40. Mientras el equipo de diseño no entregue el
- * render va el marco punteado, nunca un cuadro vacío (§9).
+ * La miniatura de la pieza, 40×40.
+ *
+ * Si el caso ya tiene diseño, es el retrato de **ese** diseño: el doctor
+ * reconoce su caso desde la lista sin abrirlo. Si todavía no, va el render
+ * genérico de la indicación, y si tampoco lo hay, el marco punteado — nunca un
+ * cuadro vacío (§9).
+ *
+ * Va al lado de un texto que ya dice qué lleva el caso, así que es decorativa:
+ * anunciarla otra vez sería repetirle lo mismo a quien usa lector de pantalla.
  */
-function Pieza({ pieza }: { pieza: CasoParaTarjeta["pieza"] }) {
+function Pieza({
+  vistaId,
+  pieza,
+}: {
+  vistaId: CasoParaTarjeta["vistaId"];
+  pieza: CasoParaTarjeta["pieza"];
+}) {
+  if (vistaId) {
+    return (
+      <VistaDelDiseno
+        archivoDeMallaId={vistaId}
+        descripcion=""
+        proporcion="1/1"
+        className="size-10 shrink-0 rounded-control"
+      />
+    );
+  }
+
   if (!pieza) {
     return (
       <MarcoDeImagen

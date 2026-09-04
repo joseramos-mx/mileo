@@ -42,6 +42,13 @@ export const seleccionDeTarjeta = {
     select: { diente: true, rol: true, material: true, color: true },
     orderBy: { diente: "asc" },
   },
+  // La malla ligera del diseño. Con ella la tarjeta enseña la pieza de este
+  // caso en vez del render genérico de su indicación.
+  archivos: {
+    where: { tipo: "MALLA_LIGERA", estado: "COMPLETO" },
+    select: { id: true },
+    take: 1,
+  },
 } as const;
 
 type UnidadResumible = {
@@ -74,6 +81,8 @@ type CasoCrudo = {
   paciente: { folio: string; iniciales: string };
   tecnico: { nombreCompleto: string; fotoUrl: string | null } | null;
   unidades: UnidadResumible[];
+  /** La malla ligera del diseño, cuando ya hay uno. */
+  archivos: { id: string }[];
 };
 
 /**
@@ -173,6 +182,9 @@ export function paraTarjeta(caso: CasoCrudo): CasoParaTarjeta {
     paciente: caso.paciente,
     unidades: unidadesYDientes(caso.unidades),
     materialYColor: materialYColor(caso.unidades),
+    // El diseño de este caso manda sobre el render genérico: en cuanto el
+    // laboratorio lo manda, el doctor ve su pieza y no un diente de catálogo.
+    vistaId: caso.archivos[0]?.id ?? null,
     pieza:
       render && rendersEnDisco().get(render.ruta)
         ? { ruta: render.ruta, escala: 0.95 }

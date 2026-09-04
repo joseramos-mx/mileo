@@ -28,10 +28,13 @@ import { cn } from "@/lib/utilidades";
  *   descarga del archivo.
  */
 
+export type EstadoDelVisor = "cargando" | "listo" | "no-pude";
+
 export function Visor3D({
   archivoDeMallaId,
   archivoOriginalId,
   descripcion,
+  alCambiarEstado,
   className,
 }: {
   /** El archivo de la malla ligera, no el diseño original. */
@@ -40,11 +43,16 @@ export function Visor3D({
   archivoOriginalId: string;
   /** Qué se está viendo, en palabras. Es la alternativa al visor (§7). */
   descripcion: string;
+  /**
+   * Si el diseño llegó a verse o no. Lo usa la aprobación: nadie tiene que
+   * poder aprobar a ciegas un diseño que el visor no alcanzó a enseñarle.
+   */
+  alCambiarEstado?: (estado: EstadoDelVisor) => void;
   className?: string;
 }) {
   const [avance, setAvance] = useState(0);
   const [malla, setMalla] = useState<MallaLeida | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [intento, setIntento] = useState(0);
   const geometriaViva = useRef<THREE.BufferGeometry | null>(null);
 
@@ -52,8 +60,9 @@ export function Visor3D({
     let cancelado = false;
 
     async function cargar() {
-      setError(null);
+      setError(false);
       setAvance(0);
+      alCambiarEstado?.("cargando");
 
       try {
         const armada = await traerMalla(archivoDeMallaId, (porcentaje) => {
@@ -64,13 +73,15 @@ export function Visor3D({
         geometriaViva.current = armada.geometria;
         setMalla(armada);
         setAvance(100);
+        alCambiarEstado?.("listo");
       } catch (falla) {
         if (!cancelado) {
-          setError(
-            falla instanceof Error
-              ? falla.message
-              : "No pude abrir la vista del diseño.",
-          );
+          // Lo que trae la excepción es para la consola, no para el doctor:
+          // "Failed to fetch" no le dice nada a nadie y no está ni en español
+          // (§8). Lo que necesita saber es que no se ve y qué puede hacer.
+          console.error("No se pudo abrir la vista del diseño:", falla);
+          setError(true);
+          alCambiarEstado?.("no-pude");
         }
       }
     }
@@ -82,6 +93,10 @@ export function Visor3D({
       geometriaViva.current?.dispose();
       geometriaViva.current = null;
     };
+    // `alCambiarEstado` no va en las dependencias a propósito: si el padre la
+    // vuelve a crear en cada pintada, meterla aquí recargaría la malla entera
+    // una y otra vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [archivoDeMallaId, intento]);
 
   return (
@@ -93,14 +108,24 @@ export function Visor3D({
         className,
       )}
     >
-      <div className="relative aspect-4/3 w-full bg-superficie-suave">
+      {/* Con el diseño a la vista manda la proporción del visor. Sin él, el
+          hueco se encoge a lo que dice: dejar el recuadro entero vacío empuja
+          los botones abajo del pliegue, y el doctor tiene que buscarlos. */}
+      <div
+        className={cn(
+          "relative w-full bg-superficie-suave",
+          error ? "min-h-56" : "aspect-4/3",
+        )}
+      >
         {malla ? (
           <Escena geometria={malla.geometria} descripcion={descripcion} />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
             {error ? (
               <>
-                <p className="text-cuerpo text-primario">{error}</p>
+                <p className="text-cuerpo text-primario">
+                  No pude abrir la vista de su diseño.
+                </p>
                 <p className="text-menor text-secundario">
                   Puede volver a intentarlo o descargar el diseño y abrirlo en su
                   programa.
@@ -137,7 +162,9 @@ export function Visor3D({
 
       <div className="flex flex-col gap-2 border-t border-borde bg-superficie p-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-menor text-secundario">
-          Gire con el dedo. Pellizque para acercar.
+          {error
+            ? "Ábralo en su programa para revisarlo."
+            : "Gire con el dedo. Pellizque para acercar."}
         </p>
         <a
           href={`/api/archivos/${archivoOriginalId}/contenido?descargar`}

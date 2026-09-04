@@ -1,6 +1,7 @@
 import "server-only";
 import fsp from "node:fs/promises";
 import { rutaAbsolutaDe, prepararCarpeta } from "@/lib/almacen";
+import { dibujarLaPieza } from "@/lib/vista-malla";
 
 /**
  * Malla ligera derivada (SKILL.md §9, O-4).
@@ -34,7 +35,7 @@ export function rutaDeLaMalla(archivoId: string, casoId: string) {
   return `${casoId}/${archivoId}.malla`;
 }
 
-type Malla = {
+export type Malla = {
   posiciones: Float32Array;
   indices: Uint32Array;
 };
@@ -214,6 +215,77 @@ function empaquetar(malla: Malla): Buffer {
   return buffer;
 }
 
+/**
+ * Al revés de `empaquetar`: recupera la malla de su binario.
+ *
+ * El navegador ya sabía leerla —`malla-cliente.ts`—, pero el servidor también
+ * la necesita para dibujar el retrato de la pieza sin volver a tocar el STL
+ * original, que pesa cien veces más y a veces ya ni existe.
+ */
+export function desempaquetar(datos: Buffer): Malla {
+  if (datos.length < 40 || datos.readUInt32LE(0) !== FIRMA) {
+    throw new Error("Esa vista del diseño no es una malla de Mileo.");
+  }
+  if (datos.readUInt32LE(4) !== VERSION) {
+    throw new Error("Esa vista del diseño es de otra versión.");
+  }
+
+  const vertices = datos.readUInt32LE(8);
+  const cuantosIndices = datos.readUInt32LE(12);
+  const min = [
+    datos.readFloatLE(16),
+    datos.readFloatLE(20),
+    datos.readFloatLE(24),
+  ];
+  const tamano = [
+    datos.readFloatLE(28),
+    datos.readFloatLE(32),
+    datos.readFloatLE(36),
+  ];
+
+  const posiciones = new Float32Array(vertices * 3);
+  for (let i = 0; i < posiciones.length; i++) {
+    const eje = i % 3;
+    posiciones[i] = min[eje] + (datos.readUInt16LE(40 + i * 2) / 65535) * tamano[eje];
+  }
+
+  const bytesPosiciones = vertices * 3 * 2;
+  const relleno = bytesPosiciones % 4 === 0 ? 0 : 2;
+  let desde = 40 + bytesPosiciones + relleno;
+  const indices = new Uint32Array(cuantosIndices);
+  for (let i = 0; i < cuantosIndices; i++) {
+    indices[i] = datos.readUInt32LE(desde);
+    desde += 4;
+  }
+
+  return { posiciones, indices };
+}
+
+/**
+ * Dónde vive el retrato de una pieza, al lado de su malla.
+ *
+ * Hay dos tamaños. El grande es el de la tarjeta del inicio; el chico, el de
+ * la miniatura de 40 px que lleva cada caso en la lista. Servir el grande para
+ * un cuadrito de 40 px son doscientos kilobytes de más en un inicio con doce
+ * casos, y esto se abre con datos móviles entre paciente y paciente (§5.5).
+ */
+export function rutaDelRetrato(
+  archivoId: string,
+  casoId: string,
+  tamano: TamanoDelRetrato = "grande",
+) {
+  const cola = tamano === "chico" ? ".chico" : "";
+  return `${casoId}/${archivoId}.vista${cola}.png`;
+}
+
+export type TamanoDelRetrato = "grande" | "chico";
+
+/** Los lados de cada uno, en pixeles. */
+export const LADO_DEL_RETRATO: Record<TamanoDelRetrato, number> = {
+  grande: 320,
+  chico: 96,
+};
+
 // ------------------------------------------------------------------ público
 
 export type ResumenDeMalla = {
@@ -261,6 +333,17 @@ export async function derivarMallaLigera({
   const rutaRelativa = rutaDeLaMalla(archivoId, casoId);
   const completa = await prepararCarpeta(rutaRelativa);
   await fsp.writeFile(completa, empaquetada);
+
+  // Los dos retratos salen de una vez: es la misma pieza que el doctor va a
+  // ver en cada tarjeta, y dibujarlos aquí ahorra hacerlo la primera vez que
+  // alguien abre su inicio.
+  for (const tamano of ["grande", "chico"] as const) {
+    const retrato = rutaDelRetrato(archivoId, casoId, tamano);
+    await fsp.writeFile(
+      await prepararCarpeta(retrato),
+      dibujarLaPieza(malla, LADO_DEL_RETRATO[tamano]),
+    );
+  }
 
   return {
     rutaRelativa,

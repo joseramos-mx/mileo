@@ -85,9 +85,30 @@ Dos botones y nada más: aprobar y solicitar ajuste, con comentario obligatorio.
 **Bloqueo duro:** sin aprobación registrada no se fabrica, ni desde la pantalla
 ni desde la API. Recordatorios a las 24 y 48 horas. Chat anclado al caso.
 
+Sencilla, con dos seguros. **Nadie aprueba lo que no vio:** hasta que el visor
+no logra enseñar el diseño, el botón de aprobar está apagado y la pantalla dice
+por qué. Si el visor no puede —un celular viejo, WebGL apagado— no se le cierra
+la puerta: descarga el diseño, lo abre en su programa y lo dice con una casilla,
+porque bloquearlo del todo dejaría sin aprobar a quien no puede usar el visor
+(§7). Y **nadie aprueba un diseño que ya cambió:** la pantalla manda cuál está
+mirando, y si el laboratorio mandó otro mientras tanto, el servidor se niega y
+le pide volver a verlo.
+
+**El retrato del diseño.** La misma pieza, dibujada una vez en el servidor y
+servida como PNG, aparece en cada lugar donde se lista un caso: en la tarjeta
+del inicio y en la miniatura de cada caso. Se dibuja sin GPU y sin biblioteca
+—proyección, buffer de profundidad y normales por vértice, con la misma cámara,
+la misma luz y el mismo color del visor—, en dos tamaños. Abrir un contexto
+WebGL por tarjeta no era opción: el navegador tiene un tope de contextos vivos,
+los tira cuando lo pasa, y una lista de doce casos acababa con cuadros en
+blanco; además gastaba batería pintando algo que nadie iba a girar (§5.5). Con
+el retrato, la lista de cien casos baja 246 kB en total.
+
 **La prueba:** el visor abre en 1.9 s en un celular simulado, sobre fondo de
-luminancia 0.98, y sin aprobación el laboratorio no tiene a dónde mandar a
-fabricar.
+luminancia 0.98; sin aprobación el laboratorio no tiene a dónde mandar a
+fabricar; el retrato se sirve como PNG y no se entrega sin sesión; y con la
+malla cortada a propósito, el botón de aprobar no se puede pulsar hasta que el
+doctor dice que lo revisó en su programa.
 
 > Falta: adjuntar imágenes en el chat. El texto funciona.
 

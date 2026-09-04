@@ -49,7 +49,15 @@ const esquemaAjuste = z.object({
  * El doctor aprueba el diseño (SKILL.md O-4).
  * Es la única puerta hacia fabricación: sin este registro no se fabrica nada.
  */
-export async function aprobarDiseno(casoId: string): Promise<Resultado> {
+export async function aprobarDiseno(
+  casoId: string,
+  /**
+   * Cuál diseño se está aprobando. Va desde la pantalla para que el servidor
+   * pueda negarse si el laboratorio mandó otro mientras el doctor lo miraba:
+   * sin esto se aprobaría un diseño que nunca vio, y la bitácora diría que sí.
+   */
+  archivoDisenoId?: string,
+): Promise<Resultado> {
   const { usuario, caso } = await casoDelUsuario(casoId);
   if (!caso) return { error: "No encuentro ese caso." };
 
@@ -65,6 +73,13 @@ export async function aprobarDiseno(casoId: string): Promise<Resultado> {
 
   const diseno = caso.archivos.find((a) => a.tipo === "DISENO");
   if (!diseno) return { error: "Todavía no hay un diseño que aprobar." };
+  if (archivoDisenoId && archivoDisenoId !== diseno.id) {
+    return {
+      error:
+        "Su técnico mandó un diseño nuevo mientras usted miraba el anterior. " +
+        "Vuelva a abrir el caso para verlo antes de aprobarlo.",
+    };
+  }
 
   await prisma.$transaction(async (bd) => {
     await bd.aprobacion.create({

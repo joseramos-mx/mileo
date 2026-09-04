@@ -1,110 +1,72 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Center } from "@react-three/drei";
-import type * as THREE from "three";
+import { useState } from "react";
 import { MarcoDeImagen } from "@/componentes/MarcoDeImagen";
-import {
-  materialDeLaPieza,
-  traerMalla,
-  type MallaLeida,
-} from "@/lib/malla-cliente";
 import { cn } from "@/lib/utilidades";
 
 /**
- * Un cuadro del diseño del caso, sacado de su propia malla.
+ * El retrato del diseño del caso.
  *
- * Es la misma geometría que gira el doctor en la pantalla de aprobación, sólo
- * que quieta: no se puede girar y no se pinta cuadro a cuadro, así que no gasta
- * batería ni distrae mientras alguien lee el inicio (§5.5).
+ * Es la misma pieza que el doctor gira en la pantalla de aprobación, dibujada
+ * una vez en el servidor y servida como imagen. Antes esto abría un contexto
+ * WebGL por cuadro: en el inicio, con cuatro diseños y una columna de casos, el
+ * navegador llegaba a su tope de contextos vivos, empezaba a tirarlos, y unas
+ * tarjetas se quedaban en blanco mientras otras no. Y gastaba batería pintando
+ * algo que nadie iba a girar (§5.5).
  *
  * Va sobre fondo neutro claro, como todo lo que enseña una pieza (§5.1). Si el
- * caso todavía no tiene diseño, se enseña el marco con la descripción (§9).
+ * caso todavía no tiene diseño, o el retrato no se pudo traer, se enseña el
+ * marco con la descripción (§9): nunca un cuadro roto.
  */
 export function VistaDelDiseno({
   archivoDeMallaId,
   descripcion,
+  proporcion = "4/3",
   className,
 }: {
   /** La malla ligera del caso, o null si todavía no hay diseño. */
   archivoDeMallaId: string | null;
+  /**
+   * Qué se está viendo. Vacía cuando el retrato va al lado de un texto que ya
+   * lo dice: entonces la imagen es decorativa y no se anuncia dos veces.
+   */
   descripcion: string;
+  /**
+   * "1/1" es la miniatura de la lista, y pide el retrato chico: un cuadrito de
+   * 40 px no necesita los 320 de la tarjeta grande.
+   */
+  proporcion?: "4/3" | "1/1";
   className?: string;
 }) {
-  const [malla, setMalla] = useState<MallaLeida | null>(null);
   const [fallo, setFallo] = useState(false);
-  const viva = useRef<THREE.BufferGeometry | null>(null);
 
-  useEffect(() => {
-    if (!archivoDeMallaId) return;
-
-    const abortador = new AbortController();
-    let cancelado = false;
-
-    traerMalla(archivoDeMallaId, undefined, abortador.signal)
-      .then((leida) => {
-        if (cancelado) return;
-        viva.current = leida.geometria;
-        setMalla(leida);
-      })
-      .catch(() => {
-        if (!cancelado) setFallo(true);
-      });
-
-    return () => {
-      cancelado = true;
-      abortador.abort();
-      viva.current?.dispose();
-      viva.current = null;
-    };
-  }, [archivoDeMallaId]);
-
-  // Sin diseño todavía, o no se pudo traer: el marco dice qué va aquí.
   if (!archivoDeMallaId || fallo) {
     return (
       <MarcoDeImagen
-        proporcion="4/3"
+        proporcion={proporcion}
         etiqueta={descripcion}
         className={className}
       />
     );
   }
 
+  const decorativo = descripcion.trim().length === 0;
+
   return (
-    <div
-      role="img"
-      aria-label={descripcion}
+    <span
       className={cn(
-        "aspect-4/3 w-full overflow-hidden rounded-tarjeta bg-superficie",
+        "block w-full overflow-hidden rounded-tarjeta bg-superficie",
+        proporcion === "1/1" ? "aspect-square" : "aspect-4/3",
         className,
       )}
     >
-      {malla ? <Cuadro geometria={malla.geometria} /> : null}
-    </div>
-  );
-}
-
-function Cuadro({ geometria }: { geometria: THREE.BufferGeometry }) {
-  const material = useMemo(() => materialDeLaPieza(), []);
-  useEffect(() => () => material.dispose(), [material]);
-
-  return (
-    <Canvas
-      // Un solo cuadro: se pinta cuando hace falta y se queda quieto.
-      frameloop="demand"
-      camera={{ position: [0, 0, 4.2], fov: 35 }}
-      dpr={[1, 2]}
-      gl={{ antialias: true }}
-    >
-      <color attach="background" args={["#ffffff"]} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[3, 4, 5]} intensity={1.5} />
-      <directionalLight position={[-4, -2, -3]} intensity={0.5} />
-
-      <Center>
-        <mesh geometry={geometria} material={material} rotation={[-0.5, 0.4, 0]} />
-      </Center>
-    </Canvas>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/api/archivos/${archivoDeMallaId}/vista${proporcion === "1/1" ? "?tamano=chico" : ""}`}
+        alt={decorativo ? "" : descripcion}
+        onError={() => setFallo(true)}
+        className="size-full object-contain"
+      />
+    </span>
   );
 }

@@ -75,22 +75,55 @@ try {
     ])
   ).rows[0];
 
-  const casoId = crypto.randomUUID();
-  const folio = `C-RIESGO-${Date.now()}`;
+  // Un solo caso para siempre, no uno por corrida.
+  //
+  // Antes el folio llevaba la hora, así que cada auditoría dejaba un caso más
+  // esperando aprobación —y sin diseño, porque aquí se inserta la etapa a mano
+  // en vez de pasar por el laboratorio—. A las treinta corridas el doctor abría
+  // su inicio y encontraba treinta casos de prueba. Y no se pueden borrar: la
+  // bitácora es inmutable y no deja quitar un caso que ya tiene eventos, que es
+  // justo la garantía funcionando.
+  //
+  // Reusarlo también hace la prueba más honesta: comprueba que el vigilante
+  // vuelve a marcar en riesgo un caso que ya pasó por esto.
+  const folio = "C-RIESGO";
+  const existente = (
+    await bd.query('SELECT id FROM "Caso" WHERE folio = $1', [folio])
+  ).rows[0];
+  const casoId = existente?.id ?? crypto.randomUUID();
 
-  await bd.query(
-    `INSERT INTO "Caso" (id, folio, "clinicaId", "doctorId", "creadoPorId",
-                         "pacienteId", indicacion, etapa, "esBorrador",
-                         "aceptadoEn", "fechaEntregaComprometida",
-                         "creadoEn", "actualizadoEn")
-     VALUES ($1, $2, $3, $4, $4, $5, 'CORONA_Y_PUENTE', 'ESPERANDO_APROBACION',
-             false,
-             (now() AT TIME ZONE 'UTC') - interval '4 days',
-             (now() AT TIME ZONE 'UTC') + interval '2 days',
-             (now() AT TIME ZONE 'UTC') - interval '4 days',
-             now() AT TIME ZONE 'UTC')`,
-    [casoId, folio, doctor.clinicaId, doctor.id, paciente.id],
-  );
+  if (existente) {
+    await bd.query(
+      `UPDATE "Caso"
+          SET etapa = 'ESPERANDO_APROBACION',
+              "esBorrador" = false,
+              "enRiesgo" = false,
+              "motivoRiesgo" = NULL,
+              "doctorId" = $2,
+              "clinicaId" = $3,
+              "pacienteId" = $4,
+              "aceptadoEn" = (now() AT TIME ZONE 'UTC') - interval '4 days',
+              "fechaEntregaComprometida" =
+                (now() AT TIME ZONE 'UTC') + interval '2 days',
+              "actualizadoEn" = now() AT TIME ZONE 'UTC'
+        WHERE id = $1`,
+      [casoId, doctor.id, doctor.clinicaId, paciente.id],
+    );
+  } else {
+    await bd.query(
+      `INSERT INTO "Caso" (id, folio, "clinicaId", "doctorId", "creadoPorId",
+                           "pacienteId", indicacion, etapa, "esBorrador",
+                           "aceptadoEn", "fechaEntregaComprometida",
+                           "creadoEn", "actualizadoEn")
+       VALUES ($1, $2, $3, $4, $4, $5, 'CORONA_Y_PUENTE',
+               'ESPERANDO_APROBACION', false,
+               (now() AT TIME ZONE 'UTC') - interval '4 days',
+               (now() AT TIME ZONE 'UTC') + interval '2 days',
+               (now() AT TIME ZONE 'UTC') - interval '4 days',
+               now() AT TIME ZONE 'UTC')`,
+      [casoId, folio, doctor.clinicaId, doctor.id, paciente.id],
+    );
+  }
 
   // El evento que marca cuándo entró a la etapa: hace 50 horas.
   await bd.query(

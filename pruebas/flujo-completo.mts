@@ -583,6 +583,83 @@ async function main() {
     await capturar(celular, "11-aprobacion-visor");
     await auditar(celular, "aprobación del diseño");
 
+    // El retrato del diseño: el mismo que ven las tarjetas, dibujado en el
+    // servidor para no abrir un contexto 3D por cada una.
+    const mallaId = (
+      await bd.query(
+        `SELECT id FROM "Archivo"
+          WHERE "casoId" = $1 AND tipo = 'MALLA_LIGERA' AND estado = 'COMPLETO'`,
+        [casoId],
+      )
+    ).rows[0].id;
+    const retrato = await celular.request.get(
+      `${BASE}/api/archivos/${mallaId}/vista`,
+    );
+    const bytesDelRetrato = (await retrato.body()).length;
+    comprobar(
+      retrato.status() === 200 &&
+        retrato.headers()["content-type"] === "image/png" &&
+        bytesDelRetrato > 1000,
+      `el retrato del diseño se sirve como PNG (${bytesDelRetrato} bytes)`,
+    );
+
+    // Y como todo archivo del caso, no se entrega sin sesión.
+    const sinEntrar = await navegador.newContext();
+    const retratoAjeno = await sinEntrar.request.get(
+      `${BASE}/api/archivos/${mallaId}/vista`,
+    );
+    await sinEntrar.close();
+    comprobar(
+      retratoAjeno.status() === 401,
+      `el retrato no se entrega sin sesión (${retratoAjeno.status()})`,
+    );
+
+    // Con el visor caído no se puede aprobar a ciegas. Se simula cortándole la
+    // malla: es lo que pasa con una red mala o un celular sin WebGL.
+    const aCiegas = await contextoDe(navegador, doctor.token, CELULAR);
+    const pantallaCiega = await aCiegas.newPage();
+    await pantallaCiega.route("**/api/archivos/*/contenido", (ruta) =>
+      ruta.abort(),
+    );
+    await pantallaCiega.goto(`${BASE}/casos/${casoId}`);
+    await pantallaCiega.waitForLoadState("networkidle");
+    await pantallaCiega.waitForTimeout(1500);
+
+    const botonCiego = pantallaCiega.getByRole("button", {
+      name: "Aprobar y fabricar",
+    });
+    comprobar(
+      await botonCiego.isDisabled(),
+      "sin poder ver el diseño, no se puede aprobar",
+    );
+    comprobar(
+      await pantallaCiega
+        .getByText(/No le voy a pedir que apruebe algo que no pudo ver/)
+        .isVisible(),
+      "y la pantalla dice por qué, en vez de dejar un botón apagado y mudo",
+    );
+
+    // La salida para quien no puede usar el visor: verlo en su programa y
+    // decirlo. Cerrarle la puerta del todo lo dejaría sin aprobar nunca (§7).
+    await pantallaCiega
+      .getByRole("checkbox", { name: /ya lo revisé en mi programa/i })
+      .check();
+    comprobar(
+      await botonCiego.isEnabled(),
+      "diciendo que lo revisó en su programa, sí puede aprobarlo",
+    );
+    await auditar(pantallaCiega, "aprobación con el visor caído");
+    await aCiegas.close();
+
+    // Nadie aprueba lo que no vio: el botón sólo se enciende cuando el visor
+    // logró enseñar el diseño.
+    comprobar(
+      await celular
+        .getByRole("button", { name: "Aprobar y fabricar" })
+        .isEnabled(),
+      "con el diseño a la vista, se puede aprobar",
+    );
+
     await celular.getByRole("button", { name: "Aprobar y fabricar" }).click();
     await celular.waitForLoadState("networkidle");
     await celular.waitForTimeout(1500);

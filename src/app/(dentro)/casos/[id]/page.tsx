@@ -142,15 +142,39 @@ export default async function PaginaDeCaso({
       </header>
 
       {/* La pantalla estrella: aprobación del diseño (O-4). */}
-      {caso.etapa === "ESPERANDO_APROBACION" && malla && diseno ? (
-        <Aprobacion
-          casoId={caso.id}
-          archivoDeMallaId={malla.id}
-          archivoOriginalId={diseno.id}
-          descripcion={`Diseño de ${resumirUnidades(caso.unidades)} para el paciente ${caso.paciente.folio}.`}
-          puedeDecidir={puedeAprobarDisenos(usuario)}
-          tecnico={caso.tecnico}
-        />
+      {caso.etapa === "ESPERANDO_APROBACION" ? (
+        malla && diseno ? (
+          <Aprobacion
+            casoId={caso.id}
+            archivoDeMallaId={malla.id}
+            archivoOriginalId={diseno.id}
+            descripcion={`Diseño de ${resumirUnidades(caso.unidades)} para el paciente ${caso.paciente.folio}.`}
+            puedeDecidir={puedeAprobarDisenos(usuario)}
+            tecnico={caso.tecnico}
+          />
+        ) : (
+          // El caso dice que espera su aprobación pero no hay diseño que
+          // enseñar. No debería pasar —el laboratorio sólo lo puede mandar
+          // aquí derivando la vista—, pero si pasa, la pantalla tiene que
+          // decirlo: quedarse muda deja al doctor esperando algo que no
+          // existe, y pidiéndole que apruebe a ciegas sería peor.
+          <section
+            aria-labelledby="aprobacion"
+            className="flex flex-col gap-2 rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4"
+          >
+            <h2
+              id="aprobacion"
+              className="text-subtitulo font-semibold text-pendiente-texto"
+            >
+              El diseño todavía no está aquí
+            </h2>
+            <p className="text-cuerpo text-pendiente-texto">
+              Su caso quedó marcado como listo para revisar, pero la vista del
+              diseño no llegó. No apruebe nada todavía: escríbale a su técnico
+              aquí abajo y se la mando.
+            </p>
+          </section>
+        )
       ) : null}
 
       <section aria-labelledby="unidades" className="flex flex-col gap-3">

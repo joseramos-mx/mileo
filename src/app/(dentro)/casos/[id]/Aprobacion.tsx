@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { Boton } from "@/componentes/Boton";
 import { CampoDeTexto } from "@/componentes/Campo";
+import type { EstadoDelVisor } from "@/componentes/Visor3D";
 import { aprobarDiseno, solicitarAjuste } from "./acciones";
 
 // El visor pesa: se carga sólo en esta pantalla y sólo en el navegador.
@@ -23,6 +24,18 @@ const Visor3D = dynamic(
  * Dos botones y nada más: aprobar y solicitar ajuste. El comentario es
  * obligatorio al solicitar ajuste, porque un ajuste sin explicación le cuesta
  * al técnico un día de ida y vuelta.
+ *
+ * Lo único que se le pone enfrente además de eso son los dos seguros que hacen
+ * falta para que "sencillo" no acabe siendo "descuidado":
+ *
+ * 1. No se aprueba lo que no se vio. Mientras el visor no logre enseñar el
+ *    diseño, el botón de aprobar está apagado. Si el visor no puede —un celular
+ *    viejo, WebGL apagado—, no se le cierra la puerta: descarga el diseño, lo
+ *    abre en su programa, y lo dice con una casilla. Bloquearlo del todo sería
+ *    dejar sin aprobar a quien no puede usar el visor (§7).
+ * 2. No se aprueba un diseño que ya cambió. La pantalla manda cuál diseño está
+ *    mirando y el servidor se niega si el laboratorio mandó otro mientras
+ *    tanto.
  */
 export function Aprobacion({
   casoId,
@@ -43,6 +56,16 @@ export function Aprobacion({
   const [comentario, setComentario] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [trabajando, empezar] = useTransition();
+  const [visor, setVisor] = useState<EstadoDelVisor>("cargando");
+  const [revisadoAparte, setRevisadoAparte] = useState(false);
+
+  // Estable: si cambia en cada pintada, el visor vuelve a bajar la malla.
+  const alCambiarEstado = useCallback(
+    (estado: EstadoDelVisor) => setVisor(estado),
+    [],
+  );
+
+  const loVio = visor === "listo" || revisadoAparte;
 
   return (
     <section aria-labelledby="aprobacion" className="flex flex-col gap-4">
@@ -63,16 +86,11 @@ export function Aprobacion({
         archivoDeMallaId={archivoDeMallaId}
         archivoOriginalId={archivoOriginalId}
         descripcion={descripcion}
+        alCambiarEstado={alCambiarEstado}
       />
 
       {/* La alternativa al visor: qué se está viendo, en palabras (§7). */}
       <p className="text-menor text-secundario">{descripcion}</p>
-
-      {tecnico ? (
-        <p className="text-menor text-secundario">
-          Lo diseñó {tecnico.nombreCompleto}. Puede escribirle aquí abajo.
-        </p>
-      ) : null}
 
       <p
         role="alert"
@@ -127,29 +145,72 @@ export function Aprobacion({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          {/* Una sola acción principal en la pantalla (§6.1). */}
-          <Boton
-            type="button"
-            tono="principal"
-            tamano="grande"
-            disabled={trabajando}
-            onClick={() =>
-              empezar(async () => {
-                const resultado = await aprobarDiseno(casoId);
-                if (resultado.error) setError(resultado.error);
-              })
-            }
-          >
-            {trabajando ? "Registrando…" : "Aprobar y fabricar"}
-          </Boton>
-          <Boton
-            type="button"
-            tamano="grande"
-            onClick={() => setPidiendoAjuste(true)}
-          >
-            Solicitar ajuste
-          </Boton>
+        <div className="flex flex-col gap-3">
+          {/* Si el visor no pudo, la salida es verlo en su programa y decirlo.
+              Va antes de los botones porque es lo que desbloquea el primero. */}
+          {visor === "no-pude" ? (
+            <label className="flex items-start gap-2 rounded-control border border-borde bg-superficie p-3 text-menor text-primario">
+              <input
+                type="checkbox"
+                checked={revisadoAparte}
+                onChange={(e) => setRevisadoAparte(e.target.checked)}
+                className="mt-0.5 size-5 shrink-0"
+              />
+              <span>
+                Descargué el diseño y ya lo revisé en mi programa.
+                <span className="block text-secundario">
+                  Márquelo para poder aprobarlo desde aquí.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {/* Una sola acción principal en la pantalla (§6.1). */}
+            <Boton
+              type="button"
+              tono="principal"
+              tamano="grande"
+              disabled={trabajando || !loVio}
+              onClick={() =>
+                empezar(async () => {
+                  const resultado = await aprobarDiseno(
+                    casoId,
+                    archivoOriginalId,
+                  );
+                  if (resultado.error) setError(resultado.error);
+                })
+              }
+            >
+              {trabajando ? "Registrando…" : "Aprobar y fabricar"}
+            </Boton>
+            <Boton
+              type="button"
+              tamano="grande"
+              onClick={() => setPidiendoAjuste(true)}
+            >
+              Solicitar ajuste
+            </Boton>
+          </div>
+
+          {/* Por qué todavía no se puede. Un botón apagado sin explicación es
+              lo que hace que el doctor acabe llamando por teléfono. */}
+          {!loVio ? (
+            <p className="text-menor text-secundario">
+              {visor === "cargando"
+                ? "En cuanto termine de cargar su diseño puede aprobarlo."
+                : "Descargue el diseño, ábralo en su programa y marque la casilla de arriba. No le voy a pedir que apruebe algo que no pudo ver."}
+            </p>
+          ) : null}
+
+          {/* Quién lo hizo va después de la decisión: es lo que el doctor lee
+              cuando ya sabe qué va a contestar, no lo que le estorba para
+              llegar a los botones. */}
+          {tecnico ? (
+            <p className="text-menor text-secundario">
+              Lo diseñó {tecnico.nombreCompleto}. Puede escribirle aquí abajo.
+            </p>
+          ) : null}
         </div>
       )}
     </section>
