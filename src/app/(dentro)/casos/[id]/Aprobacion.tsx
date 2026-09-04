@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Boton } from "@/componentes/Boton";
 import { CampoDeTexto } from "@/componentes/Campo";
 import type { EstadoDelVisor } from "@/componentes/Visor3D";
+import { ejecutar } from "@/lib/acciones-cliente";
 import { aprobarDiseno, solicitarAjuste } from "./acciones";
 
 // El visor pesa: se carga sólo en esta pantalla y sólo en el navegador.
@@ -126,7 +127,9 @@ export function Aprobacion({
               disabled={trabajando}
               onClick={() =>
                 empezar(async () => {
-                  const resultado = await solicitarAjuste(casoId, comentario);
+                  const resultado = await ejecutar(() =>
+                    solicitarAjuste(casoId, comentario),
+                  );
                   if (resultado.error) setError(resultado.error);
                 })
               }
@@ -174,9 +177,8 @@ export function Aprobacion({
               disabled={trabajando || !loVio}
               onClick={() =>
                 empezar(async () => {
-                  const resultado = await aprobarDiseno(
-                    casoId,
-                    archivoOriginalId,
+                  const resultado = await ejecutar(() =>
+                    aprobarDiseno(casoId, archivoOriginalId),
                   );
                   if (resultado.error) setError(resultado.error);
                 })

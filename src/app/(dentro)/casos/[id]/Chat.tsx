@@ -6,6 +6,7 @@ import { Boton } from "@/componentes/Boton";
 import { fechaConHora } from "@/lib/fechas";
 import { cn } from "@/lib/utilidades";
 import { enviarMensaje } from "./acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 type MensajeEnPantalla = {
   id: string;
@@ -105,7 +106,9 @@ export function Chat({
           disabled={enviando || texto.trim().length === 0}
           onClick={() =>
             empezar(async () => {
-              const resultado = await enviarMensaje(casoId, texto);
+              const resultado = await ejecutar(() =>
+                enviarMensaje(casoId, texto),
+              );
               if (resultado.error) setError(resultado.error);
               else {
                 setTexto("");

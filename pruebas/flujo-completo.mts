@@ -649,6 +649,28 @@ async function main() {
       "diciendo que lo revisó en su programa, sí puede aprobarlo",
     );
     await auditar(pantallaCiega, "aprobación con el visor caído");
+
+    // Y si la llamada al servidor no llega —la red se cortó, o la pestaña
+    // quedó con la versión anterior de Mileo y pide una acción que ya no
+    // existe—, la pantalla lo dice en español y sigue en pie. Antes de esto
+    // salía el error del navegador con un enlace a la documentación de Next.
+    await pantallaCiega.route(
+      (url) => url.pathname.includes(`/casos/${casoId}`),
+      (ruta) => (ruta.request().method() === "POST" ? ruta.abort() : ruta.continue()),
+    );
+    await botonCiego.click();
+    await pantallaCiega.waitForTimeout(1200);
+    comprobar(
+      await pantallaCiega
+        .getByText(/No pude comunicarme con Mileo|Mileo se actualizó/)
+        .isVisible(),
+      "si la llamada no llega, lo dice en español en vez de tirar la pantalla",
+    );
+    comprobar(
+      await botonCiego.isVisible(),
+      "y la pantalla sigue en pie, con el botón para volver a intentarlo",
+    );
+
     await aCiegas.close();
 
     // Nadie aprueba lo que no vio: el botón sólo se enciende cuando el visor

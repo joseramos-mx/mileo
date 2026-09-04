@@ -9,6 +9,7 @@ import { ETAPAS } from "@/lib/vocabulario";
 import { etapasPosiblesDesde } from "@/lib/etapas";
 import { fechaConHora } from "@/lib/fechas";
 import { cambiarEtapa, mandarDisenoAAprobacion } from "./acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 /**
  * Lo que sólo ve el laboratorio: mover la etapa, mandar el diseño a aprobación
@@ -105,9 +106,8 @@ export function ControlesDelLaboratorio({
               disabled={trabajando}
               onClick={() =>
                 empezar(async () => {
-                  const resultado = await mandarDisenoAAprobacion(
-                    casoId,
-                    diseno.id,
+                  const resultado = await ejecutar(() =>
+                    mandarDisenoAAprobacion(casoId, diseno.id),
                   );
                   if (resultado.error) setError(resultado.error);
                 })
@@ -152,7 +152,9 @@ export function ControlesDelLaboratorio({
               disabled={trabajando}
               onClick={() =>
                 empezar(async () => {
-                  const resultado = await cambiarEtapa(casoId, destino);
+                  const resultado = await ejecutar(() =>
+                    cambiarEtapa(casoId, destino),
+                  );
                   if (resultado.error) setError(resultado.error);
                 })
               }

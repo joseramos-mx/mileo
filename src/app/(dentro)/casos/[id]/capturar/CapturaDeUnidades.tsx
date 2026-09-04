@@ -16,6 +16,7 @@ import {
 import { useTresColumnas } from "@/lib/pantalla";
 import { CamposDeLaArcada, VistaDeArcadas } from "./VistaDeArcadas";
 import { cambiarCatalogo, guardarUnidades } from "../../acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 export type UnidadCapturada = UnidadDelCaso;
 
@@ -89,7 +90,9 @@ export function CapturaDeUnidades({
     setGuardado("guardando");
     const temporizador = setTimeout(() => {
       empezar(async () => {
-        const resultado = await guardarUnidades(casoId, unidades);
+        const resultado = await ejecutar(() =>
+          guardarUnidades(casoId, unidades),
+        );
         if (resultado.error) {
           setError(resultado.error);
           setGuardado("limpio");

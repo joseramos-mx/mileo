@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { guardarAvisos } from "./acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 /**
  * Avisos configurables (SKILL.md O-3).
@@ -28,7 +29,9 @@ export function Avisos({
     setCorreo(nuevoCorreo);
     setWhatsapp(nuevoWhatsapp);
     empezar(async () => {
-      const resultado = await guardarAvisos(nuevoCorreo, nuevoWhatsapp);
+      const resultado = await ejecutar(() =>
+        guardarAvisos(nuevoCorreo, nuevoWhatsapp),
+      );
       setAviso(resultado.error ?? resultado.listo ?? null);
     });
   }

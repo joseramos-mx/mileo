@@ -7,6 +7,7 @@ import { Boton } from "@/componentes/Boton";
 import { ETAPAS } from "@/lib/vocabulario";
 import { siguienteEtapa } from "@/lib/etapas";
 import { cambiarEtapa } from "@/app/(dentro)/casos/[id]/acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 /**
  * Un solo botón para terminar la etapa (SKILL.md O-5).
@@ -42,7 +43,9 @@ export function TerminarEtapa({
         disabled={trabajando || bloqueado}
         onClick={() =>
           empezar(async () => {
-            const resultado = await cambiarEtapa(casoId, destino);
+            const resultado = await ejecutar(() =>
+              cambiarEtapa(casoId, destino),
+            );
             if (resultado.error) setError(resultado.error);
             else {
               setError(null);

@@ -13,6 +13,7 @@ import {
   type PiezaDelKit,
 } from "@/lib/calidad";
 import { cerrarControlDeCalidad } from "./acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 type ArchivoEnPantalla = {
   id: string;
@@ -66,14 +67,16 @@ export function FormularioDeCalidad({
 
   function cerrar() {
     empezar(async () => {
-      const resultado = await cerrarControlDeCalidad({
-        casoId,
-        kit,
-        numeroDeGuia,
-        enlaceDeRastreo,
-        autorizaCorreo,
-        motivo,
-      });
+      const resultado = await ejecutar(() =>
+        cerrarControlDeCalidad({
+          casoId,
+          kit,
+          numeroDeGuia,
+          enlaceDeRastreo,
+          autorizaCorreo,
+          motivo,
+        }),
+      );
 
       if (resultado.necesitaAutorizacion) setPideAutorizacion(true);
       if (resultado.error) {

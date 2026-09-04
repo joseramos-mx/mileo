@@ -5,6 +5,7 @@ import { CheckCircle, Circle } from "@phosphor-icons/react";
 import { Boton } from "@/componentes/Boton";
 import type { EstadoDeAdmision } from "@/lib/admision";
 import { enviarCaso } from "../../acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 /**
  * Lista de admisión (SKILL.md O-2).
@@ -91,7 +92,7 @@ export function ListaDeAdmision({
         disabled={!listo || enviando}
         onClick={() =>
           empezar(async () => {
-            const resultado = await enviarCaso(casoId);
+            const resultado = await ejecutar(() => enviarCaso(casoId));
             if (resultado?.error) setError(resultado.error);
           })
         }

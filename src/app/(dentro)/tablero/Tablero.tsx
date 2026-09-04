@@ -8,6 +8,7 @@ import { ETAPAS, ETAPAS_DEL_DOCTOR, PRIORIDADES } from "@/lib/vocabulario";
 import { fechaCorta, cuandoFalta } from "@/lib/fechas";
 import { cn } from "@/lib/utilidades";
 import { cambiarEtapa } from "@/app/(dentro)/casos/[id]/acciones";
+import { ejecutar } from "@/lib/acciones-cliente";
 
 export type CasoEnTablero = {
   id: string;
@@ -46,7 +47,7 @@ export function Tablero({ casos }: { casos: CasoEnTablero[] }) {
 
   function mover(casoId: string, destino: Etapa) {
     empezar(async () => {
-      const resultado = await cambiarEtapa(casoId, destino);
+      const resultado = await ejecutar(() => cambiarEtapa(casoId, destino));
       if (resultado.error) setError(resultado.error);
       else {
         setError(null);
