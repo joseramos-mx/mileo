@@ -38,7 +38,7 @@ try {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es-MX" className={`${jakarta.variable} h-full`}>
+    <html lang="es-MX" className={`${jakarta.variable} h-full`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: guionTema }} />
       </head>
