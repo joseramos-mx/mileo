@@ -47,7 +47,7 @@ export default async function PaginaDeEntrada() {
             Escriba sus datos para entrar.
           </p>
 
-          <FormularioDeEntrada />
+          <FormularioDeEntrada /> 
 
           <p className="mt-8 text-center text-menor text-secundario">
             ¿No tiene cuenta?{" "}
