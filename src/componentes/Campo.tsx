@@ -30,6 +30,11 @@ type BaseCampo = {
    * campo es ruido. Se puede callar sin quitarle el `required` al control.
    */
   marcaRequerido?: boolean;
+  /**
+   * Oculta visualmente la etiqueta conservando el `<label>` real para lectores
+   * de pantalla (p. ej. la barra de escritura del chat).
+   */
+  etiquetaOculta?: boolean;
 };
 
 function Envoltura({
@@ -39,6 +44,7 @@ function Envoltura({
   error,
   requerido,
   marcaRequerido = true,
+  etiquetaOculta = false,
   className,
   children,
 }: BaseCampo & { id: string; children: ReactNode }) {
@@ -46,10 +52,16 @@ function Envoltura({
   const idError = `${id}-error`;
 
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-menor font-medium text-primario">
+    <div className={cn("relative flex flex-col gap-1.5", className)}>
+      <label
+        htmlFor={id}
+        className={cn(
+          "text-menor font-medium text-primario",
+          etiquetaOculta && "sr-only",
+        )}
+      >
         {etiqueta}
-        {marcaRequerido ? (
+        {marcaRequerido && !etiquetaOculta ? (
           requerido ? (
             <span className="text-secundario"> (obligatorio)</span>
           ) : (
@@ -191,9 +203,13 @@ export function CampoDeTexto({
   error,
   requerido,
   marcaRequerido,
+  etiquetaOculta,
+  redimensionable = true,
+  compacto = false,
   className,
   ...props
-}: Omit<ComponentProps<"textarea">, "className"> & BaseCampo) {
+}: Omit<ComponentProps<"textarea">, "className"> &
+  BaseCampo & { redimensionable?: boolean; compacto?: boolean }) {
   const generado = useId();
   const id = props.id ?? generado;
 
@@ -205,6 +221,7 @@ export function CampoDeTexto({
       error={error}
       requerido={requerido}
       marcaRequerido={marcaRequerido}
+      etiquetaOculta={etiquetaOculta}
       className={className}
     >
       <textarea
@@ -219,7 +236,8 @@ export function CampoDeTexto({
         }
         className={cn(
           estilosControl,
-          "min-h-24 resize-y",
+          compacto ? "max-h-36 overflow-y-auto" : "min-h-24",
+          redimensionable ? "resize-y" : "resize-none",
           error ? "border-pendiente" : "border-borde",
         )}
       />

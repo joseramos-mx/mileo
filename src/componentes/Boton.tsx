@@ -18,7 +18,7 @@ const estilos = cva(
   [
     // Área táctil mínima de 44x44 px (§7): se cumple aquí, no en cada pantalla.
     "area-tactil inline-flex items-center justify-center gap-2",
-    "rounded-control px-4 font-medium",
+    "font-medium",
     "transition-colors duration-150",
     "disabled:cursor-not-allowed disabled:opacity-50",
   ],
@@ -35,6 +35,10 @@ const estilos = cva(
         normal: "text-cuerpo",
         grande: "min-h-13 text-realce px-6",
       },
+      forma: {
+        control: "rounded-control px-4",
+        circular: "size-11 shrink-0 rounded-full p-0",
+      },
       ancho: {
         automatico: "",
         completo: "w-full",
@@ -43,6 +47,7 @@ const estilos = cva(
     defaultVariants: {
       tono: "borde",
       tamano: "normal",
+      forma: "control",
       ancho: "automatico",
     },
   },
@@ -53,13 +58,14 @@ type Estilos = VariantProps<typeof estilos>;
 export function Boton({
   tono,
   tamano,
+  forma,
   ancho,
   className,
   ...props
 }: ComponentProps<"button"> & Estilos) {
   return (
     <button
-      className={cn(estilos({ tono, tamano, ancho }), className)}
+      className={cn(estilos({ tono, tamano, forma, ancho }), className)}
       {...props}
     />
   );
@@ -69,13 +75,14 @@ export function Boton({
 export function BotonEnlace({
   tono,
   tamano,
+  forma,
   ancho,
   className,
   ...props
 }: ComponentProps<typeof Link> & Estilos) {
   return (
     <Link
-      className={cn(estilos({ tono, tamano, ancho }), className)}
+      className={cn(estilos({ tono, tamano, forma, ancho }), className)}
       {...props}
     />
   );
