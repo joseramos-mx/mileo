@@ -73,6 +73,12 @@ export default async function PaginaDeCaso({
   const delLaboratorio = esDelLaboratorio(usuario);
   const malla = caso.archivos.find((a) => a.tipo === "MALLA_LIGERA");
   const diseno = caso.archivos.find((a) => a.tipo === "DISENO");
+  const archivosVisibles = caso.archivos.filter(
+    (a) => a.estado === "COMPLETO" && a.tipo !== "MALLA_LIGERA",
+  );
+  const tieneSubidaIncompleta = caso.archivos.some(
+    (a) => a.estado === "EN_PROCESO" && a.tipo !== "MALLA_LIGERA",
+  );
   const recienEnviado = consulta.enviado === "1";
 
   return (
@@ -224,10 +230,17 @@ export default async function PaginaDeCaso({
         <h2 id="archivos" className="text-subtitulo font-semibold text-primario">
           Archivos del caso
         </h2>
-        <ul className="flex flex-col gap-2">
-          {caso.archivos
-            .filter((a) => a.estado === "COMPLETO" && a.tipo !== "MALLA_LIGERA")
-            .map((archivo) => (
+        {archivosVisibles.length === 0 ? (
+          <p className="rounded-tarjeta border border-borde bg-superficie p-4 text-cuerpo text-secundario">
+            {tieneSubidaIncompleta
+              ? "Todavía no hay archivos completos en este caso; quedó una subida sin terminar."
+              : delLaboratorio
+                ? "Todavía no se han subido archivos en este caso."
+                : "Todavía no se han subido archivos en este caso. Si necesita compartir un escaneo o una foto, avísele a su técnico en el chat de abajo."}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {archivosVisibles.map((archivo) => (
               <li
                 key={archivo.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
@@ -250,7 +263,8 @@ export default async function PaginaDeCaso({
                 </a>
               </li>
             ))}
-        </ul>
+          </ul>
+        )}
       </section>
 
       {/* Las fotos de control de calidad se juzgan sobre fondo claro (§5.1). */}

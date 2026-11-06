@@ -62,19 +62,19 @@ export function PanelDeBienvenida({
       aria-labelledby="bienvenida"
       className={cn(
         "shrink-0 overflow-hidden rounded-panel border border-borde bg-portada",
-        "lg:h-[50%] lg:max-h-[32rem]",
+        "xl:h-[48%] xl:min-h-[18rem] xl:max-h-[32rem] 2xl:min-h-[21rem]",
       )}
     >
-      <div className="flex h-full flex-col gap-8 xl:flex-row xl:items-stretch">
+      <div className="flex h-full flex-col gap-6 sm:p-6 xl:flex-row xl:items-stretch xl:gap-6 2xl:gap-8 2xl:p-8">
         {/* --- El titular ------------------------------------------------- */}
-        <div className="flex shrink-0 flex-col justify-center gap-6 p-8 xl:w-[36%] xl:p-10">
+        <div className="flex shrink-0 flex-col justify-center gap-5 p-6 pb-0 sm:p-0 xl:w-[28%] xl:min-w-56 2xl:w-[33%] 2xl:gap-6 2xl:px-2">
           <div>
             <p className="text-cuerpo text-secundario">
               ¡Hola, {nombreDePila}!
             </p>
             <h1
               id="bienvenida"
-              className="mt-2 text-titulo font-normal text-primario sm:text-[2.5rem] sm:leading-[1.05] xl:text-titular"
+              className="mt-2 text-titulo font-normal text-primario sm:text-[2.25rem] sm:leading-[1.08] 2xl:text-titular"
             >
               {titular}
             </h1>
@@ -94,41 +94,40 @@ export function PanelDeBienvenida({
 
         {/* --- Las categorías ---------------------------------------------- */}
         {puedeCrearCasos ? (
-          // La tira se desplaza a lo ancho: caben los tipos de trabajo que se
-          // agreguen después sin apretar los que ya están. Se llega a ellos
-          // con el dedo, con la rueda y con el tabulador, porque cada tarjeta
-          // es un enlace y el navegador la trae sola al foco.
-          <div className="min-w-0 flex-1 overflow-x-auto p-8 pt-0 sin-barra xl:py-8 xl:pr-0 xl:pl-0">
-            <ul className="flex h-full gap-4">
+          // En celular la tira se desplaza a lo ancho; desde tableta y laptop
+          // las tres tarjetas reparten el ancho en rejilla para que ninguna
+          // quede partida a la mitad en pantallas medianas.
+          <div className="min-w-0 flex-1 max-sm:overflow-x-auto max-sm:p-6 max-sm:pt-0 sin-barra">
+            <ul className="flex h-full gap-4 sm:grid sm:grid-cols-3 sm:gap-3 2xl:gap-4">
               {CATEGORIAS.map(({ indicacion, render }) => {
                 const { nombre, descripcion } = INDICACIONES[indicacion];
                 return (
-                  <li key={indicacion} className="h-full w-72 shrink-0">
+                  <li
+                    key={indicacion}
+                    className="h-full w-64 shrink-0 sm:w-auto sm:min-w-0 sm:shrink"
+                  >
                     <Link
                       href={`/casos/nuevo?indicacion=${indicacion}`}
                       className={cn(
-                        "flex h-full flex-col gap-2 overflow-hidden rounded-contenedor bg-categoria p-6",
+                        "flex h-full flex-col gap-1.5 overflow-hidden rounded-contenedor bg-categoria p-4 2xl:gap-2 2xl:p-6",
                         "transition-opacity duration-150 hover:opacity-90",
                       )}
                     >
-                      <span className="text-subtitulo font-semibold text-white">
+                      <span className="text-realce font-semibold leading-snug text-white 2xl:text-subtitulo">
                         {nombre}
                       </span>
-                      <span className="text-menor text-white/80">
+                      <span className="text-menor leading-snug text-white/80">
                         {descripcion}
                       </span>
 
-                      {/* Un hueco cuadrado, y dentro el render agrandado a la
-                          medida para que todos se vean del mismo tamaño aunque
-                          cada archivo traiga distinto aire alrededor. */}
-                      <span className="mt-auto flex min-h-0 flex-1 items-end justify-center pt-4">
-                        {/* Cuadrado de verdad, medido por el ancho de la
-                            tarjeta. Si se dejara mandar por el alto, en una
-                            pantalla alta el hueco se estira, `object-contain`
-                            deja de encuadrar por el mismo lado y la cuenta que
-                            iguala los renders se descuadra: el implante volvía
-                            a verse más grande que la corona. */}
-                        <span className="relative aspect-square w-full max-h-full">
+                      {/* Un hueco cuadrado real en ambos ejes (containerType: size),
+                          para que todos los renders guarden la misma proporción
+                          tanto en laptops bajas como en monitores grandes. */}
+                      <span
+                        style={{ containerType: "size" }}
+                        className="mt-auto flex min-h-28 flex-1 items-end justify-center pt-2 2xl:min-h-36 2xl:pt-4"
+                      >
+                        <span className="relative size-[min(100cqw,100cqh)]">
                           {renders[render.ruta] ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img

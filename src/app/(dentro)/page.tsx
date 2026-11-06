@@ -97,7 +97,7 @@ export default async function PaginaDeInicio() {
   return (
     <div className="flex flex-col gap-4">
       {/* Lo que cabe en una pantalla: la bienvenida y el recuadro. */}
-      <div className="flex flex-col gap-4 lg:h-[calc(100dvh-6rem)]">
+      <div className="flex flex-col gap-4 xl:h-[calc(100dvh-6rem)] xl:min-h-[38rem]">
         <PanelDeBienvenida
           nombreDePila={nombreDePila}
           cuantosLeTocan={leTocan.length}
@@ -105,7 +105,7 @@ export default async function PaginaDeInicio() {
           renders={renders}
         />
 
-        <div className="grid grid-cols-1 gap-3 border-t border-borde pt-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[19rem_minmax(0,1fr)_23.75rem]">
+        <div className="grid grid-cols-1 gap-3 border-t border-borde pt-4 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(15.5rem,19rem)_minmax(0,1fr)_minmax(18rem,23.75rem)]">
           <TarjetaDeEscaner escaner={escaner} />
 
           {/* Lo último que pasó con cada diseño. */}
@@ -126,7 +126,7 @@ export default async function PaginaDeInicio() {
               demás pantallas. Lo que no cabe se desplaza dentro de la columna. */}
           <aside
             aria-labelledby="en-curso"
-            className="flex min-w-0 flex-col gap-3 overflow-y-auto sin-barra"
+            className="flex min-w-0 flex-col gap-3 overflow-y-auto sin-barra lg:col-span-2 xl:col-span-1"
           >
             <h2 id="en-curso" className="sr-only">
               Sus casos en curso
