@@ -9,7 +9,7 @@ const BASE = "http://localhost:3000";
 const bd = new Client({ connectionString: process.env.MILEO_BD_URL_ADMIN });
 await bd.connect();
 
-const { token, usuarioId } = await sesionPara(bd, "juan.valverde@prodental.mx");
+const { galletas, usuarioId } = await sesionPara(bd, "juan.valverde@prodental.mx");
 
 // El interruptor del catalogo se guarda en el perfil, asi que la prueba lo
 // deja como estaba antes de empezar: si no, la segunda corrida arrancaria con
@@ -37,9 +37,14 @@ const caso = (
 
 const navegador = await chromium.launch();
 const contexto = await navegador.newContext({ viewport: { width: 1500, height: 1000 } });
-await contexto.addCookies([
-  { name: "mileo_sesion", value: token, domain: "localhost", path: "/" },
-]);
+await contexto.addCookies(
+  galletas.map((g) => ({
+    name: g.name,
+    value: g.value,
+    domain: "localhost",
+    path: "/",
+  })),
+);
 const pagina = await contexto.newPage();
 pagina.on("console", (m) => {
   if (m.type() === "error") console.log("CONSOLA:", m.text().slice(0, 250));

@@ -6,23 +6,17 @@ import type { Rol } from "@/generated/prisma/enums";
 /**
  * Quién puede hacer qué (SKILL.md O-1).
  *
- * Los permisos existen desde el inicio aunque el laboratorio hoy sean cuatro
- * personas que rotan de rol. Todas las reglas viven aquí para que ninguna
- * pantalla invente la suya.
+ * Tres roles en toda la plataforma:
+ *   - ADMIN: administración general, invitaciones y autorizaciones.
+ *   - LABORATORIO: quienes fabrican las piezas (admisión, diseño, taller y calidad).
+ *   - CLINICA: dentistas y clínicas que escanean, piden piezas y aprueban diseños.
  */
 
 export const VERSION_AVISO_PRIVACIDAD = "2026-01";
 
-export const ROLES_DEL_LABORATORIO: Rol[] = [
-  "ADMISION",
-  "DISENO",
-  "MANUFACTURA",
-  "ACABADO",
-  "CALIDAD",
-  "DIRECCION",
-];
+export const ROLES_DEL_LABORATORIO: Rol[] = ["ADMIN", "LABORATORIO"];
 
-export const ROLES_DE_LA_CLINICA: Rol[] = ["DOCTOR", "ASISTENTE"];
+export const ROLES_DE_LA_CLINICA: Rol[] = ["CLINICA"];
 
 export function esDelLaboratorio(usuario: UsuarioEnSesion) {
   return ROLES_DEL_LABORATORIO.includes(usuario.rol);
@@ -32,27 +26,27 @@ export function esDeLaClinica(usuario: UsuarioEnSesion) {
   return ROLES_DE_LA_CLINICA.includes(usuario.rol);
 }
 
-/** Sólo el doctor aprueba diseños. La asistente sube y consulta (O-1). */
+/** La clínica aprueba los diseños de sus casos (O-1). */
 export function puedeAprobarDisenos(usuario: UsuarioEnSesion) {
-  return usuario.rol === "DOCTOR";
+  return usuario.rol === "CLINICA";
 }
 
-/** La asistente no ve facturación (O-1). */
+/** Clínica y administración ven facturación (O-1). */
 export function puedeVerFacturacion(usuario: UsuarioEnSesion) {
-  return usuario.rol === "DOCTOR" || usuario.rol === "DIRECCION";
+  return usuario.rol === "CLINICA" || usuario.rol === "ADMIN";
 }
 
-/** El doctor puede invitar asistentes a su propia clínica (O-1). */
+/** Administración invita a cualquier rol; una clínica puede invitar a colegas de su clínica. */
 export function puedeInvitar(usuario: UsuarioEnSesion) {
-  return usuario.rol === "DOCTOR" || usuario.rol === "DIRECCION";
+  return usuario.rol === "ADMIN" || usuario.rol === "CLINICA";
 }
 
 /** A qué roles puede invitar cada quien. No existe registro abierto. */
 export function rolesQuePuedeInvitar(usuario: UsuarioEnSesion): Rol[] {
-  if (usuario.rol === "DIRECCION") {
-    return [...ROLES_DEL_LABORATORIO, "DOCTOR"];
+  if (usuario.rol === "ADMIN") {
+    return ["ADMIN", "LABORATORIO", "CLINICA"];
   }
-  if (usuario.rol === "DOCTOR") return ["ASISTENTE"];
+  if (usuario.rol === "CLINICA") return ["CLINICA"];
   return [];
 }
 
@@ -89,12 +83,10 @@ export async function exigirLaboratorio(): Promise<UsuarioEnSesion> {
 
 /**
  * El filtro con el que un usuario puede ver casos.
- * Un doctor no ve casos de otro (criterio de aceptación de O-1); el laboratorio
- * los ve todos.
+ * Una clínica nunca ve casos de otra; el laboratorio y administración los ven todos.
  */
 export function filtroDeCasos(usuario: UsuarioEnSesion) {
   if (esDelLaboratorio(usuario)) return {};
-  if (usuario.rol === "DOCTOR") return { doctorId: usuario.id };
-  // La asistente ve los casos de su clínica, no los de otra.
-  return { clinicaId: usuario.clinicaId ?? "sin-clinica" };
+  if (usuario.clinicaId) return { clinicaId: usuario.clinicaId };
+  return { doctorId: usuario.id };
 }

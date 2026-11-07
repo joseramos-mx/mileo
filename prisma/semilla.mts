@@ -3,9 +3,10 @@
  *
  * Idempotente: se puede correr las veces que haga falta. En produccion crea
  * unicamente al equipo del laboratorio; el caso de demostracion solo aparece en
- * desarrollo.
+ * desarrollo. Si las llaves de Supabase Auth estan configuradas, tambien da de
+ * alta o sincroniza las cuentas en `auth.users` y enlaza `supabaseId`.
  */
-import bcrypt from "bcryptjs";
+import { createClient } from "@supabase/supabase-js";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { registrarEvento } from "../src/lib/bitacora.js";
@@ -20,48 +21,110 @@ const prisma = new PrismaClient({
 const CONTRASENA_DEMO = "mileo1234";
 const VERSION_AVISO_PRIVACIDAD = "2026-01";
 
-async function main() {
-  const hash = await bcrypt.hash(CONTRASENA_DEMO, 10);
+function crearAdminSupabaseOpcional() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const claveServicio = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
+  )?.trim();
 
-  // --- El laboratorio: 4 personas que rotan de rol (SKILL.md §1) ------------
+  if (!url || !claveServicio) return null;
+
+  return createClient(url, claveServicio, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+async function main() {
+  const supabaseAdmin = crearAdminSupabaseOpcional();
+  const mapaAuthPorCorreo = new Map<string, string>();
+
+  if (supabaseAdmin) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      perPage: 1000,
+    });
+    if (error) {
+      throw new Error(`No pude consultar Supabase Auth: ${error.message}`);
+    }
+    for (const u of data.users) {
+      if (u.email) mapaAuthPorCorreo.set(u.email.toLowerCase(), u.id);
+    }
+  } else {
+    console.warn(
+      "Aviso: faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en su .env. " +
+        "Se sembraran los perfiles en PostgreSQL, pero corra de nuevo `npm run bd:semilla` " +
+        "cuando agregue las llaves para crear las cuentas en Supabase Auth.",
+    );
+  }
+
+  async function asegurarEnSupabaseAuth(
+    correo: string,
+    nombreCompleto: string,
+  ): Promise<string | undefined> {
+    if (!supabaseAdmin) return undefined;
+    const existente = mapaAuthPorCorreo.get(correo.toLowerCase());
+    if (existente) return existente;
+
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email: correo,
+      password: CONTRASENA_DEMO,
+      email_confirm: true,
+      user_metadata: { nombreCompleto },
+    });
+    if (error || !data.user) {
+      throw new Error(
+        `No pude crear ${correo} en Supabase Auth: ${error?.message ?? "sin respuesta"}`,
+      );
+    }
+    mapaAuthPorCorreo.set(correo.toLowerCase(), data.user.id);
+    return data.user.id;
+  }
+
+  // --- Administración y laboratorio -----------------------------------------
   const equipo = [
     {
       correo: "direccion@rmszahn.mx",
       nombreCompleto: "Rosa Maria Salas",
-      rol: "DIRECCION" as const,
+      rol: "ADMIN" as const,
     },
     {
       correo: "admision@rmszahn.mx",
       nombreCompleto: "Luis Trevino",
-      rol: "ADMISION" as const,
+      rol: "LABORATORIO" as const,
     },
     {
       correo: "diseno@rmszahn.mx",
       nombreCompleto: "Karla Nunez",
-      rol: "DISENO" as const,
+      rol: "LABORATORIO" as const,
     },
     {
       correo: "calidad@rmszahn.mx",
       nombreCompleto: "Hector Rios",
-      rol: "CALIDAD" as const,
+      rol: "LABORATORIO" as const,
     },
   ];
 
   const equipoCreado = [];
   for (const persona of equipo) {
+    const supabaseId = await asegurarEnSupabaseAuth(
+      persona.correo,
+      persona.nombreCompleto,
+    );
     const usuario = await prisma.usuario.upsert({
       where: { correo: persona.correo },
-      update: {},
+      update: {
+        rol: persona.rol,
+        ...(supabaseId ? { supabaseId } : {}),
+      },
       create: {
         ...persona,
-        hashContrasena: hash,
+        ...(supabaseId ? { supabaseId } : {}),
         avisoPrivacidadVersion: VERSION_AVISO_PRIVACIDAD,
         avisoPrivacidadAceptadoEn: new Date(),
       },
     });
     equipoCreado.push(usuario);
   }
-  const direccion = equipoCreado[0];
+  const adminPrincipal = equipoCreado[0];
   console.log(`Equipo del laboratorio listo (${equipoCreado.length} personas).`);
 
   if (ambiente === "produccion") {
@@ -69,7 +132,7 @@ async function main() {
     return;
   }
 
-  // --- Una clinica con su doctor y su asistente ----------------------------
+  // --- Una clinica con sus cuentas de rol CLINICA ---------------------------
   const clinica = await prisma.clinica.upsert({
     where: { id: "clinica-prodental" },
     update: {},
@@ -97,30 +160,44 @@ async function main() {
     },
   });
 
+  const supabaseIdDoctor = await asegurarEnSupabaseAuth(
+    "juan.valverde@prodental.mx",
+    "Juan Valverde",
+  );
   const doctor = await prisma.usuario.upsert({
     where: { correo: "juan.valverde@prodental.mx" },
-    update: {},
+    update: {
+      rol: "CLINICA",
+      ...(supabaseIdDoctor ? { supabaseId: supabaseIdDoctor } : {}),
+    },
     create: {
       correo: "juan.valverde@prodental.mx",
       nombreCompleto: "Juan Valverde",
       telefono: "+526181234567",
-      rol: "DOCTOR",
-      hashContrasena: hash,
+      rol: "CLINICA",
+      ...(supabaseIdDoctor ? { supabaseId: supabaseIdDoctor } : {}),
       clinicaId: clinica.id,
-      invitadoPorId: direccion.id,
+      invitadoPorId: adminPrincipal.id,
       avisoPrivacidadVersion: VERSION_AVISO_PRIVACIDAD,
       avisoPrivacidadAceptadoEn: new Date(),
     },
   });
 
+  const supabaseIdRecepcion = await asegurarEnSupabaseAuth(
+    "recepcion@prodental.mx",
+    "Ana Beltran",
+  );
   await prisma.usuario.upsert({
     where: { correo: "recepcion@prodental.mx" },
-    update: {},
+    update: {
+      rol: "CLINICA",
+      ...(supabaseIdRecepcion ? { supabaseId: supabaseIdRecepcion } : {}),
+    },
     create: {
       correo: "recepcion@prodental.mx",
       nombreCompleto: "Ana Beltran",
-      rol: "ASISTENTE",
-      hashContrasena: hash,
+      rol: "CLINICA",
+      ...(supabaseIdRecepcion ? { supabaseId: supabaseIdRecepcion } : {}),
       clinicaId: clinica.id,
       invitadoPorId: doctor.id,
       avisoPrivacidadVersion: VERSION_AVISO_PRIVACIDAD,

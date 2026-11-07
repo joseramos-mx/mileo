@@ -15,14 +15,9 @@ datasource db {
 // ---------------------------------------------------------------- personas
 
 enum Rol {
-  DOCTOR
-  ASISTENTE
-  ADMISION
-  DISENO
-  MANUFACTURA
-  ACABADO
-  CALIDAD
-  DIRECCION
+  ADMIN
+  LABORATORIO
+  CLINICA
 }
 
 model Clinica {
@@ -44,10 +39,10 @@ model Clinica {
 
 model Usuario {
   id             String  @id @default(cuid())
+  supabaseId     String? @unique @db.Uuid
   correo         String  @unique
   nombreCompleto String
   telefono       String?
-  hashContrasena String?
   rol            Rol
   activo         Boolean @default(true)
   /// Si ve el catalogo entero de trabajos en vez de la lista corta.
@@ -74,7 +69,6 @@ model Usuario {
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
-  sesiones           Sesion[]
   invitacionesHechas Invitacion[]
   casosComoDoctor    Caso[]           @relation("DoctorDelCaso")
   casosCreados       Caso[]           @relation("CreadorDelCaso")
@@ -106,17 +100,6 @@ model Invitacion {
   creadoEn    DateTime  @default(now())
 
   @@index([correo])
-}
-
-model Sesion {
-  id        String   @id @default(cuid())
-  usuarioId String
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
-  expiraEn  DateTime
-  creadoEn  DateTime @default(now())
-
-  @@index([usuarioId])
 }
 
 // ---------------------------------------------------------------- clinico

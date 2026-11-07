@@ -324,24 +324,12 @@ export const COLORES_DE_ENCIA = [
 // -------------------------------------------------------------------- otros
 
 export const ROLES: Record<Rol, string> = {
-  DOCTOR: "Doctor",
-  ASISTENTE: "Asistente de la clínica",
-  ADMISION: "Admisión",
-  DISENO: "Diseño",
-  MANUFACTURA: "Manufactura",
-  ACABADO: "Acabado",
-  CALIDAD: "Control de calidad",
-  DIRECCION: "Dirección",
+  ADMIN: "Admin",
+  LABORATORIO: "Laboratorio",
+  CLINICA: "Clínica",
 };
 
-export const ROLES_DEL_LABORATORIO: Rol[] = [
-  "ADMISION",
-  "DISENO",
-  "MANUFACTURA",
-  "ACABADO",
-  "CALIDAD",
-  "DIRECCION",
-];
+export const ROLES_DEL_LABORATORIO: Rol[] = ["ADMIN", "LABORATORIO"];
 
 export const PRIORIDADES: Record<Prioridad, string> = {
   NORMAL: "Normal",

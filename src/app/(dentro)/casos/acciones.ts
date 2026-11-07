@@ -98,23 +98,7 @@ export async function crearBorrador(
     if (yaEsta) folioPaciente = await siguienteFolioDePaciente(usuario.clinicaId);
   }
 
-  // El doctor del caso es quien lo crea si es doctor; si es la asistente, el
-  // doctor de su clínica.
-  const doctorId =
-    usuario.rol === "DOCTOR"
-      ? usuario.id
-      : (
-          await prisma.usuario.findFirst({
-            where: { clinicaId: usuario.clinicaId, rol: "DOCTOR" },
-            select: { id: true },
-          })
-        )?.id;
-
-  if (!doctorId) {
-    return {
-      error: "No encuentro al doctor de su clínica. Escríbanos y lo resolvemos.",
-    };
-  }
+  const doctorId = usuario.id;
 
   const paciente = await prisma.paciente.upsert({
     where: {

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { exigirUsuario } from "@/lib/autorizacion";
+import { exigirRol } from "@/lib/autorizacion";
 import { EstadoVacio } from "@/componentes/EstadoVacio";
 
 export const metadata: Metadata = { title: "Facturación · Mileo" };
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Facturación · Mileo" };
  * dice la verdad en vez de fingir datos.
  */
 export default async function PaginaFacturacion() {
-  await exigirUsuario();
+  await exigirRol(["CLINICA", "ADMIN"]);
 
   return (
     <EstadoVacio

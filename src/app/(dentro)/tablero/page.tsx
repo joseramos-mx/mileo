@@ -59,7 +59,7 @@ export default async function PaginaDelTablero({
       orderBy: [{ prioridad: "desc" }, { fechaEntregaComprometida: "asc" }],
     }),
     prisma.usuario.findMany({
-      where: { rol: "DOCTOR", activo: true },
+      where: { rol: "CLINICA", activo: true },
       select: { id: true, nombreCompleto: true },
       orderBy: { nombreCompleto: "asc" },
     }),

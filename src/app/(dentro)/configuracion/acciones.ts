@@ -34,7 +34,9 @@ export async function guardarAvisos(
 
 const esquemaInvitacion = z.object({
   correo: z.string().trim().toLowerCase().email("Escriba un correo válido."),
-  rol: z.string(),
+  rol: z.enum(["ADMIN", "LABORATORIO", "CLINICA"]),
+  clinicaId: z.string().trim().optional(),
+  nombreClinica: z.string().trim().max(120).optional(),
 });
 
 /**
@@ -53,12 +55,14 @@ export async function invitar(
   const leido = esquemaInvitacion.safeParse({
     correo: datos.get("correo"),
     rol: datos.get("rol"),
+    clinicaId: datos.get("clinicaId") || undefined,
+    nombreClinica: datos.get("nombreClinica") || undefined,
   });
   if (!leido.success) {
     return { error: leido.error.issues[0].message };
   }
 
-  const rol = leido.data.rol as Rol;
+  const rol: Rol = leido.data.rol;
   if (!rolesQuePuedeInvitar(usuario).includes(rol)) {
     return { error: "No puede invitar a alguien con ese rol." };
   }
@@ -70,12 +74,31 @@ export async function invitar(
     return { error: "Ese correo ya tiene cuenta en Mileo." };
   }
 
+  let clinicaId: string | null = null;
+  if (rol === "CLINICA") {
+    if (usuario.rol === "CLINICA") {
+      clinicaId = usuario.clinicaId;
+    } else if (leido.data.clinicaId && leido.data.clinicaId !== "__nueva__") {
+      clinicaId = leido.data.clinicaId;
+    } else {
+      const nombre = leido.data.nombreClinica?.trim();
+      if (!nombre || nombre.length < 2) {
+        return {
+          error: "Escriba el nombre de la clínica o consultorio a invitar.",
+        };
+      }
+      const nuevaClinica = await prisma.clinica.create({
+        data: { nombre },
+      });
+      clinicaId = nuevaClinica.id;
+    }
+  }
+
   const invitacion = await prisma.invitacion.create({
     data: {
       correo: leido.data.correo,
       rol,
-      // El doctor invita a su propia clínica; dirección invita al laboratorio.
-      clinicaId: usuario.rol === "DOCTOR" ? usuario.clinicaId : null,
+      clinicaId,
       token: crypto.randomBytes(24).toString("base64url"),
       expiraEn: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       creadaPorId: usuario.id,

@@ -225,10 +225,10 @@ export function FormularioDeCalidad({
       {pideAutorizacion ? (
         <fieldset className="flex flex-col gap-4 rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4">
           <legend className="mb-2 text-menor font-medium text-pendiente-texto">
-            Autorización de dirección
+            Autorización de administración
           </legend>
           <Campo
-            etiqueta="Correo de dirección"
+            etiqueta="Correo de administrador"
             name="autorizaCorreo"
             type="email"
             inputMode="email"

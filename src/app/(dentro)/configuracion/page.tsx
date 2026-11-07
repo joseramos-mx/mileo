@@ -16,8 +16,9 @@ export const metadata: Metadata = { title: "Configuración · Mileo" };
 
 export default async function PaginaDeConfiguracion() {
   const usuario = await exigirUsuario();
+  const esAdmin = usuario.rol === "ADMIN";
 
-  const [completo, invitaciones] = await Promise.all([
+  const [completo, invitaciones, clinicas] = await Promise.all([
     prisma.usuario.findUniqueOrThrow({
       where: { id: usuario.id },
       select: {
@@ -32,6 +33,12 @@ export default async function PaginaDeConfiguracion() {
           where: { creadaPorId: usuario.id },
           orderBy: { creadoEn: "desc" },
           take: 20,
+        })
+      : Promise.resolve([]),
+    esAdmin
+      ? prisma.clinica.findMany({
+          select: { id: true, nombre: true },
+          orderBy: { nombre: "asc" },
         })
       : Promise.resolve([]),
   ]);
@@ -81,7 +88,9 @@ export default async function PaginaDeConfiguracion() {
 
       {puedeInvitar(usuario) ? (
         <Invitaciones
+          esAdmin={esAdmin}
           roles={rolesQuePuedeInvitar(usuario)}
+          clinicas={clinicas}
           invitaciones={invitaciones.map((i) => ({
             id: i.id,
             correo: i.correo,

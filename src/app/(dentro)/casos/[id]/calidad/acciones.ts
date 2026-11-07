@@ -99,20 +99,20 @@ export async function cerrarControlDeCalidad(
         necesitaAutorizacion: true,
         error:
           "Usted diseñó este caso, así que no puede cerrar también su control " +
-          "de calidad. Que lo revise alguien más, o que dirección lo autorice " +
+          "de calidad. Que lo revise alguien más, o que un administrador lo autorice " +
           "aquí mismo.",
       };
     }
 
-    const direccion = await prisma.usuario.findUnique({
+    const admin = await prisma.usuario.findUnique({
       where: { correo: leido.data.autorizaCorreo },
       select: { id: true, rol: true, activo: true },
     });
 
-    if (!direccion?.activo || direccion.rol !== "DIRECCION") {
+    if (!admin?.activo || admin.rol !== "ADMIN") {
       return {
         necesitaAutorizacion: true,
-        error: "Ese correo no es de dirección.",
+        error: "Ese correo no corresponde a una cuenta de administrador.",
       };
     }
     if (leido.data.motivo.length < 10) {
@@ -122,7 +122,7 @@ export async function cerrarControlDeCalidad(
       };
     }
 
-    autorizadoPorId = direccion.id;
+    autorizadoPorId = admin.id;
   }
 
   // --- Cerrar ---------------------------------------------------------------

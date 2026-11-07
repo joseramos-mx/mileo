@@ -8,7 +8,6 @@ export const TABLAS = [
   "Clinica",
   "Usuario",
   "Invitacion",
-  "Sesion",
   "Paciente",
   "Caso",
   "Unidad",

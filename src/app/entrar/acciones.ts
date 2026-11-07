@@ -1,10 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { abrirSesion } from "@/lib/sesion";
+import { crearClienteSupabaseServidor } from "@/lib/supabase/servidor";
 import { registrarEvento } from "@/lib/bitacora";
 
 /** Validación en el borde: nada entra al sistema sin pasar por un esquema. */
@@ -31,24 +30,36 @@ export async function entrar(
 
   if (!leido.success) return { error: noCoincide };
 
-  const usuario = await prisma.usuario.findUnique({
-    where: { correo: leido.data.correo },
+  const supabase = await crearClienteSupabaseServidor();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: leido.data.correo,
+    password: leido.data.contrasena,
   });
 
-  if (!usuario?.hashContrasena || !usuario.activo) {
-    // Se gasta el mismo tiempo que en un intento válido para no delatar
-    // por la demora si el correo existe.
-    await bcrypt.compare(leido.data.contrasena, "$2b$10$" + "x".repeat(53));
+  if (error || !data.user) {
     return { error: noCoincide };
   }
 
-  const coincide = await bcrypt.compare(
-    leido.data.contrasena,
-    usuario.hashContrasena,
-  );
-  if (!coincide) return { error: noCoincide };
+  let usuario = await prisma.usuario.findUnique({
+    where: { supabaseId: data.user.id },
+  });
 
-  await abrirSesion(usuario.id);
+  if (!usuario) {
+    const porCorreo = await prisma.usuario.findUnique({
+      where: { correo: leido.data.correo },
+    });
+    if (porCorreo && !porCorreo.supabaseId) {
+      usuario = await prisma.usuario.update({
+        where: { id: porCorreo.id },
+        data: { supabaseId: data.user.id },
+      });
+    }
+  }
+
+  if (!usuario || !usuario.activo) {
+    await supabase.auth.signOut();
+    return { error: noCoincide };
+  }
 
   await registrarEvento(prisma, {
     tipo: "USUARIO_INGRESO",

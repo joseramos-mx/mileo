@@ -70,7 +70,7 @@ export default async function PaginaDeCalidad({
           className="rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4 text-cuerpo text-pendiente-texto"
         >
           Usted diseñó este caso. Quien diseña no cierra su propio control de
-          calidad: pídale a alguien más que lo revise, o que dirección lo
+          calidad: pídale a alguien más que lo revise, o que un administrador lo
           autorice abajo. La autorización queda en la bitácora.
         </p>
       ) : null}

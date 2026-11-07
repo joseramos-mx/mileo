@@ -28,7 +28,12 @@ import { chromium, type Page } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { cargarAmbiente } from "../scripts/ambiente.mjs";
-import { sesionPara, stlDePrueba, pngDePrueba } from "./ayudas.mjs";
+import {
+  sesionPara,
+  stlDePrueba,
+  pngDePrueba,
+  type GalletaDeSesion,
+} from "./ayudas.mjs";
 
 cargarAmbiente();
 
@@ -122,7 +127,7 @@ async function capturar(pagina: Page, nombre: string) {
 
 async function contextoDe(
   navegador: Awaited<ReturnType<typeof chromium.launch>>,
-  token: string,
+  galletas: GalletaDeSesion[],
   tamano: { width: number; height: number },
 ) {
   const contexto = await navegador.newContext({
@@ -133,15 +138,14 @@ async function contextoDe(
     isMobile: tamano.width < 500,
     deviceScaleFactor: tamano.width < 500 ? 3 : 1,
   });
-  await contexto.addCookies([
-    {
-      name: "mileo_sesion",
-      value: token,
+  await contexto.addCookies(
+    galletas.map((g) => ({
+      name: g.name,
+      value: g.value,
       url: BASE,
-      httpOnly: true,
-      sameSite: "Lax",
-    },
-  ]);
+      sameSite: "Lax" as const,
+    })),
+  );
   return contexto;
 }
 
@@ -239,7 +243,7 @@ async function main() {
 
     // ------------------------------------------- 1. alta de caso, en celular
     paso("1. La asistente da de alta el caso desde el celular");
-    const deLaClinica = await contextoDe(navegador, asistente.token, CELULAR);
+    const deLaClinica = await contextoDe(navegador, asistente.galletas, CELULAR);
     const clinica = await deLaClinica.newPage();
 
     await clinica.goto(`${BASE}/`);
@@ -421,7 +425,7 @@ async function main() {
     paso("5. El laboratorio acepta y diseña");
     const delLaboratorio = await contextoDe(
       navegador,
-      laboratorio.token,
+      laboratorio.galletas,
       ESCRITORIO,
     );
     const taller = await delLaboratorio.newPage();
@@ -484,7 +488,7 @@ async function main() {
       {
         method: "POST",
         headers: {
-          cookie: `mileo_sesion=${asistente.token}`,
+          cookie: asistente.encabezadoCookie,
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -541,7 +545,7 @@ async function main() {
 
     // --------------------------------------------- 7. el doctor, en celular
     paso("7. El doctor abre el visor 3D en su celular y aprueba");
-    const delDoctor = await contextoDe(navegador, doctor.token, CELULAR);
+    const delDoctor = await contextoDe(navegador, doctor.galletas, CELULAR);
     const celular = await delDoctor.newPage();
 
     await celular.goto(`${BASE}/`);
@@ -616,7 +620,7 @@ async function main() {
 
     // Con el visor caído no se puede aprobar a ciegas. Se simula cortándole la
     // malla: es lo que pasa con una red mala o un celular sin WebGL.
-    const aCiegas = await contextoDe(navegador, doctor.token, CELULAR);
+    const aCiegas = await contextoDe(navegador, doctor.galletas, CELULAR);
     const pantallaCiega = await aCiegas.newPage();
     await pantallaCiega.route("**/api/archivos/*/contenido", (ruta) =>
       ruta.abort(),
@@ -709,7 +713,7 @@ async function main() {
 
     // --------------------------------------- 8. control de calidad y envio
     paso("8. Control de calidad y envio");
-    const deCalidad = await contextoDe(navegador, laboratorio.token, CELULAR);
+    const deCalidad = await contextoDe(navegador, laboratorio.galletas, CELULAR);
     const revision = await deCalidad.newPage();
 
     await bd.query(
@@ -787,7 +791,7 @@ async function main() {
     );
 
     await revision
-      .getByLabel(/Correo de direccion|Correo de dirección/)
+      .getByLabel(/Correo de administrador/i)
       .fill("direccion@rmszahn.mx");
     await revision
       .getByLabel(/Por que se autoriza|Por qué se autoriza/)
@@ -847,7 +851,7 @@ async function main() {
         const [r, g, b] = (color.match(/\d+/g) ?? ["0", "0", "0"]).map(Number);
         return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
       });
-    const delDoctorOtraVez = await contextoDe(navegador, doctor.token, CELULAR);
+    const delDoctorOtraVez = await contextoDe(navegador, doctor.galletas, CELULAR);
     const celular2 = await delDoctorOtraVez.newPage();
 
     // Oscuro por omisión, como el diseño entregado.

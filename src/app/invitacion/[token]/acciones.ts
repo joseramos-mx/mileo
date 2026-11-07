@@ -1,10 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { abrirSesion } from "@/lib/sesion";
+import {
+  crearClienteSupabaseAdmin,
+  crearClienteSupabaseServidor,
+} from "@/lib/supabase/servidor";
 import { registrarEvento } from "@/lib/bitacora";
 import { ROLES } from "@/lib/vocabulario";
 
@@ -41,8 +43,9 @@ const esquema = z
  * Nace una cuenta (SKILL.md O-1).
  *
  * Es la única puerta: sin una invitación vigente no se puede crear una cuenta
- * en Mileo. El vale se marca como usado dentro de la misma transacción, así que
- * no sirve dos veces.
+ * en Mileo. Primero se da de alta en Supabase Auth desde el servidor y en
+ * seguida se registra en Usuario marcando el vale como usado dentro de la
+ * misma transacción.
  */
 export async function aceptarInvitacion(
   _anterior: ResultadoDeInvitacion,
@@ -84,36 +87,61 @@ export async function aceptarInvitacion(
     };
   }
 
-  const usuario = await prisma.$transaction(async (bd) => {
-    const creado = await bd.usuario.create({
-      data: {
-        correo: invitacion.correo,
+  const supabaseAdmin = crearClienteSupabaseAdmin();
+  const { data: altaAuth, error: errorAuth } =
+    await supabaseAdmin.auth.admin.createUser({
+      email: invitacion.correo,
+      password: leido.data.contrasena,
+      email_confirm: true,
+      user_metadata: {
         nombreCompleto: leido.data.nombreCompleto,
-        telefono: leido.data.telefono ?? null,
-        rol: invitacion.rol,
-        clinicaId: invitacion.clinicaId,
-        hashContrasena: await bcrypt.hash(leido.data.contrasena, 10),
-        invitadoPorId: invitacion.creadaPorId,
       },
     });
 
-    // El mismo vale no sirve dos veces: se marca usado aquí dentro.
-    await bd.invitacion.update({
-      where: { id: invitacion.id, aceptadaEn: null },
-      data: { aceptadaEn: new Date() },
-    });
+  if (errorAuth || !altaAuth.user) {
+    return {
+      error:
+        "No pude activar su cuenta con ese correo. Si ya tenía acceso antes, entre con su contraseña.",
+    };
+  }
 
-    await registrarEvento(bd, {
-      tipo: "USUARIO_INVITADO",
-      resumen: `${creado.nombreCompleto} aceptó su invitación y entró como ${ROLES[creado.rol].toLowerCase()}.`,
-      usuarioId: creado.id,
-      datos: { correo: creado.correo, rol: creado.rol },
-    });
+  try {
+    await prisma.$transaction(async (bd) => {
+      const creado = await bd.usuario.create({
+        data: {
+          supabaseId: altaAuth.user.id,
+          correo: invitacion.correo,
+          nombreCompleto: leido.data.nombreCompleto,
+          telefono: leido.data.telefono ?? null,
+          rol: invitacion.rol,
+          clinicaId: invitacion.clinicaId,
+          invitadoPorId: invitacion.creadaPorId,
+        },
+      });
 
-    return creado;
+      // El mismo vale no sirve dos veces: se marca usado aquí dentro.
+      await bd.invitacion.update({
+        where: { id: invitacion.id, aceptadaEn: null },
+        data: { aceptadaEn: new Date() },
+      });
+
+      await registrarEvento(bd, {
+        tipo: "USUARIO_INVITADO",
+        resumen: `${creado.nombreCompleto} aceptó su invitación y entró como ${ROLES[creado.rol].toLowerCase()}.`,
+        usuarioId: creado.id,
+        datos: { correo: creado.correo, rol: creado.rol },
+      });
+    });
+  } catch (error) {
+    await supabaseAdmin.auth.admin.deleteUser(altaAuth.user.id);
+    throw error;
+  }
+
+  const supabase = await crearClienteSupabaseServidor();
+  await supabase.auth.signInWithPassword({
+    email: invitacion.correo,
+    password: leido.data.contrasena,
   });
-
-  await abrirSesion(usuario.id);
 
   // El aviso de privacidad se pide en el primer ingreso, no aquí: así queda
   // registrado con la cuenta ya creada, con su fecha y su versión.

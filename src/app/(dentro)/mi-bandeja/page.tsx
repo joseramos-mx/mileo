@@ -7,37 +7,30 @@ import { REJILLA_DE_CASOS } from "@/componentes/RejillaDeCasos";
 import { EstadoVacio } from "@/componentes/EstadoVacio";
 import { BotonEnlace } from "@/componentes/Boton";
 import { TerminarEtapa } from "./TerminarEtapa";
-import type { Etapa, Rol } from "@/generated/prisma/enums";
+import type { Etapa } from "@/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Mi bandeja · Mileo" };
 
-/** Qué etapa le toca a cada rol del laboratorio (SKILL.md O-5). */
-const ETAPA_DE_CADA_ROL: Partial<Record<Rol, Etapa[]>> = {
-  ADMISION: ["RECIBIDO", "EN_REVISION"],
-  DISENO: ["ACEPTADO", "EN_DISENO"],
-  MANUFACTURA: ["EN_FABRICACION"],
-  ACABADO: ["EN_FABRICACION"],
-  CALIDAD: ["EN_CONTROL_DE_CALIDAD"],
-  DIRECCION: [
-    "RECIBIDO",
-    "EN_REVISION",
-    "ACEPTADO",
-    "EN_DISENO",
-    "EN_FABRICACION",
-    "EN_CONTROL_DE_CALIDAD",
-    "LISTO_Y_EN_CAMINO",
-  ],
-};
+/** Etapas en curso dentro del laboratorio (SKILL.md O-5). */
+const ETAPAS_EN_BANDEJA: Etapa[] = [
+  "RECIBIDO",
+  "EN_REVISION",
+  "ACEPTADO",
+  "EN_DISENO",
+  "EN_FABRICACION",
+  "EN_CONTROL_DE_CALIDAD",
+  "LISTO_Y_EN_CAMINO",
+];
 
 /**
  * Mi bandeja (SKILL.md O-5).
  *
- * Lo del día de cada quien, ordenado por urgencia, con un solo botón para
+ * Lo del día del laboratorio, ordenado por urgencia, con un solo botón para
  * terminar la etapa. Nada más: quien está en el taller no viene a navegar.
  */
 export default async function PaginaDeMiBandeja() {
-  const usuario = await exigirLaboratorio();
-  const etapas = ETAPA_DE_CADA_ROL[usuario.rol] ?? [];
+  await exigirLaboratorio();
+  const etapas = ETAPAS_EN_BANDEJA;
 
   const casos = await prisma.caso.findMany({
     where: { esBorrador: false, etapa: { in: etapas } },

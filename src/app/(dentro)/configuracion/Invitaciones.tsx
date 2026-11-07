@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { Rol } from "@/generated/prisma/enums";
 import { Campo, CampoDeSeleccion } from "@/componentes/Campo";
 import { Boton } from "@/componentes/Boton";
@@ -11,15 +11,19 @@ import { invitar, type Resultado } from "./acciones";
 /**
  * Invitaciones (SKILL.md O-1).
  *
- * El doctor puede invitar a su asistente. La asistente sube y consulta, pero no
- * aprueba diseños ni ve facturación: eso se dice aquí para que nadie se lleve
- * una sorpresa.
+ * Administración puede invitar a Admin, Laboratorio o Clínica (eligiendo una
+ * clínica existente o dando de alta una nueva). Una clínica puede invitar a
+ * otros dentistas de su mismo consultorio.
  */
 export function Invitaciones({
+  esAdmin,
   roles,
+  clinicas,
   invitaciones,
 }: {
+  esAdmin: boolean;
   roles: Rol[];
+  clinicas: { id: string; nombre: string }[];
   invitaciones: {
     id: string;
     correo: string;
@@ -32,6 +36,14 @@ export function Invitaciones({
     invitar,
     {},
   );
+  const [rolElegido, setRolElegido] = useState<Rol>(roles[0]);
+  const [clinicaElegida, setClinicaElegida] = useState<string>(
+    clinicas[0]?.id ?? "__nueva__",
+  );
+
+  const pideClinica = esAdmin && rolElegido === "CLINICA";
+  const pideNombreNuevaClinica =
+    pideClinica && (clinicas.length === 0 || clinicaElegida === "__nueva__");
 
   return (
     <section className="flex flex-col gap-4 rounded-contenedor border border-borde bg-superficie p-5">
@@ -40,9 +52,9 @@ export function Invitaciones({
           Invitar a alguien
         </h2>
         <p className="mt-1 text-menor text-secundario">
-          En Mileo se entra sólo por invitación. Su asistente puede dar de alta
-          casos y subir archivos; la aprobación del diseño y la facturación se
-          quedan con usted.
+          {esAdmin
+            ? "En Mileo se entra sólo por invitación. Elija si la persona entra como Admin, Laboratorio o Clínica."
+            : "En Mileo se entra sólo por invitación. Puede invitar a otro dentista o colega de su clínica."}
         </p>
       </div>
 
@@ -53,16 +65,48 @@ export function Invitaciones({
           type="email"
           inputMode="email"
           requerido
-          placeholder="asistente@suclinica.mx"
+          placeholder="doctor@suclinica.mx"
         />
 
-        <CampoDeSeleccion etiqueta="Rol" name="rol" requerido defaultValue={roles[0]}>
+        <CampoDeSeleccion
+          etiqueta="Rol"
+          name="rol"
+          requerido
+          value={rolElegido}
+          onChange={(e) => setRolElegido(e.target.value as Rol)}
+        >
           {roles.map((rol) => (
             <option key={rol} value={rol}>
               {ROLES[rol]}
             </option>
           ))}
         </CampoDeSeleccion>
+
+        {pideClinica && clinicas.length > 0 ? (
+          <CampoDeSeleccion
+            etiqueta="Clínica"
+            name="clinicaId"
+            requerido
+            value={clinicaElegida}
+            onChange={(e) => setClinicaElegida(e.target.value)}
+          >
+            {clinicas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+            <option value="__nueva__">Nueva clínica…</option>
+          </CampoDeSeleccion>
+        ) : null}
+
+        {pideNombreNuevaClinica ? (
+          <Campo
+            etiqueta="Nombre de la clínica o consultorio"
+            name="nombreClinica"
+            requerido
+            placeholder="Clínica Dental del Valle"
+          />
+        ) : null}
 
         <p
           role="alert"

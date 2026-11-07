@@ -108,8 +108,8 @@ if (huerfanos.length === 0) {
 const delLaboratorio = (
   await bd.query(
     `SELECT id FROM "Usuario"
-      WHERE rol IN ('DISENO', 'MANUFACTURA', 'ACABADO', 'DIRECCION')
-      ORDER BY rol LIMIT 1`,
+      WHERE rol IN ('LABORATORIO', 'ADMIN')
+      ORDER BY rol DESC LIMIT 1`,
   )
 ).rows[0] as { id: string } | undefined;
 

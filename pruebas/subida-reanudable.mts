@@ -23,6 +23,7 @@
 import crypto from "node:crypto";
 import { Client } from "pg";
 import { cargarAmbiente } from "../scripts/ambiente.mjs";
+import { sesionPara } from "./ayudas.mjs";
 
 cargarAmbiente();
 
@@ -76,24 +77,13 @@ async function main() {
     throw new Error("Falta la semilla de desarrollo. Corra: npx prisma db seed");
   }
 
-  const token = crypto.randomBytes(32).toString("base64url");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
-  // Prisma guarda las fechas sin zona horaria y las lee como UTC: hay que
-  // insertarlas igual, o la sesión nace vencida.
-  await bd.query(
-    `INSERT INTO "Sesion" (id, "usuarioId", "tokenHash", "expiraEn", "creadoEn")
-     VALUES ($1, $2, $3,
-             (now() AT TIME ZONE 'UTC') + interval '1 hour',
-             now() AT TIME ZONE 'UTC')`,
-    [crypto.randomUUID(), asistente.id, tokenHash],
-  );
-  const conSesion = { cookie: `mileo_sesion=${token}` };
+  const { encabezadoCookie } = await sesionPara(bd, "recepcion@prodental.mx");
+  const conSesion = { cookie: encabezadoCookie };
 
   // -------------------------------------------------------------- 2. el caso
   const doctor = (
     await bd.query(
-      `SELECT id FROM "Usuario" WHERE "clinicaId" = $1 AND rol = 'DOCTOR' LIMIT 1`,
+      `SELECT id FROM "Usuario" WHERE "clinicaId" = $1 AND rol = 'CLINICA' LIMIT 1`,
       [asistente.clinicaId],
     )
   ).rows[0];
@@ -261,7 +251,6 @@ async function main() {
     headers: conSesion,
   });
   await bd.query('DELETE FROM "Archivo" WHERE "casoId" = $1', [casoId]);
-  await bd.query('DELETE FROM "Sesion" WHERE "tokenHash" = $1', [tokenHash]);
   await bd.end();
 
   if (problemas.length > 0) {

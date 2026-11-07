@@ -1,12 +1,18 @@
-import crypto from "node:crypto";
+import { createServerClient } from "@supabase/ssr";
 import { Client } from "pg";
 
 /** Cosas que comparten las pruebas de navegador. */
 
+const CONTRASENA_DEMO = "mileo1234";
+
+export type GalletaDeSesion = {
+  name: string;
+  value: string;
+};
+
 /**
- * Abre una sesión para un correo de la semilla y devuelve la galleta lista para
- * ponerle al navegador. Se hace contra la base, con las mismas reglas que la
- * aplicación, para no dejar puertas traseras en el código de producción.
+ * Inicia sesión contra Supabase Auth para un correo de la semilla y devuelve
+ * las galletas listas para ponerle a Playwright o a un encabezado `cookie`.
  */
 export async function sesionPara(bd: Client, correo: string) {
   const usuario = (
@@ -19,19 +25,55 @@ export async function sesionPara(bd: Client, correo: string) {
     );
   }
 
-  const token = crypto.randomBytes(32).toString("base64url");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const clavePublica = (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  )?.trim();
 
-  // Prisma lee las fechas sin zona horaria como UTC: hay que guardarlas igual.
-  await bd.query(
-    `INSERT INTO "Sesion" (id, "usuarioId", "tokenHash", "expiraEn", "creadoEn")
-     VALUES ($1, $2, $3,
-             (now() AT TIME ZONE 'UTC') + interval '2 hours',
-             now() AT TIME ZONE 'UTC')`,
-    [crypto.randomUUID(), usuario.id, tokenHash],
+  if (!url || !clavePublica) {
+    throw new Error(
+      "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY para abrir sesión en pruebas.",
+    );
+  }
+
+  const almacen = new Map<string, string>();
+  const supabase = createServerClient(url, clavePublica, {
+    cookies: {
+      getAll() {
+        return Array.from(almacen.entries()).map(([name, value]) => ({
+          name,
+          value,
+        }));
+      },
+      setAll(porGuardar) {
+        for (const { name, value } of porGuardar) {
+          if (value) almacen.set(name, value);
+          else almacen.delete(name);
+        }
+      },
+    },
+  });
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: correo,
+    password: CONTRASENA_DEMO,
+  });
+
+  if (error) {
+    throw new Error(
+      `No pude abrir sesión de prueba para ${correo}: ${error.message}. Corra npm run bd:semilla.`,
+    );
+  }
+
+  const galletas: GalletaDeSesion[] = Array.from(almacen.entries()).map(
+    ([name, value]) => ({ name, value }),
   );
+  const encabezadoCookie = galletas
+    .map((g) => `${g.name}=${g.value}`)
+    .join("; ");
 
-  return { token, tokenHash, usuarioId: usuario.id };
+  return { galletas, encabezadoCookie, usuarioId: usuario.id as string };
 }
 
 /**
