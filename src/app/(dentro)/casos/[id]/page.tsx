@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -25,7 +26,7 @@ import {
 } from "@/lib/vocabulario";
 import { fechaCorta, cuandoFalta, fechaConHora, paraMaquina } from "@/lib/fechas";
 import { enTamano } from "@/lib/formato";
-import { esExtensionDeFoto } from "@/lib/almacen";
+import { esExtensionDeFoto, rutaAbsolutaDe } from "@/lib/almacen";
 import { derivarMallaLigera, rutaDeLaMalla } from "@/lib/malla";
 import { LineaDeTiempo } from "./LineaDeTiempo";
 import { Aprobacion, VistaPrevia3D } from "./Aprobacion";
@@ -437,14 +438,46 @@ export default async function PaginaDeCaso({
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {caso.archivos
-              .filter((a) => a.tipo.startsWith("FOTO_CALIDAD"))
-              .map((foto) => (
-                <MarcoDeImagen
-                  key={foto.id}
-                  proporcion="4/3"
-                  etiqueta={`${TIPOS_DE_ARCHIVO[foto.tipo]} del caso ${caso.folio}`}
-                />
-              ))}
+              .filter(
+                (a) =>
+                  a.tipo.startsWith("FOTO_CALIDAD") && a.estado === "COMPLETO",
+              )
+              .map((foto) => {
+                const etiquetaFoto = `${TIPOS_DE_ARCHIVO[foto.tipo]} del caso ${caso.folio}`;
+                const existeArchivo = fs.existsSync(
+                  rutaAbsolutaDe(foto.rutaRelativa),
+                );
+                return existeArchivo ? (
+                  <figure
+                    key={foto.id}
+                    className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/archivos/${foto.id}/contenido`}
+                      alt={etiquetaFoto}
+                      className="aspect-4/3 w-full rounded-control object-contain"
+                    />
+                    <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
+                      <span className="truncate font-medium text-primario">
+                        {TIPOS_DE_ARCHIVO[foto.tipo]}
+                      </span>
+                      <a
+                        href={`/api/archivos/${foto.id}/contenido?descargar`}
+                        className="shrink-0 text-enlace underline underline-offset-4"
+                      >
+                        Descargar
+                      </a>
+                    </figcaption>
+                  </figure>
+                ) : (
+                  <MarcoDeImagen
+                    key={foto.id}
+                    proporcion="4/3"
+                    etiqueta={etiquetaFoto}
+                  />
+                );
+              })}
           </div>
         </section>
       ) : null}

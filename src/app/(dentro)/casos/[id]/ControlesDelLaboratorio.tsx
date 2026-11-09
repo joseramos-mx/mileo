@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Etapa } from "@/generated/prisma/enums";
 import { Boton, BotonEnlace } from "@/componentes/Boton";
+import { ChipDeEtapa } from "@/componentes/ChipDeEtapa";
 import { ZonaDeArchivos } from "@/componentes/ZonaDeArchivos";
 import { ETAPAS } from "@/lib/vocabulario";
 import { etapasPosiblesDesde } from "@/lib/etapas";
@@ -79,10 +80,7 @@ export function ControlesDelLaboratorio({
     (d) => !esQuijadaSuperior(d.nombre) && !esQuijadaInferior(d.nombre),
   );
 
-  const apartados3DListos =
-    (disenosConjunto.length > 0 ? 1 : 0) +
-    (disenosSuperior.length > 0 ? 1 : 0) +
-    (disenosInferior.length > 0 ? 1 : 0);
+  const tieneAlMenosUno = disenos.length > 0;
 
   return (
     <section
@@ -112,36 +110,41 @@ export function ControlesDelLaboratorio({
           <div className="rounded-tarjeta border border-borde bg-superficie-suave p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-cuerpo font-semibold text-primario">
-                Subir los 3 archivos 3D del diseño
+                Archivos 3D del diseño (suba al menos uno)
               </p>
-              <span className="rounded-full border border-borde bg-superficie px-2.5 py-0.5 text-minimo font-medium text-secundario">
-                {apartados3DListos} de 3 listos
+              <span
+                className={
+                  tieneAlMenosUno
+                    ? "rounded-full border border-terminado/40 bg-terminado-fondo px-2.5 py-0.5 text-minimo font-medium text-terminado-texto"
+                    : "rounded-full border border-borde bg-superficie px-2.5 py-0.5 text-minimo font-medium text-secundario"
+                }
+              >
+                {tieneAlMenosUno
+                  ? `Listo (${disenos.length} ${disenos.length === 1 ? "archivo subido" : "archivos subidos"})`
+                  : "Suba al menos 1 archivo"}
               </span>
             </div>
             <p className="mt-1 text-menor text-secundario">
-              Suba los <strong>tres archivos STL</strong> del caso para que el
-              doctor pueda alternar entre ellos con el botón del ojo en el visor
-              3D (uno a la vez):
+              No es obligatorio llenar los tres apartados: puede subir{" "}
+              <strong>sólo el conjunto completo</strong>,{" "}
+              <strong>las dos quijadas por separado</strong>, o los tres. Con{" "}
+              <strong>al menos un archivo</strong> ya puede mandarlo a
+              aprobación:
             </p>
-            <ol className="mt-2 list-inside list-decimal space-y-1 text-menor text-secundario">
+            <ul className="mt-2 list-inside list-disc space-y-1 text-menor text-secundario">
               <li>
                 <strong className="text-primario">Conjunto completo:</strong>{" "}
-                ambas quijadas juntas con el diseño (se renderiza primero por
-                defecto).
+                ambas quijadas juntas con el diseño (si lo sube, se muestra
+                primero por defecto en el visor).
               </li>
               <li>
                 <strong className="text-primario">
-                  Quijada superior separada:
+                  Quijada superior / inferior separadas:
                 </strong>{" "}
-                únicamente la arcada superior.
+                cada arcada por separado para alternarlas con el botón del ojo
+                (una a la vez).
               </li>
-              <li>
-                <strong className="text-primario">
-                  Quijada inferior separada:
-                </strong>{" "}
-                únicamente la arcada inferior.
-              </li>
-            </ol>
+            </ul>
           </div>
 
           <ZonaDeArchivos
@@ -149,8 +152,8 @@ export function ControlesDelLaboratorio({
             tipo="DISENO"
             idCampo="archivos-diseno-conjunto"
             prefijoNombre="[Conjunto completo] "
-            etiqueta="1. Conjunto completo (ambas quijadas juntas)"
-            ayuda="Suba aquí el STL con las dos quijadas juntas. Este archivo se renderiza primero al abrir el visor."
+            etiqueta="Conjunto completo (ambas quijadas juntas) · Opcional"
+            ayuda="STL con las dos quijadas juntas. Si lo sube, se renderiza primero al abrir el visor."
             yaSubidos={disenosConjunto.map((d) => ({
               id: d.id,
               nombre: d.nombre,
@@ -165,8 +168,8 @@ export function ControlesDelLaboratorio({
             tipo="DISENO"
             idCampo="archivos-diseno-superior"
             prefijoNombre="[Quijada superior] "
-            etiqueta="2. Quijada superior (separada)"
-            ayuda="Suba aquí el STL separado de la quijada superior."
+            etiqueta="Quijada superior (separada) · Opcional"
+            ayuda="STL separado de la quijada superior."
             yaSubidos={disenosSuperior.map((d) => ({
               id: d.id,
               nombre: d.nombre,
@@ -181,8 +184,8 @@ export function ControlesDelLaboratorio({
             tipo="DISENO"
             idCampo="archivos-diseno-inferior"
             prefijoNombre="[Quijada inferior] "
-            etiqueta="3. Quijada inferior (separada)"
-            ayuda="Suba aquí el STL separado de la quijada inferior."
+            etiqueta="Quijada inferior (separada) · Opcional"
+            ayuda="STL separado de la quijada inferior."
             yaSubidos={disenosInferior.map((d) => ({
               id: d.id,
               nombre: d.nombre,
@@ -196,7 +199,7 @@ export function ControlesDelLaboratorio({
             casoId={casoId}
             tipo="DISENO"
             idCampo="archivos-diseno-imagenes"
-            etiqueta="Imágenes o capturas del diseño (opcional)"
+            etiqueta="Imágenes o capturas del diseño · Opcional"
             ayuda="Capturas o fotos (PNG, JPG, WEBP) para acompañar la vista 3D."
             yaSubidos={disenosImagenes.map((d) => ({
               id: d.id,
@@ -209,33 +212,41 @@ export function ControlesDelLaboratorio({
         </div>
       ) : null}
 
-      {disenos.length > 0 &&
+      {tieneAlMenosUno &&
       (etapa === "ACEPTADO" ||
         etapa === "EN_DISENO" ||
         etapa === "ESPERANDO_APROBACION") ? (
         <div className="flex flex-col gap-2">
           <p className="text-menor text-secundario">
-            Mandar a aprobación prepara las vistas 3D de todos los archivos STL
-            subidos y las imágenes del diseño para que el doctor los revise.
+            Mandar a aprobación prepara la vista 3D de los archivos STL que haya
+            subido (con su botón de ojo por archivo) para que el doctor los
+            revise.
           </p>
-          <Boton
-            type="button"
-            tono="principal"
-            disabled={trabajando}
-            onClick={() =>
-              empezar(async () => {
-                const resultado = await ejecutar(() =>
-                  mandarDisenoAAprobacion(casoId),
-                );
-                if (resultado.error) setError(resultado.error);
-              })
-            }
-            className="self-start"
-          >
-            {etapa === "ESPERANDO_APROBACION"
-              ? "Actualizar vistas y mandar a aprobación"
-              : `Mandar a aprobación (${disenos.length === 1 ? disenos[0].nombre : `${disenos.length} archivos`})`}
-          </Boton>
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton
+              type="button"
+              tono="principal"
+              disabled={trabajando}
+              onClick={() =>
+                empezar(async () => {
+                  const resultado = await ejecutar(() =>
+                    mandarDisenoAAprobacion(casoId),
+                  );
+                  if (resultado.error) setError(resultado.error);
+                })
+              }
+            >
+              {etapa === "ESPERANDO_APROBACION"
+                ? "Actualizar vistas y mandar a aprobación"
+                : `Mandar a aprobación (${disenos.length === 1 ? disenos[0].nombre : `${disenos.length} archivos`})`}
+            </Boton>
+            {etapa === "ESPERANDO_APROBACION" ? (
+              <ChipDeEtapa
+                etapa="ESPERANDO_APROBACION"
+                texto="Esperando aprobación"
+              />
+            ) : null}
+          </div>
         </div>
       ) : null}
 
