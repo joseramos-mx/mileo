@@ -5,6 +5,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { filtroDeCasos } from "@/lib/autorizacion";
 import type { UsuarioEnSesion } from "@/lib/sesion";
+import type { Prisma } from "@/generated/prisma/client";
 import type { Etapa, Indicacion } from "@/generated/prisma/enums";
 import {
   ETAPAS_DEL_DOCTOR,
@@ -42,14 +43,23 @@ export const seleccionDeTarjeta = {
     select: { diente: true, rol: true, material: true, color: true },
     orderBy: { diente: "asc" },
   },
-  // La malla ligera del diseño. Con ella la tarjeta enseña la pieza de este
-  // caso en vez del render genérico de su indicación.
+  // La malla ligera del diseño o, si no hay STL, una imagen del diseño.
   archivos: {
-    where: { tipo: "MALLA_LIGERA", estado: "COMPLETO" },
+    where: {
+      estado: "COMPLETO",
+      OR: [
+        { tipo: "MALLA_LIGERA" },
+        {
+          tipo: "DISENO",
+          extension: { in: ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"] },
+        },
+      ],
+    },
+    orderBy: { tipo: "desc" },
     select: { id: true },
     take: 1,
   },
-} as const;
+} satisfies Prisma.CasoSelect;
 
 type UnidadResumible = {
   /** Vacío en los trabajos que van sobre una arcada entera. */

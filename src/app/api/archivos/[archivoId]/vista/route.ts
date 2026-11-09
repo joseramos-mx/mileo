@@ -2,7 +2,11 @@ import fsp from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { usuarioActual } from "@/lib/sesion";
 import { filtroDeCasos } from "@/lib/autorizacion";
-import { prepararCarpeta, rutaAbsolutaDe } from "@/lib/almacen";
+import {
+  esExtensionDeFoto,
+  prepararCarpeta,
+  rutaAbsolutaDe,
+} from "@/lib/almacen";
 import {
   LADO_DEL_RETRATO,
   desempaquetar,
@@ -38,14 +42,49 @@ export async function GET(
   const archivo = await prisma.archivo.findFirst({
     where: {
       id: archivoId,
-      tipo: "MALLA_LIGERA",
+      tipo: { in: ["MALLA_LIGERA", "DISENO"] },
       estado: "COMPLETO",
       caso: filtroDeCasos(usuario),
     },
-    select: { id: true, casoId: true, rutaRelativa: true },
+    select: {
+      id: true,
+      casoId: true,
+      tipo: true,
+      extension: true,
+      rutaRelativa: true,
+    },
   });
 
   if (!archivo) {
+    return new Response("No encuentro esa vista.", { status: 404 });
+  }
+
+  // Si es una imagen del diseño subida directamente por el laboratorio, se sirve tal cual.
+  if (archivo.tipo === "DISENO" && esExtensionDeFoto(archivo.extension)) {
+    try {
+      const bytes = await fsp.readFile(rutaAbsolutaDe(archivo.rutaRelativa));
+      const ext = archivo.extension.toLowerCase();
+      const mime =
+        ext === "png"
+          ? "image/png"
+          : ext === "webp"
+            ? "image/webp"
+            : ext === "heic"
+              ? "image/heic"
+              : "image/jpeg";
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "content-type": mime,
+          "content-length": String(bytes.length),
+          "cache-control": "private, max-age=604800, immutable",
+        },
+      });
+    } catch {
+      return new Response("No encuentro esa vista.", { status: 404 });
+    }
+  }
+
+  if (archivo.tipo !== "MALLA_LIGERA") {
     return new Response("No encuentro esa vista.", { status: 404 });
   }
 

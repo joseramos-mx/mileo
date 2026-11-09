@@ -11,6 +11,7 @@ import {
 } from "@/lib/autorizacion";
 import { ChipDeEtapa } from "@/componentes/ChipDeEtapa";
 import { MarcoDeImagen } from "@/componentes/MarcoDeImagen";
+import type { ArchivoDeVista3D } from "@/componentes/Visor3D";
 import { resumirUnidades } from "@/lib/casos";
 import {
   ARCADAS_EN_PALABRAS,
@@ -24,12 +25,39 @@ import {
 } from "@/lib/vocabulario";
 import { fechaCorta, cuandoFalta, fechaConHora, paraMaquina } from "@/lib/fechas";
 import { enTamano } from "@/lib/formato";
+import { esExtensionDeFoto } from "@/lib/almacen";
+import { derivarMallaLigera, rutaDeLaMalla } from "@/lib/malla";
 import { LineaDeTiempo } from "./LineaDeTiempo";
-import { Aprobacion } from "./Aprobacion";
+import { Aprobacion, VistaPrevia3D } from "./Aprobacion";
 import { Chat } from "./Chat";
 import { ControlesDelLaboratorio } from "./ControlesDelLaboratorio";
 
 export const metadata: Metadata = { title: "Caso · Mileo" };
+
+function prioridadDeArchivo3D(nombre: string): number {
+  if (
+    nombre.startsWith("[Conjunto completo]") ||
+    /\b(conjunto|completo|junt|oclusion|ambas|modelbase)\b/i.test(nombre)
+  ) {
+    return 0;
+  }
+  if (
+    nombre.startsWith("[Quijada superior]") ||
+    /\b(quijada superior|arcada superior|superior|upper|maxilar)\b/i.test(nombre)
+  ) {
+    return 2;
+  }
+  if (
+    nombre.startsWith("[Quijada inferior]") ||
+    /\b(quijada inferior|arcada inferior|inferior|lower|mandibula)\b/i.test(
+      nombre,
+    )
+  ) {
+    return 3;
+  }
+  // Cualquier archivo 3D sin etiqueta de quijada separada va antes que las quijadas separadas.
+  return 1;
+}
 
 export default async function PaginaDeCaso({
   params,
@@ -71,8 +99,77 @@ export default async function PaginaDeCaso({
   if (caso.esBorrador) redirect(`/casos/${caso.id}/capturar`);
 
   const delLaboratorio = esDelLaboratorio(usuario);
-  const malla = caso.archivos.find((a) => a.tipo === "MALLA_LIGERA");
-  const diseno = caso.archivos.find((a) => a.tipo === "DISENO");
+  const mallasExistentes = caso.archivos.filter(
+    (a) => a.tipo === "MALLA_LIGERA" && a.estado === "COMPLETO",
+  );
+  const disenosCompletos = caso.archivos.filter(
+    (a) => a.tipo === "DISENO" && a.estado === "COMPLETO",
+  );
+  const imagenesDeDiseno = disenosCompletos.filter((a) =>
+    esExtensionDeFoto(a.extension),
+  );
+  const disenos3d = [...disenosCompletos]
+    .filter((a) => !esExtensionDeFoto(a.extension))
+    .sort(
+      (a, b) => prioridadDeArchivo3D(a.nombre) - prioridadDeArchivo3D(b.nombre),
+    );
+  const diseno = disenos3d[0] ?? disenosCompletos[0];
+
+  // Empareja o deriva la malla ligera de cada archivo STL de diseño para que
+  // todos aparezcan con su botón de ojo en el visor 3D (el conjunto completo primero).
+  const archivosDeMalla: ArchivoDeVista3D[] = [];
+  for (const archivo3d of disenos3d) {
+    const rutaEsperada = rutaDeLaMalla(archivo3d.id, caso.id);
+    let mallaAsociada = mallasExistentes.find(
+      (m) => m.rutaRelativa === rutaEsperada,
+    );
+
+    if (!mallaAsociada && archivo3d.extension.toLowerCase() === "stl") {
+      try {
+        const resumen = await derivarMallaLigera({
+          rutaDelOriginal: archivo3d.rutaRelativa,
+          casoId: caso.id,
+          archivoId: archivo3d.id,
+        });
+        mallaAsociada = await prisma.archivo.create({
+          data: {
+            casoId: caso.id,
+            nombre: `Vista de ${archivo3d.nombre}`,
+            tipo: "MALLA_LIGERA",
+            extension: "malla",
+            bytesTotales: BigInt(resumen.bytes),
+            bytesRecibidos: BigInt(resumen.bytes),
+            estado: "COMPLETO",
+            rutaRelativa: resumen.rutaRelativa,
+            subidoPorId: archivo3d.subidoPorId,
+          },
+        });
+      } catch {
+        // Si el STL no se pudo convertir, continúa con los demás archivos.
+      }
+    }
+
+    if (mallaAsociada) {
+      archivosDeMalla.push({
+        archivoDeMallaId: mallaAsociada.id,
+        archivoOriginalId: archivo3d.id,
+        nombre: archivo3d.nombre,
+      });
+    }
+  }
+
+  // Respaldo por si hubiera una malla ligera antigua cuyo nombre de ruta no coincida.
+  if (archivosDeMalla.length === 0 && mallasExistentes[0] && diseno) {
+    archivosDeMalla.push({
+      archivoDeMallaId: mallasExistentes[0].id,
+      archivoOriginalId: diseno.id,
+      nombre: diseno.nombre,
+    });
+  }
+
+  const mallaPrincipal = archivosDeMalla[0] ?? null;
+  const descripcionDelDiseno = `Diseño de ${resumirUnidades(caso.unidades)} para el paciente ${caso.paciente.folio}.`;
+
   const archivosVisibles = caso.archivos.filter(
     (a) => a.estado === "COMPLETO" && a.tipo !== "MALLA_LIGERA",
   );
@@ -89,7 +186,12 @@ export default async function PaginaDeCaso({
           role="status"
           className="flex items-start gap-2 rounded-contenedor border border-terminado/40 bg-terminado-fondo p-4 text-cuerpo text-terminado-texto"
         >
-          <CheckCircle aria-hidden="true" size={20} weight="fill" className="mt-0.5 shrink-0" />
+          <CheckCircle
+            aria-hidden="true"
+            size={20}
+            weight="fill"
+            className="mt-0.5 shrink-0"
+          />
           <span>
             Ya recibí su caso. Lo reviso hoy mismo y le confirmo la fecha de
             entrega en cuanto lo acepte.
@@ -149,21 +251,21 @@ export default async function PaginaDeCaso({
 
       {/* La pantalla estrella: aprobación del diseño (O-4). */}
       {caso.etapa === "ESPERANDO_APROBACION" ? (
-        malla && diseno ? (
+        diseno ? (
           <Aprobacion
             casoId={caso.id}
-            archivoDeMallaId={malla.id}
+            archivoDeMallaId={mallaPrincipal?.archivoDeMallaId ?? null}
             archivoOriginalId={diseno.id}
-            descripcion={`Diseño de ${resumirUnidades(caso.unidades)} para el paciente ${caso.paciente.folio}.`}
+            archivosDeMalla={archivosDeMalla}
+            imagenesDeDiseno={imagenesDeDiseno.map((img) => ({
+              id: img.id,
+              nombre: img.nombre,
+            }))}
+            descripcion={descripcionDelDiseno}
             puedeDecidir={puedeAprobarDisenos(usuario)}
             tecnico={caso.tecnico}
           />
         ) : (
-          // El caso dice que espera su aprobación pero no hay diseño que
-          // enseñar. No debería pasar —el laboratorio sólo lo puede mandar
-          // aquí derivando la vista—, pero si pasa, la pantalla tiene que
-          // decirlo: quedarse muda deja al doctor esperando algo que no
-          // existe, y pidiéndole que apruebe a ciegas sería peor.
           <section
             aria-labelledby="aprobacion"
             className="flex flex-col gap-2 rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4"
@@ -181,6 +283,65 @@ export default async function PaginaDeCaso({
             </p>
           </section>
         )
+      ) : archivosDeMalla.length > 0 || imagenesDeDiseno.length > 0 ? (
+        <section
+          aria-labelledby="vista-diseno"
+          className="flex flex-col gap-4"
+        >
+          <h2
+            id="vista-diseno"
+            className="text-subtitulo font-semibold text-primario"
+          >
+            Vista del diseño
+          </h2>
+
+          {archivosDeMalla.length > 0 ? (
+            <VistaPrevia3D
+              archivosDeMalla={archivosDeMalla}
+              descripcion={descripcionDelDiseno}
+            />
+          ) : null}
+
+          {imagenesDeDiseno.length > 0 ? (
+            <div className="siempre-claro flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
+              <p className="text-menor font-medium text-primario">
+                {imagenesDeDiseno.length === 1
+                  ? "Imagen del diseño"
+                  : "Imágenes del diseño"}
+              </p>
+              <div
+                className={
+                  imagenesDeDiseno.length > 1
+                    ? "grid gap-3 sm:grid-cols-2"
+                    : "flex flex-col gap-3"
+                }
+              >
+                {imagenesDeDiseno.map((img) => (
+                  <figure
+                    key={img.id}
+                    className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/archivos/${img.id}/contenido`}
+                      alt={`${img.nombre} — caso ${caso.folio}`}
+                      className="max-h-96 w-full rounded-control object-contain"
+                    />
+                    <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
+                      <span className="truncate">{img.nombre}</span>
+                      <a
+                        href={`/api/archivos/${img.id}/contenido?descargar`}
+                        className="shrink-0 text-enlace underline underline-offset-4"
+                      >
+                        Descargar
+                      </a>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       <section aria-labelledby="unidades" className="flex flex-col gap-3">
@@ -193,8 +354,6 @@ export default async function PaginaDeCaso({
               key={unidad.id}
               className="flex flex-wrap items-baseline justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
             >
-              {/* No todo va en un diente: una guarda, una prótesis y un
-                  modelo van sobre una arcada entera. */}
               <span className="text-cuerpo font-medium text-primario">
                 {unidad.diente !== null ? (
                   <>

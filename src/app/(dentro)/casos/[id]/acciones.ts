@@ -11,7 +11,7 @@ import {
 } from "@/lib/autorizacion";
 import { registrarEvento } from "@/lib/bitacora";
 import { calcularFechaDeEntrega, sePuedeFabricar } from "@/lib/etapas";
-import { derivarMallaLigera } from "@/lib/malla";
+import { derivarMallaLigera, type ResumenDeMalla } from "@/lib/malla";
 import { avisarA, avisoDeCambioDeEtapa } from "@/lib/avisos";
 import type { Etapa } from "@/generated/prisma/enums";
 
@@ -71,9 +71,16 @@ export async function aprobarDiseno(
     return { error: "Este caso no está esperando aprobación ahora mismo." };
   }
 
-  const diseno = caso.archivos.find((a) => a.tipo === "DISENO");
-  if (!diseno) return { error: "Todavía no hay un diseño que aprobar." };
-  if (archivoDisenoId && archivoDisenoId !== diseno.id) {
+  const disenosCompletos = caso.archivos.filter(
+    (a) => a.tipo === "DISENO" && a.estado === "COMPLETO",
+  );
+  if (disenosCompletos.length === 0) {
+    return { error: "Todavía no hay un diseño que aprobar." };
+  }
+  const diseno = archivoDisenoId
+    ? disenosCompletos.find((a) => a.id === archivoDisenoId)
+    : disenosCompletos[0];
+  if (!diseno) {
     return {
       error:
         "Su técnico mandó un diseño nuevo mientras usted miraba el anterior. " +
@@ -218,6 +225,11 @@ export async function cambiarEtapa(
     return { error: "Sólo el laboratorio mueve las etapas de un caso." };
   }
 
+  // Si se mueve a esperando aprobación, tiene que haber diseño y se prepara su vista.
+  if (nueva === "ESPERANDO_APROBACION") {
+    return mandarDisenoAAprobacion(casoId);
+  }
+
   // Bloqueo duro: nada se fabrica sin aprobación registrada del doctor.
   if (nueva === "EN_FABRICACION" && !sePuedeFabricar(caso)) {
     return {
@@ -292,12 +304,12 @@ export async function cambiarEtapa(
 
 /**
  * El laboratorio manda el diseño a aprobación (O-4).
- * Aquí se deriva la malla ligera: al doctor nunca se le sirve el archivo
- * original (§9).
+ * Si hay archivos STL (conjunto completo + las dos quijadas separadas),
+ * aquí se deriva la malla ligera de cada uno; también permite mandar
+ * imágenes del diseño o ambos.
  */
 export async function mandarDisenoAAprobacion(
   casoId: string,
-  archivoDisenoId: string,
 ): Promise<Resultado> {
   const { usuario, caso } = await casoDelUsuario(casoId);
   if (!caso) return { error: "No encuentro ese caso." };
@@ -305,46 +317,71 @@ export async function mandarDisenoAAprobacion(
     return { error: "Sólo el laboratorio manda diseños a aprobación." };
   }
 
-  const diseno = caso.archivos.find(
-    (a) => a.id === archivoDisenoId && a.estado === "COMPLETO",
+  const disenosCompletos = caso.archivos.filter(
+    (a) => a.tipo === "DISENO" && a.estado === "COMPLETO",
   );
-  if (!diseno) return { error: "Ese diseño todavía no termina de subir." };
-
-  let resumen;
-  try {
-    resumen = await derivarMallaLigera({
-      rutaDelOriginal: diseno.rutaRelativa,
-      casoId: caso.id,
-      archivoId: diseno.id,
-    });
-  } catch (falla) {
+  if (disenosCompletos.length === 0) {
     return {
       error:
-        falla instanceof Error
-          ? falla.message
-          : "No pude preparar la vista del diseño.",
+        "Suba primero los archivos 3D o las imágenes del diseño antes de mandarlo a aprobación.",
     };
   }
 
+  // Derivamos la malla 3D ligera para cada archivo STL de diseño subido.
+  const disenosStl = disenosCompletos.filter(
+    (a) => a.extension.toLowerCase() === "stl",
+  );
+
+  const mallasDerivadas: {
+    originalId: string;
+    nombreOriginal: string;
+    resumen: ResumenDeMalla;
+  }[] = [];
+
+  for (const stl of disenosStl) {
+    try {
+      const resumen = await derivarMallaLigera({
+        rutaDelOriginal: stl.rutaRelativa,
+        casoId: caso.id,
+        archivoId: stl.id,
+      });
+      mallasDerivadas.push({
+        originalId: stl.id,
+        nombreOriginal: stl.nombre,
+        resumen,
+      });
+    } catch (falla) {
+      return {
+        error:
+          falla instanceof Error
+            ? falla.message
+            : `No pude preparar la vista de ${stl.nombre}.`,
+      };
+    }
+  }
+
+  const primera = mallasDerivadas[0]?.resumen ?? null;
+
   await prisma.$transaction(async (bd) => {
-    // Una sola malla vigente por caso.
     await bd.archivo.deleteMany({
       where: { casoId: caso.id, tipo: "MALLA_LIGERA" },
     });
 
-    await bd.archivo.create({
-      data: {
-        casoId: caso.id,
-        nombre: `Vista de ${diseno.nombre}`,
-        tipo: "MALLA_LIGERA",
-        extension: "malla",
-        bytesTotales: BigInt(resumen.bytes),
-        bytesRecibidos: BigInt(resumen.bytes),
-        estado: "COMPLETO",
-        rutaRelativa: resumen.rutaRelativa,
-        subidoPorId: usuario.id,
-      },
-    });
+    for (const item of mallasDerivadas) {
+      await bd.archivo.create({
+        data: {
+          casoId: caso.id,
+          nombre: `Vista de ${item.nombreOriginal}`,
+          tipo: "MALLA_LIGERA",
+          extension: "malla",
+          bytesTotales: BigInt(item.resumen.bytes),
+          bytesRecibidos: BigInt(item.resumen.bytes),
+          estado: "COMPLETO",
+          rutaRelativa: item.resumen.rutaRelativa,
+          subidoPorId: usuario.id,
+        },
+      });
+    }
 
     await bd.caso.update({
       where: { id: caso.id },
@@ -358,11 +395,14 @@ export async function mandarDisenoAAprobacion(
       usuarioId: usuario.id,
       etapaAnterior: caso.etapa,
       etapaNueva: "ESPERANDO_APROBACION",
-      datos: {
-        triangulos: resumen.triangulos,
-        bytesDeLaVista: resumen.bytes,
-        reducida: resumen.reducida,
-      },
+      datos: primera
+        ? {
+            triangulos: primera.triangulos,
+            bytesDeLaVista: primera.bytes,
+            reducida: primera.reducida,
+            mallasGeneradas: mallasDerivadas.length,
+          }
+        : { archivosDeDiseno: disenosCompletos.length },
     });
   });
 

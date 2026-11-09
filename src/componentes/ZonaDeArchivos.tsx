@@ -47,12 +47,15 @@ type EnPantalla = AvanceDeSubida & {
 
 const ACEPTA_ESCANEO = ".stl,.ply,.obj,.dcm,.dicom,.zip";
 const ACEPTA_FOTO = "image/*";
+const ACEPTA_DISENO_O_IMAGEN = `${ACEPTA_ESCANEO},${ACEPTA_FOTO}`;
 
 const TIPOS_DE_FOTO = [
   "FOTO_COLOR",
   "FOTO_CALIDAD_AJUSTE",
   "FOTO_CALIDAD_COLOR",
 ];
+
+const TIPOS_CON_IMAGEN = ["DISENO", "OTRO"];
 
 export function ZonaDeArchivos({
   casoId,
@@ -61,6 +64,8 @@ export function ZonaDeArchivos({
   ayuda,
   yaSubidos,
   alCambiar,
+  prefijoNombre,
+  idCampo,
 }: {
   casoId: string;
   tipo: TipoDeArchivoSubido;
@@ -69,11 +74,14 @@ export function ZonaDeArchivos({
   yaSubidos: ArchivoYaSubido[];
   /** Se llama cuando termina o se quita un archivo, para refrescar la pantalla. */
   alCambiar: () => void;
+  prefijoNombre?: string;
+  idCampo?: string;
 }) {
   const [enCurso, setEnCurso] = useState<EnPantalla[]>([]);
   const [arrastrando, setArrastrando] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
   const esFoto = TIPOS_DE_FOTO.includes(tipo);
+  const admiteImagen = TIPOS_CON_IMAGEN.includes(tipo);
   const abortos = useRef(new Map<string, AbortController>());
 
   useEffect(() => {
@@ -111,6 +119,7 @@ export function ZonaDeArchivos({
             archivo,
             tipo,
             senal: control.signal,
+            prefijoNombre,
             alAvanzar: (avance) =>
               setEnCurso((previos) =>
                 previos.map((p) => (p.clave === clave ? { ...p, ...avance } : p)),
@@ -126,7 +135,7 @@ export function ZonaDeArchivos({
         }
       }
     },
-    [casoId, tipo, alCambiar],
+    [casoId, tipo, alCambiar, prefijoNombre],
   );
 
   async function quitar(archivoId: string) {
@@ -144,11 +153,17 @@ export function ZonaDeArchivos({
       ref={entrada}
       type="file"
       multiple
-      accept={esFoto ? ACEPTA_FOTO : ACEPTA_ESCANEO}
+      accept={
+        esFoto
+          ? ACEPTA_FOTO
+          : admiteImagen
+            ? ACEPTA_DISENO_O_IMAGEN
+            : ACEPTA_ESCANEO
+      }
       // En el celular, para una foto conviene abrir la camara de una vez.
       {...(esFoto ? { capture: "environment" as const } : {})}
       className="sr-only"
-      id={`archivos-${tipo}`}
+      id={idCampo ?? `archivos-${tipo}`}
       aria-label={etiqueta}
       onChange={(e) => {
         void recibir(e.target.files);
@@ -210,7 +225,9 @@ export function ZonaDeArchivos({
           <p className="text-minimo text-secundario">
             {esFoto
               ? "Una foto con buena luz. También puede arrastrarla aquí."
-              : "STL, PLY, OBJ, DICOM o ZIP. También puede arrastrarlos aquí."}
+              : admiteImagen
+                ? "STL, PLY, OBJ, ZIP o imágenes (PNG, JPG, WEBP). También puede arrastrarlos aquí."
+                : "STL, PLY, OBJ, DICOM o ZIP. También puede arrastrarlos aquí."}
           </p>
         </div>
       )}

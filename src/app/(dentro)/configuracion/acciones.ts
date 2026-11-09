@@ -16,6 +16,17 @@ import type { Rol } from "@/generated/prisma/enums";
 
 export type Resultado = { error?: string; listo?: string };
 
+function urlBaseDeMileo() {
+  if (process.env.MILEO_URL) return process.env.MILEO_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "";
+}
+
 /** Avisos configurables por el doctor (SKILL.md O-3). */
 export async function guardarAvisos(
   porCorreo: boolean,
@@ -114,7 +125,7 @@ export async function invitar(
 
   // La invitación tiene que llegarle a la persona. Se encola aquí y el guion
   // de entrega la manda; si el proveedor está caído, no se pierde.
-  const enlace = `${process.env.MILEO_URL ?? ""}/invitacion/${invitacion.token}`;
+  const enlace = `${urlBaseDeMileo()}/invitacion/${invitacion.token}`;
   await encolarAviso(
     prisma,
     { correo: invitacion.correo },

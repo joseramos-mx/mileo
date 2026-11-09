@@ -23,6 +23,11 @@ const TIPOS_DE_CONTENIDO: Record<string, string> = {
   dcm: "application/dicom",
   dicom: "application/dicom",
   zip: "application/zip",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
 };
 
 export async function GET(

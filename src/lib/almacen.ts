@@ -1,6 +1,7 @@
 import "server-only";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 
@@ -42,12 +43,21 @@ export const EXTENSIONES_ACEPTADAS = [
   ...EXTENSIONES_DE_FOTO,
 ] as const;
 
-/** Los tipos de archivo que son una foto y no una malla. */
-const TIPOS_DE_FOTO = [
+/** Los tipos de archivo que son exclusivamente una foto. */
+const TIPOS_SOLO_FOTO = [
   "FOTO_COLOR",
   "FOTO_CALIDAD_AJUSTE",
   "FOTO_CALIDAD_COLOR",
 ];
+
+/** Tipos donde se permiten tanto mallas/escaneos como imágenes (p. ej. capturas del diseño). */
+const TIPOS_MIXTOS = ["DISENO", "OTRO"];
+
+export function esExtensionDeFoto(extension: string) {
+  return (EXTENSIONES_DE_FOTO as readonly string[]).includes(
+    extension.toLowerCase(),
+  );
+}
 
 export const TIPOS_MIME_ACEPTADOS = [
   "model/stl",
@@ -66,7 +76,7 @@ export const BYTES_MAXIMOS_POR_ARCHIVO = 2 * 1024 * 1024 * 1024;
 export function carpetaBase() {
   return path.resolve(
     process.cwd(),
-    process.env.MILEO_ALMACEN_ARCHIVOS ?? "./almacen/archivos",
+    process.env.MILEO_ALMACEN_ARCHIVOS ?? (process.env.VERCEL ? path.join(os.tmpdir(), "mileo-archivos") : "./almacen/archivos"),
   );
 }
 
@@ -81,8 +91,11 @@ export function extensionDe(nombre: string) {
  */
 export function extensionAceptada(nombre: string, tipo?: string) {
   const extension = extensionDe(nombre);
+  if (tipo && TIPOS_MIXTOS.includes(tipo)) {
+    return (EXTENSIONES_ACEPTADAS as readonly string[]).includes(extension);
+  }
   const permitidas: readonly string[] =
-    tipo && TIPOS_DE_FOTO.includes(tipo)
+    tipo && TIPOS_SOLO_FOTO.includes(tipo)
       ? EXTENSIONES_DE_FOTO
       : EXTENSIONES_DE_ESCANEO;
   return permitidas.includes(extension);
@@ -90,8 +103,11 @@ export function extensionAceptada(nombre: string, tipo?: string) {
 
 /** Lo que se le dice a la persona si escogió el archivo equivocado. */
 export function extensionesQueEsperaba(tipo?: string) {
+  if (tipo && TIPOS_MIXTOS.includes(tipo)) {
+    return EXTENSIONES_ACEPTADAS.join(", ").toUpperCase();
+  }
   const permitidas: readonly string[] =
-    tipo && TIPOS_DE_FOTO.includes(tipo)
+    tipo && TIPOS_SOLO_FOTO.includes(tipo)
       ? EXTENSIONES_DE_FOTO
       : EXTENSIONES_DE_ESCANEO;
   return permitidas.join(", ").toUpperCase();

@@ -78,7 +78,17 @@ export async function disenosRecientes(
       fechaEntregaComprometida: true,
       paciente: { select: { folio: true, iniciales: true } },
       archivos: {
-        where: { tipo: "MALLA_LIGERA", estado: "COMPLETO" },
+        where: {
+          estado: "COMPLETO",
+          OR: [
+            { tipo: "MALLA_LIGERA" },
+            {
+              tipo: "DISENO",
+              extension: { in: ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"] },
+            },
+          ],
+        },
+        orderBy: { tipo: "desc" },
         select: { id: true },
         take: 1,
       },
