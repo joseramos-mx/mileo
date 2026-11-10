@@ -2,9 +2,13 @@
 
 import { useCallback, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
+import { DownloadSimple } from "@phosphor-icons/react";
 import { Boton } from "@/componentes/Boton";
 import { CampoDeTexto } from "@/componentes/Campo";
-import type { EstadoDelVisor } from "@/componentes/Visor3D";
+import type {
+  ArchivoDeVista3D,
+  EstadoDelVisor,
+} from "@/componentes/Visor3D";
 import { ejecutar } from "@/lib/acciones-cliente";
 import { aprobarDiseno, solicitarAjuste } from "./acciones";
 
@@ -19,6 +23,25 @@ const Visor3D = dynamic(
   },
 );
 
+export function VistaPrevia3D({
+  archivosDeMalla,
+  descripcion,
+}: {
+  archivosDeMalla: ArchivoDeVista3D[];
+  descripcion: string;
+}) {
+  if (archivosDeMalla.length === 0) return null;
+  const principal = archivosDeMalla[0];
+  return (
+    <Visor3D
+      archivoDeMallaId={principal.archivoDeMallaId}
+      archivoOriginalId={principal.archivoOriginalId}
+      archivos={archivosDeMalla}
+      descripcion={descripcion}
+    />
+  );
+}
+
 /**
  * Aprobación del diseño (SKILL.md O-4, la pantalla estrella).
  *
@@ -26,29 +49,25 @@ const Visor3D = dynamic(
  * obligatorio al solicitar ajuste, porque un ajuste sin explicación le cuesta
  * al técnico un día de ida y vuelta.
  *
- * Lo único que se le pone enfrente además de eso son los dos seguros que hacen
- * falta para que "sencillo" no acabe siendo "descuidado":
- *
- * 1. No se aprueba lo que no se vio. Mientras el visor no logre enseñar el
- *    diseño, el botón de aprobar está apagado. Si el visor no puede —un celular
- *    viejo, WebGL apagado—, no se le cierra la puerta: descarga el diseño, lo
- *    abre en su programa, y lo dice con una casilla. Bloquearlo del todo sería
- *    dejar sin aprobar a quien no puede usar el visor (§7).
- * 2. No se aprueba un diseño que ya cambió. La pantalla manda cuál diseño está
- *    mirando y el servidor se niega si el laboratorio mandó otro mientras
- *    tanto.
+ * Enseña el visor 3D (con selector de ojo por cada archivo subido: conjunto
+ * completo primero y las dos quijadas por separado), las imágenes/capturas del
+ * diseño subidas por el laboratorio (sobre fondo neutro claro) o ambos.
  */
 export function Aprobacion({
   casoId,
   archivoDeMallaId,
   archivoOriginalId,
+  archivosDeMalla = [],
+  imagenesDeDiseno = [],
   descripcion,
   puedeDecidir,
   tecnico,
 }: {
   casoId: string;
-  archivoDeMallaId: string;
+  archivoDeMallaId: string | null;
   archivoOriginalId: string;
+  archivosDeMalla?: ArchivoDeVista3D[];
+  imagenesDeDiseno?: { id: string; nombre: string }[];
   descripcion: string;
   puedeDecidir: boolean;
   tecnico: { nombreCompleto: string; fotoUrl: string | null } | null;
@@ -57,7 +76,24 @@ export function Aprobacion({
   const [comentario, setComentario] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [trabajando, empezar] = useTransition();
-  const [visor, setVisor] = useState<EstadoDelVisor>("cargando");
+
+  const listaMallas =
+    archivosDeMalla.length > 0
+      ? archivosDeMalla
+      : archivoDeMallaId
+        ? [
+            {
+              archivoDeMallaId,
+              archivoOriginalId,
+              nombre: "Conjunto completo",
+            },
+          ]
+        : [];
+  const mallaPrincipalId = listaMallas[0]?.archivoDeMallaId ?? null;
+
+  const [visor, setVisor] = useState<EstadoDelVisor>(
+    mallaPrincipalId ? "cargando" : "no-pude",
+  );
   const [revisadoAparte, setRevisadoAparte] = useState(false);
 
   // Estable: si cambia en cada pintada, el visor vuelve a bajar la malla.
@@ -66,7 +102,10 @@ export function Aprobacion({
     [],
   );
 
-  const loVio = visor === "listo" || revisadoAparte;
+  const tieneImagenes = imagenesDeDiseno.length > 0;
+  const loVio = mallaPrincipalId
+    ? visor === "listo" || revisadoAparte || tieneImagenes
+    : tieneImagenes || revisadoAparte;
 
   return (
     <section aria-labelledby="aprobacion" className="flex flex-col gap-4">
@@ -83,12 +122,70 @@ export function Aprobacion({
         </p>
       </div>
 
-      <Visor3D
-        archivoDeMallaId={archivoDeMallaId}
-        archivoOriginalId={archivoOriginalId}
-        descripcion={descripcion}
-        alCambiarEstado={alCambiarEstado}
-      />
+      {mallaPrincipalId ? (
+        <Visor3D
+          archivoDeMallaId={mallaPrincipalId}
+          archivoOriginalId={listaMallas[0]?.archivoOriginalId ?? archivoOriginalId}
+          archivos={listaMallas}
+          descripcion={descripcion}
+          alCambiarEstado={alCambiarEstado}
+        />
+      ) : null}
+
+      {tieneImagenes ? (
+        <div className="siempre-claro flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
+          <p className="text-menor font-medium text-primario">
+            {imagenesDeDiseno.length === 1
+              ? "Imagen del diseño"
+              : "Imágenes del diseño"}
+          </p>
+          <div
+            className={
+              imagenesDeDiseno.length > 1
+                ? "grid gap-3 sm:grid-cols-2"
+                : "flex flex-col gap-3"
+            }
+          >
+            {imagenesDeDiseno.map((img) => (
+              <figure
+                key={img.id}
+                className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/archivos/${img.id}/contenido`}
+                  alt={`${img.nombre} — ${descripcion}`}
+                  className="max-h-96 w-full rounded-control object-contain"
+                />
+                <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
+                  <span className="truncate">{img.nombre}</span>
+                  <a
+                    href={`/api/archivos/${img.id}/contenido?descargar`}
+                    className="shrink-0 text-enlace underline underline-offset-4"
+                  >
+                    Descargar
+                  </a>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!mallaPrincipalId && !tieneImagenes ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-contenedor border border-borde bg-superficie p-4">
+          <p className="text-menor text-secundario">
+            Descargue el archivo del diseño para revisarlo en su programa.
+          </p>
+          <a
+            href={`/api/archivos/${archivoOriginalId}/contenido?descargar`}
+            className="area-tactil inline-flex items-center gap-2 rounded-control text-menor text-enlace underline underline-offset-4"
+          >
+            <DownloadSimple aria-hidden="true" size={16} />
+            Descargar el diseño
+          </a>
+        </div>
+      ) : null}
 
       {/* La alternativa al visor: qué se está viendo, en palabras (§7). */}
       <p className="text-menor text-secundario">{descripcion}</p>
@@ -149,9 +246,7 @@ export function Aprobacion({
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {/* Si el visor no pudo, la salida es verlo en su programa y decirlo.
-              Va antes de los botones porque es lo que desbloquea el primero. */}
-          {visor === "no-pude" ? (
+          {visor === "no-pude" && !tieneImagenes ? (
             <label className="flex items-start gap-2 rounded-control border border-borde bg-superficie p-3 text-menor text-primario">
               <input
                 type="checkbox"
@@ -169,7 +264,6 @@ export function Aprobacion({
           ) : null}
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            {/* Una sola acción principal en la pantalla (§6.1). */}
             <Boton
               type="button"
               tono="principal"
@@ -195,8 +289,6 @@ export function Aprobacion({
             </Boton>
           </div>
 
-          {/* Por qué todavía no se puede. Un botón apagado sin explicación es
-              lo que hace que el doctor acabe llamando por teléfono. */}
           {!loVio ? (
             <p className="text-menor text-secundario">
               {visor === "cargando"
@@ -205,9 +297,6 @@ export function Aprobacion({
             </p>
           ) : null}
 
-          {/* Quién lo hizo va después de la decisión: es lo que el doctor lee
-              cuando ya sabe qué va a contestar, no lo que le estorba para
-              llegar a los botones. */}
           {tecnico ? (
             <p className="text-menor text-secundario">
               Lo diseñó {tecnico.nombreCompleto}. Puede escribirle aquí abajo.

@@ -68,12 +68,14 @@ export async function subirArchivo({
   tipo,
   alAvanzar,
   senal,
+  prefijoNombre,
 }: {
   casoId: string;
   archivo: File;
   tipo: TipoDeArchivoSubido;
   alAvanzar: (avance: AvanceDeSubida) => void;
   senal?: AbortSignal;
+  prefijoNombre?: string;
 }): Promise<{ archivoId: string }> {
   const bytesTotales = archivo.size;
 
@@ -88,7 +90,7 @@ export async function subirArchivo({
   const inicio = await fetch(`/api/casos/${casoId}/archivos`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ nombre: archivo.name, bytesTotales, tipo }),
+    body: JSON.stringify({ nombre: prefijoNombre && !archivo.name.startsWith("[") ? `${prefijoNombre}${archivo.name}` : archivo.name, bytesTotales, tipo }),
     signal: senal,
   });
 

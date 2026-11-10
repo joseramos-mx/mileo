@@ -8,6 +8,7 @@ import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
 import { registrarEvento } from "@/lib/bitacora";
 import { siguienteFolio, siguienteFolioDePaciente } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
+import { empujarTicketARaspberry } from "@/lib/ticket";
 import { arcadaDe, nombreDelTramo, tramosDe } from "@/lib/tramos";
 import {
   TRABAJOS,
@@ -431,9 +432,11 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
       casoId: caso.id,
       usuarioId: usuario.id,
       etapaNueva: "RECIBIDO",
+      datos: { ticketPendiente: true },
     });
   });
 
+  void empujarTicketARaspberry(caso.id);
   revalidatePath("/", "layout");
   redirect(`/casos/${caso.id}?enviado=1`);
 }

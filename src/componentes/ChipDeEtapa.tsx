@@ -60,9 +60,11 @@ export function colorDeEtapa(etapa: Etapa) {
 
 export function ChipDeEtapa({
   etapa,
+  texto,
   className,
 }: {
   etapa: Etapa;
+  texto?: string;
   className?: string;
 }) {
   const { nombre, tono } = ETAPAS[etapa];
@@ -83,7 +85,7 @@ export function ChipDeEtapa({
       )}
     >
       <Icono aria-hidden="true" size={16} weight="fill" className="shrink-0" />
-      {nombre}
+      {texto ?? nombre}
     </span>
   );
 }

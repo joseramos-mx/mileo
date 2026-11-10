@@ -4,9 +4,8 @@ import { seFabrica } from "@/lib/trabajos";
 /**
  * Lista de admisión (SKILL.md O-2).
  *
- * Bloquea el envío si falta el antagonista, el registro de mordida o los
- * dientes del trabajo. La misma función la usan la pantalla y la acción de enviar, para que
- * sea imposible saltarse la lista tanto desde la interfaz como desde la API.
+ * Verifica que el caso tenga qué fabricar y al menos un archivo de escaneo
+ * subido (ya sea el conjunto completo o los escaneos por separado).
  *
  * Los mensajes dicen qué hacer, no qué falló (§6.5).
  */
@@ -23,19 +22,21 @@ export type CasoParaAdmision = {
   archivos: { tipo: string; estado: string }[];
 };
 
-function hayArchivo(caso: CasoParaAdmision, tipo: string) {
-  return caso.archivos.some((a) => a.tipo === tipo && a.estado === "COMPLETO");
+const TIPOS_DE_ESCANEO = new Set([
+  "ESCANEO_PREPARACION",
+  "ESCANEO_ANTAGONISTA",
+  "REGISTRO_MORDIDA",
+]);
+
+function hayAlMenosUnEscaneo(caso: CasoParaAdmision) {
+  return caso.archivos.some(
+    (a) => TIPOS_DE_ESCANEO.has(a.tipo) && a.estado === "COMPLETO",
+  );
 }
 
 export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
-  // Una anotación no es una unidad: un caso que sólo trae "antagonista" y
-  // "diente vecino" no tiene nada que fabricar, y mandarlo así le costaría al
-  // laboratorio una llamada para preguntar qué se hace.
   const piezas = caso.unidades.filter((u) => seFabrica(u.rol));
-
-  // Si hay algo que se cementa en boca, el antagonista deja de ser opcional:
-  // sin él no se ajusta la oclusión.
-  const necesitaAntagonista = piezas.some((u) => NECESITAN_OCLUSION.has(u.rol));
+  const tieneEscaneo = hayAlMenosUnEscaneo(caso);
 
   return [
     {
@@ -46,43 +47,14 @@ export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
       cumplido: piezas.length > 0,
     },
     {
-      clave: "preparacion",
-      titulo: "El escaneo de la preparación",
-      queHacer: "Suba el escaneo de la arcada que preparó.",
-      cumplido: hayArchivo(caso, "ESCANEO_PREPARACION"),
-    },
-    {
-      clave: "antagonista",
-      titulo: "El escaneo del antagonista",
-      queHacer: necesitaAntagonista
-        ? "No marcó el antagonista. Sin él no puedo ajustar la oclusión."
-        : "Me falta el antagonista. Súbalo aquí para poder ajustar la oclusión.",
-      cumplido: hayArchivo(caso, "ESCANEO_ANTAGONISTA"),
-    },
-    {
-      clave: "mordida",
-      titulo: "El registro de mordida",
+      clave: "escaneo",
+      titulo: "Al menos un archivo de escaneo",
       queHacer:
-        "Me falta el registro de mordida. Sin él no puedo montar el caso.",
-      cumplido: hayArchivo(caso, "REGISTRO_MORDIDA"),
+        "Suba al menos un archivo (puede subir el conjunto completo o las quijadas por separado).",
+      cumplido: tieneEscaneo,
     },
   ];
 }
-
-/** Los trabajos que terminan en boca y necesitan que la mordida cierre bien. */
-const NECESITAN_OCLUSION = new Set<RolDeUnidad>([
-  "CORONA_ANATOMICA",
-  "CORONA_PRENSADA",
-  "CORONA_CASCARON",
-  "PONTICO_ANATOMICO",
-  "PONTICO_PRENSADO",
-  "PONTICO_CASCARON",
-  "INCRUSTACION",
-  "CARILLA",
-  "PROTESIS_TOTAL",
-  "PROTESIS_PARCIAL",
-  "GUARDA_OCLUSAL",
-]);
 
 export function loQueFalta(caso: CasoParaAdmision) {
   return revisarAdmision(caso).filter((punto) => !punto.cumplido);

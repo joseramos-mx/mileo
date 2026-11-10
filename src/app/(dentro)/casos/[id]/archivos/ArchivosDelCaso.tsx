@@ -20,22 +20,22 @@ const APARTADOS: {
 }[] = [
   {
     tipo: "ESCANEO_PREPARACION",
-    etiqueta: "Escaneo de la preparación",
-    ayuda: "La arcada que preparó, como la exporta su escáner.",
+    etiqueta: "Escaneo de la preparación o conjunto completo",
+    ayuda: "La arcada que preparó o el archivo con el conjunto junto.",
   },
   {
     tipo: "ESCANEO_ANTAGONISTA",
-    etiqueta: "Escaneo del antagonista",
-    ayuda: "La arcada opuesta. Sin ella no puedo ajustar la oclusión.",
+    etiqueta: "Escaneo del antagonista (opcional si ya viene en el conjunto)",
+    ayuda: "La arcada opuesta por separado, si no la incluyó arriba.",
   },
   {
     tipo: "REGISTRO_MORDIDA",
-    etiqueta: "Registro de mordida",
-    ayuda: "El registro con el que monto el caso.",
+    etiqueta: "Registro de mordida (opcional)",
+    ayuda: "El registro con el que monto el caso, si viene en archivo aparte.",
   },
   {
     tipo: "FOTO_COLOR",
-    etiqueta: "Foto del color",
+    etiqueta: "Foto del color (opcional)",
     ayuda: "Opcional, pero ayuda mucho a que el color quede a la primera.",
   },
 ];
@@ -43,9 +43,8 @@ const APARTADOS: {
 /**
  * Los archivos del caso (SKILL.md O-2).
  *
- * Un apartado por cada cosa que el laboratorio necesita, en vez de una sola
- * pila donde después nadie sabe qué es qué. Cada subida se reanuda sola si se
- * cae la señal.
+ * Basta con subir al menos un archivo de escaneo (ya sea el conjunto completo
+ * o las quijadas por separado) para poder mandar el caso al laboratorio.
  */
 export function ArchivosDelCaso({
   casoId,
@@ -63,7 +62,8 @@ export function ArchivosDelCaso({
           Sus archivos
         </h2>
         <p className="mt-1 text-menor text-secundario">
-          Recibo STL, PLY, OBJ, DICOM y ZIP, venga de la marca que venga.{" "}
+          Suba al menos un archivo (el conjunto completo o las quijadas por
+          separado). Recibo STL, PLY, OBJ, DICOM y ZIP.{" "}
           <Link
             href="/ayuda/guias-de-exportacion"
             className="text-enlace underline underline-offset-4"

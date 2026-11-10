@@ -10,8 +10,9 @@ import { PrismaClient } from "@/generated/prisma/client";
  * tumbar el arranque entero.
  */
 
-// En desarrollo el guardado global evita abrir una conexión nueva en cada
-// recarga en caliente. En producción basta con el módulo, que se carga una vez.
+// El guardado global evita abrir un pool nuevo en cada recarga en caliente de
+// Turbopack o entre invocaciones del mismo proceso, evitando agotar el límite
+// de conexiones del Session Pooler de Supabase (pool_size: 15).
 const global_ = globalThis as unknown as { prismaMileo?: PrismaClient };
 
 let cliente: PrismaClient | undefined = global_.prismaMileo;
@@ -26,8 +27,16 @@ function obtenerCliente(): PrismaClient {
     );
   }
 
-  cliente = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
-  if (process.env.NODE_ENV !== "production") global_.prismaMileo = cliente;
+  cliente = new PrismaClient({
+    adapter: new PrismaPg({
+      connectionString,
+      max: 2,
+      idleTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
+      allowExitOnIdle: true,
+    }),
+  });
+  global_.prismaMileo = cliente;
   return cliente;
 }
 

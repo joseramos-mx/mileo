@@ -11,8 +11,9 @@ import {
 } from "@/lib/autorizacion";
 import { registrarEvento } from "@/lib/bitacora";
 import { calcularFechaDeEntrega, sePuedeFabricar } from "@/lib/etapas";
-import { derivarMallaLigera } from "@/lib/malla";
+import { derivarMallaLigera, type ResumenDeMalla } from "@/lib/malla";
 import { avisarA, avisoDeCambioDeEtapa } from "@/lib/avisos";
+import { empujarTicketARaspberry } from "@/lib/ticket";
 import type { Etapa } from "@/generated/prisma/enums";
 
 export type Resultado = { error?: string; listo?: boolean };
@@ -51,11 +52,6 @@ const esquemaAjuste = z.object({
  */
 export async function aprobarDiseno(
   casoId: string,
-  /**
-   * Cuál diseño se está aprobando. Va desde la pantalla para que el servidor
-   * pueda negarse si el laboratorio mandó otro mientras el doctor lo miraba:
-   * sin esto se aprobaría un diseño que nunca vio, y la bitácora diría que sí.
-   */
   archivoDisenoId?: string,
 ): Promise<Resultado> {
   const { usuario, caso } = await casoDelUsuario(casoId);
@@ -71,9 +67,16 @@ export async function aprobarDiseno(
     return { error: "Este caso no está esperando aprobación ahora mismo." };
   }
 
-  const diseno = caso.archivos.find((a) => a.tipo === "DISENO");
-  if (!diseno) return { error: "Todavía no hay un diseño que aprobar." };
-  if (archivoDisenoId && archivoDisenoId !== diseno.id) {
+  const disenosCompletos = caso.archivos.filter(
+    (a) => a.tipo === "DISENO" && a.estado === "COMPLETO",
+  );
+  if (disenosCompletos.length === 0) {
+    return { error: "Todavía no hay un diseño que aprobar." };
+  }
+  const diseno = archivoDisenoId
+    ? disenosCompletos.find((a) => a.id === archivoDisenoId)
+    : disenosCompletos[0];
+  if (!diseno) {
     return {
       error:
         "Su técnico mandó un diseño nuevo mientras usted miraba el anterior. " +
@@ -218,7 +221,10 @@ export async function cambiarEtapa(
     return { error: "Sólo el laboratorio mueve las etapas de un caso." };
   }
 
-  // Bloqueo duro: nada se fabrica sin aprobación registrada del doctor.
+  if (nueva === "ESPERANDO_APROBACION") {
+    return mandarDisenoAAprobacion(casoId);
+  }
+
   if (nueva === "EN_FABRICACION" && !sePuedeFabricar(caso)) {
     return {
       error:
@@ -227,8 +233,6 @@ export async function cambiarEtapa(
     };
   }
 
-  // Segundo bloqueo duro (O-6): nada sale del laboratorio sin control de
-  // calidad cerrado, con sus dos fotos y su kit. Ni por aquí ni por la API.
   if (nueva === "LISTO_Y_EN_CAMINO" && !caso.controlDeCalidad) {
     return {
       error:
@@ -239,7 +243,6 @@ export async function cambiarEtapa(
 
   const datos: Record<string, unknown> = { etapa: nueva };
 
-  // El reloj de la fecha de entrega arranca al aceptar, no al subir (O-3).
   if (nueva === "ACEPTADO" && !caso.aceptadoEn) {
     const aceptadoEn = new Date();
     datos.aceptadoEn = aceptadoEn;
@@ -270,8 +273,6 @@ export async function cambiarEtapa(
     return resultado;
   });
 
-  // Un aviso por etapa, ni uno más (O-3). La cola se encarga de que no se
-  // repita aunque esto se llame dos veces.
   await avisarA(
     prisma,
     caso.doctorId,
@@ -290,14 +291,8 @@ export async function cambiarEtapa(
   return { listo: true };
 }
 
-/**
- * El laboratorio manda el diseño a aprobación (O-4).
- * Aquí se deriva la malla ligera: al doctor nunca se le sirve el archivo
- * original (§9).
- */
 export async function mandarDisenoAAprobacion(
   casoId: string,
-  archivoDisenoId: string,
 ): Promise<Resultado> {
   const { usuario, caso } = await casoDelUsuario(casoId);
   if (!caso) return { error: "No encuentro ese caso." };
@@ -305,46 +300,70 @@ export async function mandarDisenoAAprobacion(
     return { error: "Sólo el laboratorio manda diseños a aprobación." };
   }
 
-  const diseno = caso.archivos.find(
-    (a) => a.id === archivoDisenoId && a.estado === "COMPLETO",
+  const disenosCompletos = caso.archivos.filter(
+    (a) => a.tipo === "DISENO" && a.estado === "COMPLETO",
   );
-  if (!diseno) return { error: "Ese diseño todavía no termina de subir." };
-
-  let resumen;
-  try {
-    resumen = await derivarMallaLigera({
-      rutaDelOriginal: diseno.rutaRelativa,
-      casoId: caso.id,
-      archivoId: diseno.id,
-    });
-  } catch (falla) {
+  if (disenosCompletos.length === 0) {
     return {
       error:
-        falla instanceof Error
-          ? falla.message
-          : "No pude preparar la vista del diseño.",
+        "Suba primero los archivos 3D o las imágenes del diseño antes de mandarlo a aprobación.",
     };
   }
 
+  const disenosStl = disenosCompletos.filter(
+    (a) => a.extension.toLowerCase() === "stl",
+  );
+
+  const mallasDerivadas: {
+    originalId: string;
+    nombreOriginal: string;
+    resumen: ResumenDeMalla;
+  }[] = [];
+
+  for (const stl of disenosStl) {
+    try {
+      const resumen = await derivarMallaLigera({
+        rutaDelOriginal: stl.rutaRelativa,
+        casoId: caso.id,
+        archivoId: stl.id,
+      });
+      mallasDerivadas.push({
+        originalId: stl.id,
+        nombreOriginal: stl.nombre,
+        resumen,
+      });
+    } catch (falla) {
+      return {
+        error:
+          falla instanceof Error
+            ? falla.message
+            : `No pude preparar la vista de ${stl.nombre}.`,
+      };
+    }
+  }
+
+  const primera = mallasDerivadas[0]?.resumen ?? null;
+
   await prisma.$transaction(async (bd) => {
-    // Una sola malla vigente por caso.
     await bd.archivo.deleteMany({
       where: { casoId: caso.id, tipo: "MALLA_LIGERA" },
     });
 
-    await bd.archivo.create({
-      data: {
-        casoId: caso.id,
-        nombre: `Vista de ${diseno.nombre}`,
-        tipo: "MALLA_LIGERA",
-        extension: "malla",
-        bytesTotales: BigInt(resumen.bytes),
-        bytesRecibidos: BigInt(resumen.bytes),
-        estado: "COMPLETO",
-        rutaRelativa: resumen.rutaRelativa,
-        subidoPorId: usuario.id,
-      },
-    });
+    for (const item of mallasDerivadas) {
+      await bd.archivo.create({
+        data: {
+          casoId: caso.id,
+          nombre: `Vista de ${item.nombreOriginal}`,
+          tipo: "MALLA_LIGERA",
+          extension: "malla",
+          bytesTotales: BigInt(item.resumen.bytes),
+          bytesRecibidos: BigInt(item.resumen.bytes),
+          estado: "COMPLETO",
+          rutaRelativa: item.resumen.rutaRelativa,
+          subidoPorId: usuario.id,
+        },
+      });
+    }
 
     await bd.caso.update({
       where: { id: caso.id },
@@ -358,11 +377,14 @@ export async function mandarDisenoAAprobacion(
       usuarioId: usuario.id,
       etapaAnterior: caso.etapa,
       etapaNueva: "ESPERANDO_APROBACION",
-      datos: {
-        triangulos: resumen.triangulos,
-        bytesDeLaVista: resumen.bytes,
-        reducida: resumen.reducida,
-      },
+      datos: primera
+        ? {
+            triangulos: primera.triangulos,
+            bytesDeLaVista: primera.bytes,
+            reducida: primera.reducida,
+            mallasGeneradas: mallasDerivadas.length,
+          }
+        : { archivosDeDiseno: disenosCompletos.length },
     });
   });
 
@@ -380,5 +402,34 @@ export async function mandarDisenoAAprobacion(
 
   revalidatePath(`/casos/${caso.id}`);
   revalidatePath("/");
+  return { listo: true };
+}
+
+export async function solicitarImpresionDeTicket(
+  casoId: string,
+): Promise<Resultado> {
+  const { usuario, caso } = await casoDelUsuario(casoId);
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (!puedeMoverEtapas(usuario)) {
+    return { error: "Sólo el laboratorio puede imprimir el ticket del caso." };
+  }
+
+  await prisma.$transaction(async (bd) => {
+    await bd.caso.update({
+      where: { id: caso.id },
+      data: { actualizadoEn: new Date() },
+    });
+
+    await registrarEvento(bd, {
+      tipo: "CASO_ACTUALIZADO",
+      resumen: `${usuario.nombreCompleto} mandó a imprimir el ticket del caso ${caso.folio}.`,
+      casoId: caso.id,
+      usuarioId: usuario.id,
+      datos: { solicitarImpresion: true },
+    });
+  });
+
+  await empujarTicketARaspberry(caso.id);
+  revalidatePath(`/casos/${caso.id}`);
   return { listo: true };
 }

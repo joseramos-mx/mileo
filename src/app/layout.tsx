@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -38,9 +39,15 @@ try {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es-MX" className={`${jakarta.variable} h-full`} suppressHydrationWarning>
+    <html
+      lang="es-MX"
+      className={`${jakarta.variable} h-full`}
+      suppressHydrationWarning
+    >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: guionTema }} />
+        <Script id="mileo-tema" strategy="beforeInteractive">
+          {guionTema}
+        </Script>
       </head>
       <body className="min-h-full bg-app font-sans text-cuerpo text-primario">
         {children}

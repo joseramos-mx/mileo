@@ -82,7 +82,7 @@ export const ETAPAS: Record<Etapa, DescripcionDeEtapa> = {
     paraElDoctor: "Su técnico está diseñando las unidades.",
   },
   ESPERANDO_APROBACION: {
-    nombre: "Esperando su aprobación",
+    nombre: "Esperando aprobación",
     tono: "pendiente",
     paraElDoctor: "El diseño está listo. Le toca revisarlo a usted.",
   },
