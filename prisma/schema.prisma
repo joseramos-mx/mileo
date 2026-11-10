@@ -24,6 +24,9 @@ model Clinica {
   id       String   @id @default(cuid())
   nombre   String
   ciudad   String?
+  /// Donde se entregan las piezas. Vacia al registrarse: la clinica la
+  /// completa en ajustes, y sin ella no se puede enviar un caso.
+  direccionEntrega String?
   creadoEn DateTime @default(now())
 
   /// Cuantos casos al mes son la meta de esta clinica. Es lo que enseña la
@@ -84,7 +87,9 @@ model Usuario {
   @@index([clinicaId])
 }
 
-// Alta solo por invitacion del laboratorio (O-1). No existe registro abierto.
+// Invitacion del laboratorio (O-1). Sirve para sumar gente a una clinica o dar
+// de alta a alguien a mano; las clinicas nuevas tambien pueden registrarse solas
+// (/registro): su cuenta nace inactiva y se activa al confirmar el correo.
 model Invitacion {
   id        String   @id @default(cuid())
   correo    String
@@ -428,6 +433,7 @@ enum TipoEvento {
   FECHA_RECORRIDA
   USUARIO_INVITADO
   USUARIO_INGRESO
+  USUARIO_REGISTRADO
   AVISO_PRIVACIDAD_ACEPTADO
   RESPALDO_RESTAURADO
 }

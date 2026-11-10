@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { usuarioActual } from "@/lib/sesion";
 import {
   diapositivasDeLaPortada,
   marcasDeLaPortada,
 } from "@/lib/entrada-servidor";
+import { RUTA_DE_REGISTRO } from "@/lib/rutas-publicas";
 import { Marca } from "@/componentes/Marca";
 import { CarruselDeEntrada } from "@/componentes/CarruselDeEntrada";
 import { MarcasCompatibles } from "@/componentes/MarcasCompatibles";
@@ -47,17 +49,17 @@ export default async function PaginaDeEntrada() {
             Escriba sus datos para entrar.
           </p>
 
-          <FormularioDeEntrada /> 
+          <FormularioDeEntrada />
 
           <p className="mt-8 text-center text-menor text-secundario">
             ¿No tiene cuenta?{" "}
-            <a
+            <Link
               className="font-medium text-primario underline underline-offset-4"
-              href="https://wa.me/526181234567"
+              href={RUTA_DE_REGISTRO}
             >
-              Escríbale al laboratorio
-            </a>{" "}
-            y le mandamos su invitación.
+              Cree una
+            </Link>{" "}
+            y haga su primer pedido hoy.
           </p>
         </div>
       </div>
