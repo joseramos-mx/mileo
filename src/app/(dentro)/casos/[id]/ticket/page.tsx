@@ -112,13 +112,13 @@ export default async function PaginaDeTicket({
           </div>
         </div>
 
-        {/* Fecha de entrega */}
+        {/* Fecha de envío */}
         <div className="mt-3 flex items-baseline gap-2">
           <span className="text-xs font-extrabold uppercase tracking-wider text-black">
-            ENTREGA
+            ENVIO
           </span>
           <span className="text-2xl font-extrabold tracking-tight text-black">
-            {ticket.fechaEntrega}
+            {ticket.fechaEnvio}
           </span>
         </div>
 
