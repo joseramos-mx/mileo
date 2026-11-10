@@ -9,7 +9,11 @@ import { ZonaDeArchivos } from "@/componentes/ZonaDeArchivos";
 import { ETAPAS } from "@/lib/vocabulario";
 import { etapasPosiblesDesde } from "@/lib/etapas";
 import { fechaConHora } from "@/lib/fechas";
-import { cambiarEtapa, mandarDisenoAAprobacion } from "./acciones";
+import {
+  cambiarEtapa,
+  mandarDisenoAAprobacion,
+  solicitarImpresionDeTicket,
+} from "./acciones";
 import { ejecutar } from "@/lib/acciones-cliente";
 
 const EXTENSIONES_IMAGEN = ["jpg", "jpeg", "png", "webp", "heic"];
@@ -292,6 +296,31 @@ export function ControlesDelLaboratorio({
               {ETAPAS[destino].nombre}
             </Boton>
           ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-menor font-medium text-primario">
+          Ticket
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Boton
+            type="button"
+            disabled={trabajando}
+            onClick={() =>
+              empezar(async () => {
+                const resultado = await ejecutar(() =>
+                  solicitarImpresionDeTicket(casoId),
+                );
+                if (resultado.error) setError(resultado.error);
+              })
+            }
+          >
+            Mandar a imprimir Ticket
+          </Boton>
+          <BotonEnlace href={`/casos/${casoId}/ticket`}>
+            Ver vista previa del ticket
+          </BotonEnlace>
         </div>
       </div>
 

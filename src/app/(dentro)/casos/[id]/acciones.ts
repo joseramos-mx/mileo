@@ -13,6 +13,7 @@ import { registrarEvento } from "@/lib/bitacora";
 import { calcularFechaDeEntrega, sePuedeFabricar } from "@/lib/etapas";
 import { derivarMallaLigera, type ResumenDeMalla } from "@/lib/malla";
 import { avisarA, avisoDeCambioDeEtapa } from "@/lib/avisos";
+import { empujarTicketARaspberry } from "@/lib/ticket";
 import type { Etapa } from "@/generated/prisma/enums";
 
 export type Resultado = { error?: string; listo?: boolean };
@@ -51,11 +52,6 @@ const esquemaAjuste = z.object({
  */
 export async function aprobarDiseno(
   casoId: string,
-  /**
-   * Cuál diseño se está aprobando. Va desde la pantalla para que el servidor
-   * pueda negarse si el laboratorio mandó otro mientras el doctor lo miraba:
-   * sin esto se aprobaría un diseño que nunca vio, y la bitácora diría que sí.
-   */
   archivoDisenoId?: string,
 ): Promise<Resultado> {
   const { usuario, caso } = await casoDelUsuario(casoId);
@@ -225,12 +221,10 @@ export async function cambiarEtapa(
     return { error: "Sólo el laboratorio mueve las etapas de un caso." };
   }
 
-  // Si se mueve a esperando aprobación, tiene que haber diseño y se prepara su vista.
   if (nueva === "ESPERANDO_APROBACION") {
     return mandarDisenoAAprobacion(casoId);
   }
 
-  // Bloqueo duro: nada se fabrica sin aprobación registrada del doctor.
   if (nueva === "EN_FABRICACION" && !sePuedeFabricar(caso)) {
     return {
       error:
@@ -239,8 +233,6 @@ export async function cambiarEtapa(
     };
   }
 
-  // Segundo bloqueo duro (O-6): nada sale del laboratorio sin control de
-  // calidad cerrado, con sus dos fotos y su kit. Ni por aquí ni por la API.
   if (nueva === "LISTO_Y_EN_CAMINO" && !caso.controlDeCalidad) {
     return {
       error:
@@ -251,7 +243,6 @@ export async function cambiarEtapa(
 
   const datos: Record<string, unknown> = { etapa: nueva };
 
-  // El reloj de la fecha de entrega arranca al aceptar, no al subir (O-3).
   if (nueva === "ACEPTADO" && !caso.aceptadoEn) {
     const aceptadoEn = new Date();
     datos.aceptadoEn = aceptadoEn;
@@ -282,8 +273,6 @@ export async function cambiarEtapa(
     return resultado;
   });
 
-  // Un aviso por etapa, ni uno más (O-3). La cola se encarga de que no se
-  // repita aunque esto se llame dos veces.
   await avisarA(
     prisma,
     caso.doctorId,
@@ -302,12 +291,6 @@ export async function cambiarEtapa(
   return { listo: true };
 }
 
-/**
- * El laboratorio manda el diseño a aprobación (O-4).
- * Si hay archivos STL (conjunto completo + las dos quijadas separadas),
- * aquí se deriva la malla ligera de cada uno; también permite mandar
- * imágenes del diseño o ambos.
- */
 export async function mandarDisenoAAprobacion(
   casoId: string,
 ): Promise<Resultado> {
@@ -327,7 +310,6 @@ export async function mandarDisenoAAprobacion(
     };
   }
 
-  // Derivamos la malla 3D ligera para cada archivo STL de diseño subido.
   const disenosStl = disenosCompletos.filter(
     (a) => a.extension.toLowerCase() === "stl",
   );
@@ -420,5 +402,34 @@ export async function mandarDisenoAAprobacion(
 
   revalidatePath(`/casos/${caso.id}`);
   revalidatePath("/");
+  return { listo: true };
+}
+
+export async function solicitarImpresionDeTicket(
+  casoId: string,
+): Promise<Resultado> {
+  const { usuario, caso } = await casoDelUsuario(casoId);
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (!puedeMoverEtapas(usuario)) {
+    return { error: "Sólo el laboratorio puede imprimir el ticket del caso." };
+  }
+
+  await prisma.$transaction(async (bd) => {
+    await bd.caso.update({
+      where: { id: caso.id },
+      data: { actualizadoEn: new Date() },
+    });
+
+    await registrarEvento(bd, {
+      tipo: "CASO_ACTUALIZADO",
+      resumen: `${usuario.nombreCompleto} mandó a imprimir el ticket del caso ${caso.folio}.`,
+      casoId: caso.id,
+      usuarioId: usuario.id,
+      datos: { solicitarImpresion: true },
+    });
+  });
+
+  await empujarTicketARaspberry(caso.id);
+  revalidatePath(`/casos/${caso.id}`);
   return { listo: true };
 }
