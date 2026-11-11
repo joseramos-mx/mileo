@@ -38,15 +38,19 @@ export default async function PaginaDeEntrada() {
 
       <FormularioDeEntrada />
 
-      <p className="mt-8 text-center text-menor text-secundario">
-        ¿No tiene cuenta?{" "}
-        <Link
-          className="font-medium text-primario underline underline-offset-4"
-          href={RUTA_DE_REGISTRO}
-        >
-          Cree una
-        </Link>{" "}
-        y haga su primer pedido hoy.
+      {/* Más ancha que el formulario: en una línea, centrada por igual a los
+          dos lados. En un celular angosto sí se parte, para no salirse. */}
+      <p className="mt-8 flex justify-center text-center text-menor text-secundario sm:-mx-12">
+        <span className="sm:whitespace-nowrap">
+          ¿No tiene cuenta?{" "}
+          <Link
+            className="font-medium text-primario underline underline-offset-4"
+            href={RUTA_DE_REGISTRO}
+          >
+            Cree una
+          </Link>{" "}
+          y haga su primer pedido hoy.
+        </span>
       </p>
     </PortadaDividida>
   );
