@@ -22,8 +22,8 @@ import { cn } from "@/lib/utilidades";
 /**
  * Navegación de Mileo.
  *
- * En escritorio vive a la izquierda, como en el diseño entregado. En celular
- * baja al pie, al alcance del pulgar.
+ * En escritorio vive en la barra lateral (`BarraLateral`). En celular baja al
+ * pie, al alcance del pulgar.
  */
 
 export type Destino = {
@@ -67,62 +67,15 @@ export const DESTINOS_DEL_LABORATORIO: Destino[] = [
 ];
 
 /** Los enlaces de apoyo del pie de la barra lateral. */
-const APOYO: Destino[] = [
+export const APOYO: Destino[] = [
   { href: "/ayuda", nombre: "Comentarios", icono: PencilSimple },
   { href: "/ayuda", nombre: "Soporte", icono: Question },
   { href: "/ayuda", nombre: "Chat en vivo", icono: ChatCircleDots },
 ];
 
-function estaActivo(ruta: string, href: string) {
+export function estaActivo(ruta: string, href: string) {
   if (href === "/") return ruta === "/";
   return ruta === href || ruta.startsWith(`${href}/`);
-}
-
-export function NavegacionLateral({ destinos }: { destinos: Destino[] }) {
-  const ruta = usePathname();
-
-  return (
-    <nav aria-label="Secciones de Mileo" className="flex flex-col gap-1">
-      {destinos.map(({ href, nombre, icono: Icono }) => {
-        const activo = estaActivo(ruta, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={activo ? "page" : undefined}
-            className={cn(
-              "area-tactil flex items-center gap-4 rounded-control px-3 text-subtitulo",
-              activo
-                ? "font-semibold text-primario"
-                : "text-secundario hover:text-primario",
-            )}
-          >
-            {/* Rellenos siempre, como el diseño entregado. */}
-            <Icono aria-hidden="true" size={18} weight="fill" />
-            {nombre}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-/** Comentarios, soporte y chat, al pie de la barra lateral. */
-export function EnlacesDeApoyo() {
-  return (
-    <nav aria-label="Ayuda" className="flex flex-col">
-      {APOYO.map(({ href, nombre, icono: Icono }) => (
-        <Link
-          key={nombre}
-          href={href}
-          className="flex items-center gap-3 rounded-control px-3 py-2 text-menor text-secundario hover:text-primario"
-        >
-          <Icono aria-hidden="true" size={16} weight="fill" />
-          {nombre}
-        </Link>
-      ))}
-    </nav>
-  );
 }
 
 export function NavegacionInferior({ destinos }: { destinos: Destino[] }) {

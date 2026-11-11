@@ -89,8 +89,7 @@ export function TarjetaDeCaso({
       }
       className={cn(
         "group relative flex flex-col gap-3 overflow-hidden",
-        "rounded-tarjeta border border-borde bg-superficie p-4 pl-5",
-        "transition-colors duration-150 hover:border-borde-encima",
+        "vidrio vidrio-toque rounded-tarjeta p-4 pl-5",
         ANCHO,
         ALTO,
         className,
@@ -268,7 +267,7 @@ export function TarjetaDeCasoCargando({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "flex flex-col gap-3 rounded-tarjeta border border-borde bg-superficie p-4 pl-5",
+        "vidrio flex flex-col gap-3 rounded-tarjeta p-4 pl-5",
         ANCHO,
         ALTO,
         className,

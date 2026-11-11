@@ -39,9 +39,9 @@ export function TablaDeBorradores({
   }, [borradores, busqueda]);
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-contenedor border border-borde bg-superficie">
+    <div className="vidrio min-w-0 overflow-hidden rounded-contenedor">
       {borradores.length > 4 ? (
-        <div className="border-b border-borde p-3">
+        <div className="border-b border-primario/5 p-3">
           <label className="relative flex max-w-sm items-center">
             <span className="sr-only">Buscar entre sus casos sin terminar</span>
             <MagnifyingGlass
@@ -72,7 +72,7 @@ export function TablaDeBorradores({
             trabajo, lo que lleva capturado y cuándo lo guardé.
           </caption>
           <thead>
-            <tr className="border-b border-borde">
+            <tr className="border-b border-primario/5">
               <Encabezado>Paciente</Encabezado>
               <Encabezado>Tipo de trabajo</Encabezado>
               <Encabezado>Lo que lleva</Encabezado>
@@ -88,7 +88,7 @@ export function TablaDeBorradores({
             {visibles.map((borrador) => (
               <tr
                 key={borrador.id}
-                className="border-b border-borde last:border-b-0 hover:bg-superficie-suave"
+                className="border-b border-primario/5 last:border-b-0 hover:bg-primario/5"
               >
                 <th scope="row" className="px-4 py-3 font-normal">
                   <span className="block text-cuerpo font-medium text-primario">

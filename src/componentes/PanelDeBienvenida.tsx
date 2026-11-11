@@ -61,7 +61,7 @@ export function PanelDeBienvenida({
     <section
       aria-labelledby="bienvenida"
       className={cn(
-        "shrink-0 overflow-hidden rounded-panel border border-borde bg-portada",
+        "filo-de-luz shrink-0 overflow-hidden rounded-panel bg-portada/70 backdrop-blur-xl",
         "xl:h-[48%] xl:min-h-[18rem] xl:max-h-[32rem] 2xl:min-h-[21rem]",
       )}
     >
@@ -109,7 +109,7 @@ export function PanelDeBienvenida({
                     <Link
                       href={`/casos/nuevo?indicacion=${indicacion}`}
                       className={cn(
-                        "flex h-full flex-col gap-1.5 overflow-hidden rounded-contenedor bg-categoria p-4 2xl:gap-2 2xl:p-6",
+                        "filo-de-luz flex h-full flex-col gap-1.5 overflow-hidden rounded-contenedor bg-categoria/85 p-4 backdrop-blur-md 2xl:gap-2 2xl:p-6",
                         "transition-opacity duration-150 hover:opacity-90",
                       )}
                     >

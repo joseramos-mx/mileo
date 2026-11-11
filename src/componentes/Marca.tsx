@@ -42,12 +42,21 @@ function leerLogotipo() {
 export function Marca({
   className,
   tamano = "normal",
+  soloIcono = false,
 }: {
   className?: string;
   /** "grande" es para la portada y la barra lateral. */
   tamano?: "normal" | "grande";
+  /** Sólo el asterisco, para la barra lateral plegada. */
+  soloIcono?: boolean;
 }) {
-  const logotipo = leerLogotipo();
+  const completo = leerLogotipo();
+  // El asterisco ocupa el cuadro de la izquierda del archivo: basta con
+  // recortar el viewBox, sin tocar ningún trazo.
+  const logotipo =
+    completo && soloIcono
+      ? completo.replace(/viewBox="0 0 [\d.]+ ([\d.]+)"/, 'viewBox="0 0 $1 $1"')
+      : completo;
   const grande = tamano === "grande";
 
   return (
@@ -74,7 +83,9 @@ export function Marca({
 /** Mientras no esté el archivo del equipo de diseño. */
 function MarcaDeRespaldo({ grande }: { grande: boolean }) {
   return (
-    <span className={cn("inline-flex items-center", grande ? "gap-3" : "gap-2")}>
+    <span
+      className={cn("inline-flex items-center", grande ? "gap-3" : "gap-2")}
+    >
       <svg
         viewBox="0 0 24 24"
         className={cn("shrink-0", grande ? "size-9" : "size-6")}

@@ -49,7 +49,7 @@ export function BarraSuperior({
               onChange={(e) => setTexto(e.target.value)}
               placeholder="Buscar"
               className={cn(
-                "area-tactil w-full rounded-control border border-borde bg-superficie",
+                "vidrio area-tactil w-full rounded-tarjeta border-0 outline-none focus-visible:ring-2 focus-visible:ring-foco",
                 "pl-9 pr-3 text-cuerpo text-primario placeholder:text-secundario",
               )}
             />
@@ -112,7 +112,7 @@ function BarraDeMeta({
       aria-valuenow={hechos}
       aria-label={`Meta del mes: ${hechos} de ${objetivo} casos entregados`}
       style={{ width: ANCHO_DE_LA_META }}
-      className="relative h-9 shrink-0 overflow-hidden rounded-full border border-borde bg-superficie text-primario"
+      className="vidrio relative h-9 shrink-0 overflow-hidden rounded-full text-primario"
     >
       {contenido}
 

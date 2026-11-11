@@ -415,4 +415,51 @@
   .sin-barra::-webkit-scrollbar {
     display: none;
   }
+  /* Vidrio suave: un velo translúcido del color del texto, con desenfoque y un
+     filo de luz arriba en lugar de borde. Al mezclarse con el color del texto
+     sirve igual en tema claro y oscuro. */
+  .vidrio {
+    background-color: color-mix(in oklab, var(--color-primario) 4%, transparent);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, var(--color-primario) 9%, transparent),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-primario) 4%, transparent),
+      0 10px 30px -18px rgb(0 0 0 / 0.5);
+  }
+  .vidrio-fuerte {
+    background-color: color-mix(in oklab, var(--color-primario) 8%, transparent);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, var(--color-primario) 14%, transparent),
+      inset 0 0 0 1px color-mix(in oklab, var(--color-primario) 5%, transparent),
+      0 10px 30px -18px rgb(0 0 0 / 0.6);
+  }
+  /* Al pasar el puntero, el vidrio se aclara un poco. Va aquí y no como
+     `hover:bg-…` porque esa utilidad perdería contra el fondo de `.vidrio`. */
+  .vidrio-toque {
+    transition: background-color 150ms;
+  }
+  .vidrio-toque:hover {
+    background-color: color-mix(in oklab, var(--color-primario) 8%, transparent);
+  }
+  /* Sólo el filo de luz, para superficies que ya tienen su color (el panel de
+     bienvenida, las categorías azules): se ven de vidrio sin perder su tono. */
+  .filo-de-luz {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.14),
+      inset 0 0 0 1px rgb(255 255 255 / 0.05),
+      0 14px 34px -20px rgb(0 0 0 / 0.6);
+  }
+  /* Separador que se desvanece hacia las orillas, sin línea dura. */
+  .linea-suave {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(
+      to right,
+      transparent,
+      color-mix(in oklab, var(--color-primario) 12%, transparent),
+      transparent
+    );
+  }
 }
+

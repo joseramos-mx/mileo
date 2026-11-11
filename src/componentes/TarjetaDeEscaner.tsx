@@ -48,7 +48,7 @@ export function TarjetaDeEscaner({
     return (
       <section
         aria-labelledby="escaner"
-        className="flex flex-col gap-3 rounded-contenedor bg-superficie p-6"
+        className="vidrio flex flex-col gap-3 rounded-contenedor p-6"
       >
         <h2 id="escaner" className="text-subtitulo font-semibold text-primario">
           Su escáner
@@ -75,7 +75,7 @@ export function TarjetaDeEscaner({
   return (
     <section
       aria-labelledby="escaner"
-      className="flex h-full shrink-0 gap-4 overflow-hidden rounded-contenedor bg-superficie p-4 max-lg:min-h-[22rem] sm:p-6"
+      className="vidrio flex h-full shrink-0 gap-4 overflow-hidden rounded-contenedor p-4 max-lg:min-h-[22rem] sm:p-6"
     >
       {/* La foto del equipo, de arriba abajo. La entrega el equipo de diseño (§9). */}
       {/* El ancho va en proporción y no en rem fijos: con el texto al 200% una

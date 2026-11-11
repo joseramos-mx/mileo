@@ -1,20 +1,17 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { SignOut, ChatCircleDots } from "@phosphor-icons/react/dist/ssr";
-import { prisma } from "@/lib/prisma";
 import {
   exigirUsuario,
   esDelLaboratorio,
   esDeLaClinica,
 } from "@/lib/autorizacion";
-import { ROLES } from "@/lib/vocabulario";
 import { Marca } from "@/componentes/Marca";
 import { BarraSuperior } from "@/componentes/BarraSuperior";
 import { EscuchaNovedades } from "@/componentes/EscuchaNovedades";
-import { FichaDeUsuario } from "@/componentes/FichaDeUsuario";
+import { BarraLateral, COOKIE_DE_LA_BARRA } from "@/componentes/BarraLateral";
 import {
-  NavegacionLateral,
   NavegacionInferior,
-  EnlacesDeApoyo,
   DESTINOS_DE_LA_CLINICA,
   DESTINOS_DEL_LABORATORIO,
 } from "@/componentes/Navegacion";
@@ -37,15 +34,11 @@ export default async function DisposicionDentro({
     ? DESTINOS_DEL_LABORATORIO
     : DESTINOS_DE_LA_CLINICA;
 
-  const [clinica, meta] = await Promise.all([
-    usuario.clinicaId
-      ? prisma.clinica.findUnique({
-          where: { id: usuario.clinicaId },
-          select: { nombre: true },
-        })
-      : Promise.resolve(null),
+  const [meta, galletas] = await Promise.all([
     esDeLaClinica(usuario) ? metaDelMes(usuario) : Promise.resolve(null),
+    cookies(),
   ]);
+  const barraPlegada = galletas.get(COOKIE_DE_LA_BARRA)?.value === "1";
 
   // `relative` no es decoración: sin un ancestro posicionado, todo lo que va en
   // absoluto —empezando por los textos de `sr-only`, que Tailwind pone así— se
@@ -66,26 +59,17 @@ export default async function DisposicionDentro({
       </a>
 
       {/* --- Barra lateral, escritorio ------------------------------------ */}
-      {/* El borde de la derecha marca su espacio, y la ficha de la cuenta se
-          apoya en el pie ocupando todo el ancho, como el diseño entregado. */}
-      <header className="hidden w-72 shrink-0 flex-col border-r border-borde bg-app lg:flex">
-        <div className="flex flex-1 flex-col gap-10 overflow-y-auto p-4">
-          <Link href="/" className="area-tactil flex items-center px-3 pt-3">
-            <Marca tamano="grande" />
-          </Link>
-          <NavegacionLateral destinos={destinos} />
-        </div>
-
-        <div className="px-4 pb-3">
-          <EnlacesDeApoyo />
-        </div>
-
-        <FichaDeUsuario
-          nombre={usuario.nombreCompleto}
-          debajo={clinica?.nombre ?? ROLES[usuario.rol]}
-          fotoUrl={usuario.fotoUrl}
-        />
-      </header>
+      <BarraLateral
+        delLaboratorio={delLaboratorio}
+        plegadaAlInicio={barraPlegada}
+        marca={<Marca tamano="grande" />}
+        marcaCompacta={<Marca tamano="grande" soloIcono />}
+        usuario={{
+          nombre: usuario.nombreCompleto,
+          correo: usuario.correo,
+          fotoUrl: usuario.fotoUrl,
+        }}
+      />
 
       {/* --- Encabezado de celular ---------------------------------------- */}
       <header className="flex items-center justify-between gap-2 border-b border-borde bg-superficie px-4 py-3 lg:hidden">
@@ -113,7 +97,17 @@ export default async function DisposicionDentro({
       </header>
 
       {/* --- Contenido ----------------------------------------------------- */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative isolate flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Luz de fondo, quieta mientras el contenido se desplaza: le da al
+            vidrio de las tarjetas algo que desenfocar. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-40 right-[10%] -z-10 size-[36rem] rounded-full bg-accion/10 blur-3xl"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-48 left-[20%] -z-10 size-[32rem] rounded-full bg-accion/8 blur-3xl"
+        />
         {/* `relative` otra vez, y aquí es el que cuenta: ancla los absolutos
             del contenido a la caja que se desplaza, no al documento. */}
         <main

@@ -105,13 +105,15 @@ export default async function PaginaDeInicio() {
           renders={renders}
         />
 
-        <div className="grid grid-cols-1 gap-3 border-t border-borde pt-4 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(15.5rem,19rem)_minmax(0,1fr)_minmax(18rem,23.75rem)]">
+        <hr className="linea-suave shrink-0" />
+
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(15.5rem,19rem)_minmax(0,1fr)_minmax(18rem,23.75rem)]">
           <TarjetaDeEscaner escaner={escaner} />
 
           {/* Lo último que pasó con cada diseño. */}
           <div className="flex min-w-0 flex-col gap-3 overflow-y-auto sin-barra">
             {disenos.length === 0 ? (
-              <p className="rounded-contenedor bg-superficie p-6 text-cuerpo text-secundario">
+              <p className="vidrio rounded-contenedor p-6 text-cuerpo text-secundario">
                 Todavía no hay diseños en curso. En cuanto su técnico termine
                 uno, se lo mando aquí para que lo apruebe.
               </p>
@@ -161,8 +163,9 @@ export default async function PaginaDeInicio() {
       {borradores.length > 0 ? (
         <section
           aria-labelledby="borradores"
-          className="flex flex-col gap-3 border-t border-borde pt-4"
+          className="flex flex-col gap-3"
         >
+          <hr className="linea-suave" />
           <div>
             <h2
               id="borradores"
