@@ -7,6 +7,7 @@ import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
 import { PasosDelCaso, pasosDelAlta } from "@/componentes/PasosDelCaso";
 import { BotonEnlace } from "@/componentes/Boton";
 import { desdeLaBase } from "@/lib/tramos";
+import { cargarCatalogoDeCotizacion } from "@/lib/cotizador-catalogo";
 import { CapturaDeUnidades } from "./CapturaDeUnidades";
 
 export const metadata: Metadata = { title: "Capturar caso · Mileo" };
@@ -35,6 +36,10 @@ export default async function PaginaDeCaptura({
 
   if (!caso) notFound();
   if (!caso.esBorrador) redirect(`/casos/${caso.id}`);
+
+  // Precios, plazos y recargos, de la base. Son unas veinte filas: se mandan
+  // enteras al navegador para que el precio cambie mientras el doctor escoge.
+  const catalogoDeCotizacion = await cargarCatalogoDeCotizacion(prisma);
 
   // Ancho de verdad: el odontograma es una herradura alta, y encerrarlo en una
   // columna angosta obligaba a bajar tres pantallas para verlo entero.
@@ -71,6 +76,8 @@ export default async function PaginaDeCaptura({
         casoId={caso.id}
         catalogoCompleto={usuario.catalogoCompleto}
         unidadesIniciales={caso.unidades.map(desdeLaBase)}
+        catalogoDeCotizacion={catalogoDeCotizacion}
+        entregaRapidaInicial={caso.entregaRapida}
       />
     </div>
   );

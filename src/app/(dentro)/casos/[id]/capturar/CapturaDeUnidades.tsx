@@ -5,6 +5,8 @@ import type { Arcada } from "@/generated/prisma/enums";
 import { DetalleDelDiente, Odontograma } from "@/componentes/Odontograma";
 import { TablaDelCaso } from "@/componentes/TablaDelCaso";
 import { Pestanas } from "@/componentes/Pestanas";
+import { CalculadoraDePrecios } from "@/componentes/CalculadoraDePrecios";
+import type { CatalogoDeCotizacion } from "@/lib/cotizador";
 import {
   conMetodoValido,
   ordenarPorBoca,
@@ -15,7 +17,11 @@ import {
 } from "@/lib/tramos";
 import { useTresColumnas } from "@/lib/pantalla";
 import { CamposDeLaArcada, VistaDeArcadas } from "./VistaDeArcadas";
-import { cambiarCatalogo, guardarUnidades } from "../../acciones";
+import {
+  cambiarCatalogo,
+  guardarEntregaRapida,
+  guardarUnidades,
+} from "../../acciones";
 import { ejecutar } from "@/lib/acciones-cliente";
 
 export type UnidadCapturada = UnidadDelCaso;
@@ -39,6 +45,10 @@ export type UnidadCapturada = UnidadDelCaso;
  * Abajo, a todo lo ancho y bajo las dos, la tabla de lo capturado: se lee de
  * corrido venga de donde venga cada renglón.
  *
+ * Al final, el precio y para cuándo lo necesita (estándar o rápida, con su
+ * recargo). La elección de entrega rápida es un dato del caso y se guarda con
+ * el borrador; al enviar, el servidor vuelve a calcular.
+ *
  * Todo se guarda solo, con una pausa de un segundo. Nunca se pierde trabajo
  * (§6.6).
  */
@@ -46,11 +56,17 @@ export function CapturaDeUnidades({
   casoId,
   catalogoCompleto: catalogoInicial,
   unidadesIniciales,
+  catalogoDeCotizacion,
+  entregaRapidaInicial,
 }: {
   casoId: string;
   /** Si este doctor ve el catálogo entero o la lista corta. */
   catalogoCompleto: boolean;
   unidadesIniciales: UnidadCapturada[];
+  /** Precios, plazos y recargos, de `cargarCatalogoDeCotizacion(prisma)`. */
+  catalogoDeCotizacion: CatalogoDeCotizacion;
+  /** `caso.entregaRapida`. */
+  entregaRapidaInicial: boolean;
 }) {
   const [catalogoCompleto, setCatalogoCompleto] = useState(catalogoInicial);
   const [pestana, setPestana] = useState("dientes");
@@ -75,6 +91,7 @@ export function CapturaDeUnidades({
   );
   const [error, setError] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<number | null>(null);
+  const [entregaRapida, setEntregaRapida] = useState(entregaRapidaInicial);
   const tresColumnas = useTresColumnas();
   const [, empezar] = useTransition();
   // Si hubo que rellenar el método, la primera pasada sí guarda.
@@ -105,6 +122,23 @@ export function CapturaDeUnidades({
 
     return () => clearTimeout(temporizador);
   }, [casoId, unidades]);
+
+  // La entrega rápida también se guarda sola: es lo que el laboratorio lee para
+  // saber que el doctor aceptó el recargo. Es un solo valor, así que no necesita
+  // la pausa del borrador. La primera pasada es el valor con el que se abrió.
+  const primeraEntrega = useRef(true);
+  useEffect(() => {
+    if (primeraEntrega.current) {
+      primeraEntrega.current = false;
+      return;
+    }
+    empezar(async () => {
+      const resultado = await ejecutar(() =>
+        guardarEntregaRapida(casoId, entregaRapida),
+      );
+      setError(resultado.error ?? null);
+    });
+  }, [casoId, entregaRapida]);
 
   const cambiarElCatalogo = (completo: boolean) => {
     setCatalogoCompleto(completo);
@@ -257,6 +291,24 @@ export function CapturaDeUnidades({
           setUnidades(quitarUnidad(unidades, unidad));
           if (abierto === unidad.diente) setAbierto(null);
         }}
+      />
+
+      {/* Precio y para cuándo lo necesita. Lee las mismas unidades, así que se
+          recalcula solo cuando el doctor cambia un trabajo en el odontograma. */}
+      <CalculadoraDePrecios
+        unidades={unidades.map((u) => ({
+          diente: u.diente ?? null,
+          arcada: u.arcada ?? null,
+          rol: u.rol,
+          material: u.material ?? null,
+          esImplante: u.esImplante,
+          retencion: u.retencion ?? null,
+          tramoId: u.tramoId ?? null,
+        }))}
+        catalogo={catalogoDeCotizacion}
+        entregaRapida={entregaRapida}
+        alCambiarEntregaRapida={setEntregaRapida}
+        className="lg:max-w-2xl"
       />
 
       {error ? (

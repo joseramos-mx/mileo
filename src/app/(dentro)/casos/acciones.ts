@@ -9,6 +9,7 @@ import { registrarEvento } from "@/lib/bitacora";
 import { siguienteFolio, siguienteFolioDePaciente } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
 import { empujarTicketARaspberry } from "@/lib/ticket";
+import { congelarCotizacion } from "@/lib/cotizador-caso";
 import { arcadaDe, nombreDelTramo, tramosDe } from "@/lib/tramos";
 import {
   TRABAJOS,
@@ -392,6 +393,41 @@ export async function guardarUnidades(
   return { guardadoEn: new Date().toISOString() };
 }
 
+// ---------------------------------------------------------- entrega rápida
+
+/**
+ * Guarda si el doctor pidió entrega rápida. Se llama sola al marcarla o
+ * desmarcarla, igual que el borrador de unidades.
+ *
+ * Es lo que el doctor eligió, no lo que se cobra: al enviar, `enviarCaso`
+ * vuelve a decidir con lo que calcula el servidor. Lo que mande el cliente
+ * nunca fija el recargo.
+ */
+export async function guardarEntregaRapida(
+  casoId: string,
+  rapida: unknown,
+): Promise<{ error?: string }> {
+  const usuario = await exigirUsuario();
+
+  const leido = z.boolean().safeParse(rapida);
+  if (!leido.success) return { error: "No entendí si pidió entrega rápida." };
+
+  const caso = await prisma.caso.findFirst({
+    where: { id: casoId, ...filtroDeCasos(usuario) },
+    select: { id: true, esBorrador: true },
+  });
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (!caso.esBorrador) {
+    return { error: "Este caso ya está en el laboratorio y no se puede editar." };
+  }
+
+  await prisma.caso.update({
+    where: { id: caso.id },
+    data: { entregaRapida: leido.data },
+  });
+  return {};
+}
+
 // ------------------------------------------------------------- enviar caso
 
 export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
@@ -404,6 +440,7 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
       folio: true,
       esBorrador: true,
       indicacion: true,
+      entregaRapida: true,
       unidades: { select: { id: true, rol: true } },
       archivos: { select: { tipo: true, estado: true } },
     },
@@ -420,21 +457,48 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
     return { error: `Todavía me falta ${falta}.` };
   }
 
-  await prisma.$transaction(async (bd) => {
-    await bd.caso.update({
-      where: { id: caso.id },
-      data: { esBorrador: false, enviadoEn: new Date(), etapa: "RECIBIDO" },
-    });
+  const resultado = await prisma.$transaction(
+    async (bd): Promise<{ error?: string }> => {
+      // El precio y la fecha se calculan aquí, con la lista de la base, y se
+      // congelan en el caso: lo que vio el doctor en pantalla es un estimado.
+      // Si pidió entrega rápida y ya no se puede (pasó la hora límite, el
+      // puente creció), no se manda como estándar sin avisarle. Cuando rechaza
+      // no escribe nada, así que la transacción termina sin cambios.
+      const cotizacion = await congelarCotizacion(bd, {
+        casoId: caso.id,
+        entregaRapida: caso.entregaRapida,
+      });
+      if (!cotizacion.ok) {
+        return {
+          error: caso.entregaRapida
+            ? `Ya no se puede la entrega rápida. ${cotizacion.motivo}`
+            : cotizacion.motivo,
+        };
+      }
 
-    await registrarEvento(bd, {
-      tipo: "CASO_ENVIADO",
-      resumen: `${usuario.nombreCompleto} envió el caso ${caso.folio} al laboratorio, con ${caso.unidades.length} unidades.`,
-      casoId: caso.id,
-      usuarioId: usuario.id,
-      etapaNueva: "RECIBIDO",
-      datos: { ticketPendiente: true },
-    });
-  });
+      await bd.caso.update({
+        where: { id: caso.id },
+        data: { esBorrador: false, enviadoEn: new Date(), etapa: "RECIBIDO" },
+      });
+
+      await registrarEvento(bd, {
+        tipo: "CASO_ENVIADO",
+        resumen: `${usuario.nombreCompleto} envió el caso ${caso.folio} al laboratorio, con ${caso.unidades.length} unidades${cotizacion.cotizacion.entregaRapida ? " y entrega rápida" : ""
+          }.`,
+        casoId: caso.id,
+        usuarioId: usuario.id,
+        etapaNueva: "RECIBIDO",
+        datos: {
+          ticketPendiente: true,
+          entregaRapida: cotizacion.cotizacion.entregaRapida,
+          totalCentavos: cotizacion.cotizacion.totalCentavos,
+        },
+      });
+
+      return {};
+    },
+  );
+  if (resultado.error) return resultado;
 
   void empujarTicketARaspberry(caso.id);
   revalidatePath("/", "layout");

@@ -278,6 +278,14 @@ model Caso {
   fechaEntregaComprometida DateTime?
   entregadoEn              DateTime?
 
+  /// El doctor pidió entrega rápida y aceptó el recargo (+30 % al día siguiente,
+  /// +50 % el mismo día; los porcentajes viven en AjustesDeCotizacion).
+  entregaRapida Boolean @default(false)
+  /// El precio y la fecha estimada tal como se calcularon al enviar el caso
+  /// (tipo `CotizacionGuardada`, src/lib/cotizador.ts). Se congela porque las
+  /// tarifas cambian: un caso ya enviado no debe cambiar de precio después.
+  cotizacion    Json?
+
   enRiesgo     Boolean @default(false)
   motivoRiesgo String?
 
@@ -651,4 +659,107 @@ model Escaner {
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
+}
+
+// --------------------------------------------------------- precios y plazos
+//
+// La calculadora de precios y fecha de entrega. Nada de esto está escrito en el
+// código: precios, plazos, horas límite y recargos viven aquí para que cambien
+// sin desplegar. Lo único que cambia de las tablas que ya había son dos columnas
+// de Caso: `entregaRapida` y `cotizacion`.
+
+/// Cuánto cuesta una pieza, y a qué piezas se aplica.
+///
+/// Una unidad del caso (rol + material + implante) se cobra con la tarifa que
+/// la cubre. Si la cubren varias gana la de mayor `prioridad`; si no la cubre
+/// ninguna, se enseña "se cotiza aparte" en vez de inventar un precio.
+model Tarifa {
+  /// Estable y legible: "ZIRCONIO_MONOLITICO". Es lo que se edita en el nombre,
+  /// nunca la clave.
+  clave  String @id
+  /// Como lo ve el doctor.
+  nombre String
+
+  /// En centavos: 1150 pesos son 115000. Evita redondeos con flotantes.
+  precioCentavos Int
+
+  /// A qué roles cubre. Vacía no cubre nada: una tarifa a medio llenar no se
+  /// aplica a todo.
+  roles      RolDeUnidad[]
+  /// Con qué materiales. Vacía cubre cualquiera.
+  materiales Material[]
+  /// Sólo sobre implante (true), sólo sobre diente (false), o da igual (null).
+  sobreImplante Boolean?
+  /// Sólo con esta retención, o cualquiera (null).
+  retencion     Retencion?
+  /// Si la cubren dos tarifas gana la mayor.
+  prioridad     Int        @default(0)
+
+  /// No se cobra si el caso lleva otro trabajo: el modelo impreso va incluido
+  /// con la corona, y cuesta sólo cuando se pide solo.
+  incluidaConOtroTrabajo Boolean @default(false)
+
+  activa Boolean @default(true)
+
+  /// Con qué plazo de entrega se fabrica.
+  plazoClave String
+  plazo      PlazoDeEntrega @relation(fields: [plazoClave], references: [clave])
+
+  actualizadoEn DateTime @default(now()) @updatedAt
+
+  @@index([plazoClave])
+}
+
+/// En cuánto se entrega una familia de piezas.
+///
+/// Los días son hábiles. El plazo rápido es opcional: si `diasRapido` está
+/// vacío, esa familia no se puede acelerar.
+model PlazoDeEntrega {
+  clave  String @id
+  nombre String
+
+  diasEstandar    Int
+  /// Cuando el estándar es un rango ("4 a 5 días"): el tope. La fecha que se
+  /// promete es la del tope.
+  diasEstandarMax Int?
+
+  /// Días hábiles del plazo rápido. 0 es el mismo día.
+  diasRapido          Int?
+  /// "HH:mm", hora de la clínica. El caso tiene que llegar antes para entrar en
+  /// el plazo rápido.
+  horaLimite          String?
+  /// Hasta cuántas unidades unidas en un puente caben en el plazo rápido.
+  maxUnidadesPorPieza Int?
+  /// Lo que el laboratorio confirma y la calculadora no puede saber.
+  condicionRapida     String?
+
+  /// Días hábiles que suma cada prueba con el paciente (ida y vuelta al
+  /// consultorio). Vacío: este plazo no lleva pruebas.
+  diasPorPrueba Int?
+
+  tarifas Tarifa[]
+
+  actualizadoEn DateTime @default(now()) @updatedAt
+}
+
+/// Días en que el laboratorio no trabaja, además de los fines de semana.
+model DiaInhabil {
+  fecha  DateTime @id @db.Date
+  motivo String
+}
+
+/// Una sola fila, con id "unica".
+model AjustesDeCotizacion {
+  id String @id @default("unica")
+
+  /// Recargo por entregar al día siguiente / el mismo día, sobre el total del
+  /// caso, en porcentaje.
+  recargoDiaSiguientePct Int @default(30)
+  recargoMismoDiaPct     Int @default(50)
+
+  /// Días en que trabaja el laboratorio: 1 es lunes, 7 es domingo.
+  diasHabiles Int[]  @default([1, 2, 3, 4, 5])
+  zonaHoraria String @default("America/Mexico_City")
+
+  actualizadoEn DateTime @default(now()) @updatedAt
 }
