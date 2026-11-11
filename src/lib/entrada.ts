@@ -1,60 +1,41 @@
 /**
- * Lo que se ve en la portada de Mileo.
+ * Lo que se ve en la portada de Mileo (entrar, registro y verificar).
  *
- * Está aquí y no dentro de las pantallas para que el equipo de diseño y el
- * laboratorio puedan cambiar las fotos y las marcas sin tocar la interfaz.
+ * Está aquí y no dentro de las pantallas para que el equipo de diseño pueda
+ * cambiar la foto y las marcas sin tocar la interfaz. Las rutas van tal como se
+ * entregaron, con sus espacios: se codifican al pintar.
  */
 
-export type Diapositiva = {
-  /**
-   * Ruta de la foto dentro de /public. Mientras no exista, la pantalla enseña
-   * el marco con la descripción: no se recrean imágenes en código (§9).
-   */
-  imagen?: string;
-  /** Qué debe ir ahí. Es la descripción para quien no ve la foto. */
-  etiqueta: string;
+/** La foto del panel derecho. Ya viene con el desenfoque abajo para el texto. */
+export const FOTO_DE_PORTADA = {
+  ruta: "/bg slide login.png",
+  etiqueta: "Una sonrisa con un escáner intraoral",
 };
 
-/**
- * ⚠️ Para el equipo de diseño: dejen las fotos en `public/entrada/` con estos
- * nombres y la portada queda igual al diseño entregado, sin tocar código.
- */
-export const DIAPOSITIVAS: Diapositiva[] = [
-  {
-    imagen: "/entrada/laboratorio.jpg",
-    etiqueta: "El laboratorio RMS Zahnfacturing en Durango",
-  },
-  {
-    imagen: "/entrada/diseno.jpg",
-    etiqueta: "Un diseño de zirconio en pantalla, listo para aprobación",
-  },
-  {
-    imagen: "/entrada/entrega.jpg",
-    etiqueta: "Un caso terminado y empacado, listo para salir",
-  },
-];
+/** El asterisco de Mileo en blanco, para la esquina de la foto. */
+export const ICONO_BLANCO = "/Asset 6mileo solo white.svg";
 
 export type MarcaCompatible = {
   nombre: string;
-  /** Ruta del logotipo dentro de /public/marcas. Opcional hasta que lo entreguen. */
-  logo?: string;
+  /** Ruta del logotipo dentro de /public. */
+  logo: string;
+  /**
+   * Alto del `viewBox` del SVG. Los archivos vienen a la misma escala entre sí,
+   * así que pintarlos a una misma razón de este alto los deja proporcionados.
+   */
+  altoOriginal: number;
 };
 
 /**
- * Las marcas de escáner con las que Mileo trabaja.
- *
- * ⚠️ Pendiente del Product Owner (§12.6): confirmar cuáles se cubren el primer
- * día. Los logotipos son marcas registradas de sus dueños: los entrega el
- * equipo de diseño en `public/marcas/`, no se dibujan en código (§9). Mientras
- * tanto se enseña el nombre.
+ * Las marcas de escáner con las que Mileo trabaja. Los logotipos son marcas
+ * registradas de sus dueños; los entregó el equipo de diseño.
  */
 export const MARCAS_COMPATIBLES: MarcaCompatible[] = [
-  { nombre: "3Shape", logo: "/marcas/3shape.svg" },
-  { nombre: "Medit", logo: "/marcas/medit.svg" },
-  { nombre: "Straumann", logo: "/marcas/straumann.svg" },
-  { nombre: "Dental Wings", logo: "/marcas/dental-wings.svg" },
-  { nombre: "Carestream", logo: "/marcas/carestream.svg" },
-  { nombre: "Planmeca", logo: "/marcas/planmeca.svg" },
+  { nombre: "3Shape", logo: "/Asset 1scanners logo.svg", altoOriginal: 29.76 },
+  { nombre: "Medit", logo: "/Asset 2scanners logo.svg", altoOriginal: 22.15 },
+  { nombre: "Straumann", logo: "/Asset 3scanners logo.svg", altoOriginal: 34.01 },
+  { nombre: "iTero", logo: "/Asset 4scanners logo.svg", altoOriginal: 35.81 },
+  { nombre: "Shining 3D", logo: "/Asset 5scanners logo.svg", altoOriginal: 21.73 },
 ];
 
 /**

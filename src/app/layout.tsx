@@ -6,7 +6,7 @@ import "./globals.css";
 const jakarta = Plus_Jakarta_Sans({
   variable: "--fuente-jakarta",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
 
