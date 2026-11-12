@@ -27,6 +27,14 @@ export default async function PaginaDeTicket({
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 pb-10">
+      {/* Media de impresión: papel 80×40 mm horizontal, sin márgenes */}
+      <style>{`
+        @media print {
+          @page { size: 80mm 40mm; margin: 0; }
+          html, body { margin: 0; padding: 0; background: #fff; }
+        }
+      `}</style>
+
       <div className="flex flex-col gap-3 print:hidden">
         <Link
           href={`/casos/${caso.id}`}
@@ -44,88 +52,107 @@ export default async function PaginaDeTicket({
         <BotonImprimirNavegador casoId={caso.id} />
       </div>
 
-      {/* Lienzo físico de 80 mm (proporción 576px térmico en blanco y negro puro) */}
-      <div className="mx-auto w-full max-w-[380px] rounded-tarjeta border border-black/20 bg-white p-5 font-sans text-black shadow-md print:max-w-none print:border-none print:p-0 print:shadow-none">
-        {/* Encabezado */}
-        <div className="flex items-baseline justify-between border-b-2 border-black pb-2 text-xs font-bold tracking-tight">
-          <span>{ticket.empresa}</span>
-          <span className="font-medium">{ticket.fechaCreacion}</span>
+      {/* Lienzo físico de 8 × 4 cm horizontal, paralelo al corte de la impresora. Preview en pantalla a tamaño real. */}
+      <div
+        className="mx-auto flex flex-col bg-white font-sans text-black shadow-md print:shadow-none"
+        style={{ width: "80mm", height: "40mm", padding: "1.5mm" }}
+      >
+        {/* Encabezado: empresa + fecha de creación */}
+        <div
+          className="flex items-baseline justify-between border-b border-black pb-[0.5mm]"
+          style={{ fontSize: "6pt" }}
+        >
+          <span className="font-bold tracking-tight">{ticket.empresa}</span>
+          <span>{ticket.fechaCreacion}</span>
         </div>
 
-        {/* Folio gigante */}
-        <div className="py-2 text-center text-4xl font-extrabold tracking-tight text-black">
-          {ticket.folio}
-        </div>
+        {/* Cuerpo: QR a la izquierda, bloque de datos a la derecha */}
+        <div className="mt-[1mm] flex min-h-0 flex-1 gap-[2mm]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={qrSrc}
+            alt={`QR del caso ${ticket.folio}`}
+            style={{ width: "25mm", height: "25mm" }}
+            className="shrink-0 object-contain"
+          />
 
-        {/* Cintillo invertido negro */}
-        <div className="bg-black px-3 py-1.5 text-center text-lg font-extrabold tracking-wider text-white">
-          {ticket.cintillo}
-        </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-[0.5mm] leading-tight">
+            {/* Folio + cintillo pegados para ganar aire abajo */}
+            <div
+              className="text-center font-extrabold tracking-tight"
+              style={{ fontSize: "14pt", lineHeight: 1 }}
+            >
+              {ticket.folio}
+            </div>
+            <div
+              className="bg-black text-center font-extrabold uppercase tracking-wider text-white"
+              style={{ fontSize: "6pt", padding: "0.6mm 1mm" }}
+            >
+              {ticket.cintillo}
+            </div>
 
-        {/* Bloque central: QR a la izquierda + 4 campos a la derecha */}
-        <div className="mt-4 grid grid-cols-[132px_1fr] items-start gap-3.5 border-b-2 border-black pb-4">
-          <div className="flex items-center justify-center bg-white p-0.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={qrSrc}
-              alt={`QR del caso ${ticket.folio}`}
-              className="size-[128px] object-contain"
-            />
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-1.5 text-left leading-tight">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-black/80">
+            {/* Datos en grilla 2×2: etiqueta chica arriba, valor grueso debajo */}
+            <div
+              className="mt-[0.5mm] grid grid-cols-2 gap-x-[1.5mm] gap-y-[0.3mm]"
+              style={{ lineHeight: 1.1 }}
+            >
+              <p className="font-bold uppercase" style={{ fontSize: "4.5pt" }}>
                 CONSULTORIO
               </p>
-              <p className="truncate text-sm font-semibold text-black">
-                {ticket.consultorio}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-black/80">
+              <p className="font-bold uppercase" style={{ fontSize: "4.5pt" }}>
                 PACIENTE
               </p>
-              <p className="text-base font-bold text-black">
+              <p
+                className="truncate font-semibold"
+                style={{ fontSize: "6.5pt" }}
+              >
+                {ticket.consultorio}
+              </p>
+              <p className="font-bold" style={{ fontSize: "7pt" }}>
                 {ticket.paciente}
               </p>
-            </div>
 
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-black/80">
+              <p className="font-bold uppercase" style={{ fontSize: "4.5pt" }}>
                 TRABAJO
               </p>
-              <p className="text-sm font-semibold text-black">
-                {ticket.trabajo}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-black/80">
+              <p className="font-bold uppercase" style={{ fontSize: "4.5pt" }}>
                 COLOR · UNIDADES
               </p>
-              <p className="text-base font-bold text-black">
+              <p
+                className="truncate font-semibold"
+                style={{ fontSize: "6.5pt" }}
+              >
+                {ticket.trabajo}
+              </p>
+              <p className="font-bold" style={{ fontSize: "7pt" }}>
                 {ticket.colorUnidades}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Fecha de envío */}
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-black">
-            ENVIO
+        {/* Franja inferior: ENVIO grande + pie */}
+        <div
+          className="mt-[1mm] flex items-baseline justify-between gap-[2mm] border-t border-black pt-[0.5mm]"
+          style={{ lineHeight: 1.1 }}
+        >
+          <div className="flex items-baseline gap-[1mm]">
+            <span className="font-bold uppercase" style={{ fontSize: "5pt" }}>
+              ENVIO
+            </span>
+            <span
+              className="font-extrabold tracking-tight"
+              style={{ fontSize: "8pt" }}
+            >
+              {ticket.fechaEnvio}
+            </span>
+          </div>
+          <span
+            className="truncate text-right font-semibold"
+            style={{ fontSize: "4.5pt" }}
+          >
+            {ticket.pie1} · {ticket.pie2}
           </span>
-          <span className="text-2xl font-extrabold tracking-tight text-black">
-            {ticket.fechaEnvio}
-          </span>
-        </div>
-
-        {/* Pie del ticket */}
-        <div className="mt-2 flex flex-col gap-0.5 text-xs text-black">
-          <p className="font-semibold">{ticket.pie1}</p>
-          <p className="text-black/80">{ticket.pie2}</p>
         </div>
       </div>
     </div>

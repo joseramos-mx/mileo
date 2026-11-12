@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { GradienteVivo } from "@/componentes/GradienteVivo";
 import {
   FOTO_DE_PORTADA,
   ICONO_BLANCO,
@@ -20,7 +21,22 @@ const ESCALA_DE_LOGOS = 0.76;
 
 export function PortadaDividida({ children }: { children: ReactNode }) {
   return (
-    <main className="siempre-oscuro grid h-dvh grid-cols-1 overflow-hidden bg-black lg:grid-cols-2">
+    <main className="siempre-oscuro relative isolate grid h-dvh grid-cols-1 overflow-hidden bg-black lg:grid-cols-2">
+      {/* Un resplandor azul que baja desde el borde de arriba, a todo lo ancho,
+          y se apaga en el negro. Va detrás de todo: la foto lo tapa y el
+          formulario queda encima. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[24vh] lg:block"
+        style={{
+          maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, black 0%, transparent 100%)",
+        }}
+      >
+        <GradienteVivo />
+      </div>
+
       {/* --- Izquierda: formulario y escáneres ----------------------------- */}
       <div className="relative min-h-0">
         {/* Se desplaza por dentro si hace falta: con el texto al 200% tiene
@@ -51,7 +67,7 @@ export function PortadaDividida({ children }: { children: ReactNode }) {
       </div>
 
       {/* --- Derecha: la foto con el lema ---------------------------------- */}
-      <div className="hidden min-h-0 py-[5.5vh] pr-8 pl-14 lg:flex">
+      <div className="relative hidden min-h-0 py-[5.5vh] pr-8 pl-14 lg:flex">
         <div className="relative flex-1 overflow-hidden rounded-panel">
           <Image
             src={encodeURI(FOTO_DE_PORTADA.ruta)}

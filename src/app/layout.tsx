@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -45,9 +44,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <head>
-        <Script id="mileo-tema" strategy="beforeInteractive">
-          {guionTema}
-        </Script>
+        {/* Un <script> normal y no el <Script> de Next: este layout se pinta
+            en el servidor, así que el guion ya viene en el HTML y corre antes
+            del primer pintado. El <Script beforeInteractive> con el código
+            dentro hacía que React avisara de un script pintado en el cliente. */}
+        <script
+          id="mileo-tema"
+          dangerouslySetInnerHTML={{ __html: guionTema }}
+        />
       </head>
       <body className="min-h-full bg-app font-sans text-cuerpo text-primario">
         {children}

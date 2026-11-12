@@ -3,7 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { filtroDeCasos } from "@/lib/autorizacion";
 import type { UsuarioEnSesion } from "@/lib/sesion";
 import type { Decision, Etapa } from "@/generated/prisma/enums";
-import { paraTarjeta, seleccionDeTarjeta } from "@/lib/casos";
+import {
+  materialYColor,
+  paraTarjeta,
+  seleccionDeTarjeta,
+  unidadesYDientes,
+} from "@/lib/casos";
+import { INDICACIONES } from "@/lib/vocabulario";
+import type { CotizacionGuardada } from "@/lib/cotizador";
 
 /**
  * Lo que enseña el inicio del doctor (SKILL.md §6.10).
@@ -59,7 +66,29 @@ export type DisenoReciente = {
   fechaEntregaComprometida: Date | null;
   vistaId: string | null;
   paciente: string;
+  /** El pedido en cuatro renglones, para no tener que abrir el caso. */
+  resumen: {
+    trabajo: string;
+    unidades: string;
+    material: string;
+    /** El total cotizado al enviar, ya con formato; null si no se cotizó. */
+    total: string | null;
+    entregaRapida: boolean;
+    notas: string | null;
+  };
 };
+
+const PESOS = new Intl.NumberFormat("es-MX", {
+  style: "currency",
+  currency: "MXN",
+  maximumFractionDigits: 0,
+});
+
+function totalCotizado(cotizacion: unknown) {
+  const c = cotizacion as Partial<CotizacionGuardada> | null;
+  if (!c || typeof c.totalCentavos !== "number") return null;
+  return PESOS.format(c.totalCentavos / 100);
+}
 
 export async function disenosRecientes(
   usuario: UsuarioEnSesion,
@@ -75,8 +104,16 @@ export async function disenosRecientes(
       id: true,
       folio: true,
       etapa: true,
+      indicacion: true,
+      notas: true,
+      entregaRapida: true,
+      cotizacion: true,
       fechaEntregaComprometida: true,
       paciente: { select: { folio: true, iniciales: true } },
+      unidades: {
+        select: { diente: true, rol: true, material: true, color: true },
+        orderBy: { diente: "asc" },
+      },
       archivos: {
         where: {
           estado: "COMPLETO",
@@ -84,7 +121,18 @@ export async function disenosRecientes(
             { tipo: "MALLA_LIGERA" },
             {
               tipo: "DISENO",
-              extension: { in: ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG", "WEBP"] },
+              extension: {
+                in: [
+                  "jpg",
+                  "jpeg",
+                  "png",
+                  "webp",
+                  "JPG",
+                  "JPEG",
+                  "PNG",
+                  "WEBP",
+                ],
+              },
             },
           ],
         },
@@ -122,6 +170,14 @@ export async function disenosRecientes(
       fechaEntregaComprometida: caso.fechaEntregaComprometida,
       vistaId: caso.archivos[0]?.id ?? null,
       paciente: `${caso.paciente.folio} · ${caso.paciente.iniciales}`,
+      resumen: {
+        trabajo: INDICACIONES[caso.indicacion].nombre,
+        unidades: unidadesYDientes(caso.unidades),
+        material: materialYColor(caso.unidades),
+        total: totalCotizado(caso.cotizacion),
+        entregaRapida: caso.entregaRapida,
+        notas: caso.notas?.trim() || null,
+      },
     };
   });
 }

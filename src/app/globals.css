@@ -424,7 +424,7 @@
     box-shadow:
       inset 0 1px 0 0 color-mix(in oklab, var(--color-primario) 9%, transparent),
       inset 0 0 0 1px color-mix(in oklab, var(--color-primario) 4%, transparent),
-      0 10px 30px -18px rgb(0 0 0 / 0.5);
+      0 4px 16px -10px rgb(0 0 0 / 0.12);
   }
   .vidrio-fuerte {
     background-color: color-mix(in oklab, var(--color-primario) 8%, transparent);
@@ -432,7 +432,7 @@
     box-shadow:
       inset 0 1px 0 0 color-mix(in oklab, var(--color-primario) 14%, transparent),
       inset 0 0 0 1px color-mix(in oklab, var(--color-primario) 5%, transparent),
-      0 10px 30px -18px rgb(0 0 0 / 0.6);
+      0 4px 16px -10px rgb(0 0 0 / 0.16);
   }
   /* Al pasar el puntero, el vidrio se aclara un poco. Va aquí y no como
      `hover:bg-…` porque esa utilidad perdería contra el fondo de `.vidrio`. */
@@ -448,7 +448,7 @@
     box-shadow:
       inset 0 1px 0 0 rgb(255 255 255 / 0.14),
       inset 0 0 0 1px rgb(255 255 255 / 0.05),
-      0 14px 34px -20px rgb(0 0 0 / 0.6);
+      0 4px 18px -12px rgb(0 0 0 / 0.16);
   }
   /* Separador que se desvanece hacia las orillas, sin línea dura. */
   .linea-suave {
