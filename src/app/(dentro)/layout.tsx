@@ -97,17 +97,7 @@ export default async function DisposicionDentro({
       </header>
 
       {/* --- Contenido ----------------------------------------------------- */}
-      <div className="relative isolate flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Luz de fondo, quieta mientras el contenido se desplaza: le da al
-            vidrio de las tarjetas algo que desenfocar. */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-40 right-[10%] -z-10 size-[36rem] rounded-full bg-accion/10 blur-3xl"
-        />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-48 left-[20%] -z-10 size-[32rem] rounded-full bg-accion/8 blur-3xl"
-        />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* `relative` otra vez, y aquí es el que cuenta: ancla los absolutos
             del contenido a la caja que se desplaza, no al documento. */}
         <main

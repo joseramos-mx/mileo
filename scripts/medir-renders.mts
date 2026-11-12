@@ -12,17 +12,21 @@
  * Cuando el equipo de diseño entregue renders nuevos, se corre esto y se copian
  * los números a RENDERS_3D.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { chromium } from "playwright";
 import { cargarAmbiente } from "../scripts/ambiente.mjs";
 
 cargarAmbiente();
 const BASE = process.env.MILEO_URL ?? "http://localhost:3000";
 
-const RUTAS = [
-  "/iconos 3d/corona.png",
-  "/iconos 3d/caso de implante.png",
-  "/iconos 3d/modelo.png",
-];
+// Todos los PNG de la carpeta: cuando lleguen renders nuevos no hay que
+// acordarse de listarlos aquí.
+const RUTAS = fs
+  .readdirSync(path.join(process.cwd(), "public", "iconos 3d"))
+  .filter((nombre) => nombre.toLowerCase().endsWith(".png"))
+  .sort()
+  .map((nombre) => `/iconos 3d/${nombre}`);
 
 const OCUPACION = 0.55;
 
@@ -46,11 +50,18 @@ async function medir() {
       ctx.drawImage(img, 0, 0);
       const datos = ctx.getImageData(0, 0, lienzo.width, lienzo.height).data;
 
-      let x0 = lienzo.width, y0 = lienzo.height, x1 = 0, y1 = 0;
+      let x0 = lienzo.width,
+        y0 = lienzo.height,
+        x1 = 0,
+        y1 = 0;
       for (let y = 0; y < lienzo.height; y++) {
         for (let x = 0; x < lienzo.width; x++) {
-          const alfa = datos[(y * lienzo.width + x) * 4 + 3];
-          if (alfa > 12) {
+          // Cuenta como objeto lo que no es transparente y tampoco es el
+          // fondo negro: los renders nuevos vienen sobre negro y se pintan
+          // con mezcla "screen", así que el negro no se ve.
+          const i = (y * lienzo.width + x) * 4;
+          const brillo = Math.max(datos[i], datos[i + 1], datos[i + 2]);
+          if (datos[i + 3] > 12 && brillo > 40) {
             if (x < x0) x0 = x;
             if (x > x1) x1 = x;
             if (y < y0) y0 = y;
@@ -75,9 +86,15 @@ async function medir() {
     `Con ocupación ${OCUPACION}, cada render se pinta a esta altura del hueco:`,
   );
   for (const [ruta, m] of Object.entries(medidas)) {
-    const d = m as { proporcion: number; fraccionAlto: number; fraccionAncho: number };
+    const d = m as {
+      proporcion: number;
+      fraccionAlto: number;
+      fraccionAncho: number;
+    };
     const mayor = Math.max(d.proporcion * d.fraccionAncho, d.fraccionAlto);
-    console.log(`  ${ruta.padEnd(32)} ${(OCUPACION / mayor * 100).toFixed(0)}%`);
+    console.log(
+      `  ${ruta.padEnd(32)} ${((OCUPACION / mayor) * 100).toFixed(0)}%`,
+    );
   }
 }
 

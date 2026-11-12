@@ -89,7 +89,7 @@ export function TarjetaDeCaso({
       }
       className={cn(
         "group relative flex flex-col gap-3 overflow-hidden",
-        "vidrio vidrio-toque rounded-tarjeta p-4 pl-5",
+        "vidrio vidrio-toque rounded-contenedor p-4 pl-5",
         ANCHO,
         ALTO,
         className,
@@ -216,7 +216,7 @@ function Pieza({
   const render = RENDERS_3D.find((r) => r.ruta === pieza.ruta);
 
   return (
-    <span className="size-10 shrink-0 overflow-hidden rounded-control">
+    <span className="size-10 shrink-0 overflow-hidden rounded-control bg-primario/5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={encodeURI(pieza.ruta)}
@@ -267,7 +267,7 @@ export function TarjetaDeCasoCargando({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "vidrio flex flex-col gap-3 rounded-tarjeta p-4 pl-5",
+        "vidrio flex flex-col gap-3 rounded-contenedor p-4 pl-5",
         ANCHO,
         ALTO,
         className,
