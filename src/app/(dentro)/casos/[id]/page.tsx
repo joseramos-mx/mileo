@@ -171,7 +171,10 @@ export default async function PaginaDeCaso({
   const descripcionDelDiseno = `Diseño de ${resumirUnidades(caso.unidades)} para el paciente ${caso.paciente.folio}.`;
 
   const archivosVisibles = caso.archivos.filter(
-    (a) => a.estado === "COMPLETO" && a.tipo !== "MALLA_LIGERA",
+    (a) =>
+      a.estado === "COMPLETO" &&
+      a.tipo !== "MALLA_LIGERA" &&
+      (delLaboratorio || a.tipo !== "DISENO"),
   );
   const tieneSubidaIncompleta = caso.archivos.some(
     (a) => a.estado === "EN_PROCESO" && a.tipo !== "MALLA_LIGERA",
@@ -335,16 +338,21 @@ export default async function PaginaDeCaso({
                     <img
                       src={`/api/archivos/${img.id}/contenido`}
                       alt={`${img.nombre} — caso ${caso.folio}`}
-                      className="max-h-96 w-full rounded-control object-contain"
+                      draggable={false}
+                      className="max-h-96 w-full select-none rounded-control object-contain"
                     />
                     <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
                       <span className="truncate">{img.nombre}</span>
-                      <a
-                        href={`/api/archivos/${img.id}/contenido?descargar`}
-                        className="shrink-0 text-enlace underline underline-offset-4"
-                      >
-                        Descargar
-                      </a>
+                      {delLaboratorio ? (
+                        <a
+                          href={`/api/archivos/${img.id}/contenido?descargar`}
+                          className="shrink-0 text-enlace underline underline-offset-4"
+                        >
+                          Descargar
+                        </a>
+                      ) : (
+                        <span className="shrink-0">Solo lectura en visor</span>
+                      )}
                     </figcaption>
                   </figure>
                 ))}

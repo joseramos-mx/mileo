@@ -1,11 +1,12 @@
 import type { RolDeUnidad } from "@/generated/prisma/enums";
-import { seFabrica } from "@/lib/trabajos";
+import { TRABAJOS, seFabrica } from "@/lib/trabajos";
 
 /**
  * Lista de admisión (SKILL.md O-2).
  *
- * Verifica que el caso tenga qué fabricar y al menos un archivo de escaneo
- * subido (ya sea el conjunto completo o los escaneos por separado).
+ * Verifica que el caso tenga qué fabricar y todos los archivos obligatorios
+ * subidos (y si lleva trabajo sobre implante, también el archivo sobre
+ * implantes digitales).
  *
  * Los mensajes dicen qué hacer, no qué falló (§6.5).
  */
@@ -22,23 +23,17 @@ export type CasoParaAdmision = {
   archivos: { tipo: string; estado: string }[];
 };
 
-const TIPOS_DE_ESCANEO = new Set([
-  "ESCANEO_PREPARACION",
-  "ESCANEO_ANTAGONISTA",
-  "REGISTRO_MORDIDA",
-]);
+export function llevaSobreImplante(unidades: { rol: RolDeUnidad }[]): boolean {
+  return unidades.some((u) => TRABAJOS[u.rol]?.categoria === "Sobre implante");
+}
 
-function hayAlMenosUnEscaneo(caso: CasoParaAdmision) {
-  return caso.archivos.some(
-    (a) => TIPOS_DE_ESCANEO.has(a.tipo) && a.estado === "COMPLETO",
-  );
+function tieneArchivoCompleto(caso: CasoParaAdmision, tipo: string): boolean {
+  return caso.archivos.some((a) => a.tipo === tipo && a.estado === "COMPLETO");
 }
 
 export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
   const piezas = caso.unidades.filter((u) => seFabrica(u.rol));
-  const tieneEscaneo = hayAlMenosUnEscaneo(caso);
-
-  return [
+  const puntos: EstadoDeAdmision[] = [
     {
       clave: "tipo-de-trabajo",
       titulo: "Qué se va a fabricar",
@@ -47,13 +42,42 @@ export function revisarAdmision(caso: CasoParaAdmision): EstadoDeAdmision[] {
       cumplido: piezas.length > 0,
     },
     {
-      clave: "escaneo",
-      titulo: "Al menos un archivo de escaneo",
-      queHacer:
-        "Suba al menos un archivo (puede subir el conjunto completo o las quijadas por separado).",
-      cumplido: tieneEscaneo,
+      clave: "ESCANEO_PREPARACION",
+      titulo: "Escaneo de la preparación",
+      queHacer: "Suba el escaneo de la preparación en el primer apartado.",
+      cumplido: tieneArchivoCompleto(caso, "ESCANEO_PREPARACION"),
+    },
+    {
+      clave: "ESCANEO_ANTAGONISTA",
+      titulo: "Escaneo del antagonista",
+      queHacer: "Suba el escaneo del antagonista.",
+      cumplido: tieneArchivoCompleto(caso, "ESCANEO_ANTAGONISTA"),
+    },
+    {
+      clave: "REGISTRO_MORDIDA",
+      titulo: "Registro de mordida",
+      queHacer: "Suba el archivo del registro de mordida.",
+      cumplido: tieneArchivoCompleto(caso, "REGISTRO_MORDIDA"),
+    },
+    {
+      clave: "FOTO_COLOR",
+      titulo: "Foto del color",
+      queHacer: "Suba la foto del color del paciente.",
+      cumplido: tieneArchivoCompleto(caso, "FOTO_COLOR"),
     },
   ];
+
+  if (llevaSobreImplante(caso.unidades)) {
+    puntos.push({
+      clave: "OTRO",
+      titulo: "Archivo sobre implantes digitales",
+      queHacer:
+        "Suba el archivo sobre implantes digitales (scanbody o referencia del implante).",
+      cumplido: tieneArchivoCompleto(caso, "OTRO"),
+    });
+  }
+
+  return puntos;
 }
 
 export function loQueFalta(caso: CasoParaAdmision) {

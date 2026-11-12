@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { usuarioActual } from "@/lib/sesion";
-import { filtroDeCasos } from "@/lib/autorizacion";
-import { leerArchivo } from "@/lib/almacen";
+import { esDelLaboratorio, filtroDeCasos } from "@/lib/autorizacion";
+import { esExtensionDeFoto, leerArchivo } from "@/lib/almacen";
 
 /**
  * Entrega el contenido de un archivo del caso (desde Amazon S3 o caché local).
@@ -47,6 +47,26 @@ export async function GET(
     return new Response("No encuentro ese archivo.", { status: 404 });
   }
 
+  const descargar = new URL(peticion.url).searchParams.has("descargar");
+  const delLab = esDelLaboratorio(usuario);
+
+  // Protección del diseño: fuera del laboratorio no se puede descargar ni
+  // acceder directamente al archivo original (solo se ve desde el visor).
+  if (!delLab) {
+    if (archivo.tipo === "MALLA_LIGERA" && descargar) {
+      return new Response("El diseño sólo se puede ver en el visor.", {
+        status: 403,
+      });
+    }
+    if (archivo.tipo === "DISENO") {
+      if (descargar || !esExtensionDeFoto(archivo.extension)) {
+        return new Response("El diseño sólo se puede ver en el visor.", {
+          status: 403,
+        });
+      }
+    }
+  }
+
   let bytes: Buffer;
   try {
     bytes = await leerArchivo(archivo.rutaRelativa);
@@ -54,7 +74,6 @@ export async function GET(
     return new Response("No encuentro ese archivo.", { status: 404 });
   }
 
-  const descargar = new URL(peticion.url).searchParams.has("descargar");
   const ext = archivo.extension.toLowerCase();
 
   return new Response(new Uint8Array(bytes), {
@@ -62,7 +81,11 @@ export async function GET(
       "content-type":
         TIPOS_DE_CONTENIDO[ext] ?? "application/octet-stream",
       "content-length": String(bytes.byteLength),
-      "cache-control": "private, max-age=3600",
+      "x-content-type-options": "nosniff",
+      "cache-control":
+        archivo.tipo === "DISENO" || archivo.tipo === "MALLA_LIGERA"
+          ? "private, no-store"
+          : "private, max-age=3600",
       ...(descargar
         ? {
             "content-disposition": `attachment; filename="${encodeURIComponent(archivo.nombre)}"`,

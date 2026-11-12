@@ -6,9 +6,9 @@ import { OrbitControls, Center } from "@react-three/drei";
 import * as THREE from "three";
 import {
   ArrowClockwise,
-  DownloadSimple,
   Eye,
   EyeSlash,
+  Lock,
 } from "@phosphor-icons/react";
 import { Boton } from "@/componentes/Boton";
 import {
@@ -232,8 +232,8 @@ export function Visor3D({
                   No pude abrir la vista de {activo.nombre}.
                 </p>
                 <p className="text-menor text-secundario">
-                  Puede volver a intentarlo o descargar el diseño y abrirlo en su
-                  programa.
+                  Puede volver a intentarlo o avisarle a su técnico en el chat
+                  de abajo.
                 </p>
                 <Boton
                   type="button"
@@ -274,16 +274,13 @@ export function Visor3D({
       <div className="flex flex-col gap-2 border-t border-borde bg-superficie p-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-menor text-secundario">
           {error
-            ? "Ábralo en su programa para revisarlo."
+            ? "Avísele a su técnico en el chat si no carga la vista."
             : "Gire con el dedo. Pellizque para acercar."}
         </p>
-        <a
-          href={`/api/archivos/${activo.archivoOriginalId}/contenido?descargar`}
-          className="area-tactil inline-flex items-center gap-2 rounded-control text-menor text-enlace underline underline-offset-4"
-        >
-          <DownloadSimple aria-hidden="true" size={16} />
-          Descargar {listaDeArchivos.length > 1 ? activo.nombre : "el diseño"}
-        </a>
+        <span className="inline-flex items-center gap-1.5 text-minimo text-secundario">
+          <Lock aria-hidden="true" size={14} />
+          Solo lectura en visor
+        </span>
       </div>
     </div>
   );

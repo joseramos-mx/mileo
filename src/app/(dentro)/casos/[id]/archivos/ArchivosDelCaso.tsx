@@ -13,47 +13,64 @@ type ArchivoEnPantalla = {
   bytesTotales: number;
 };
 
-const APARTADOS: {
+type ApartadoDeArchivo = {
   tipo: TipoDeArchivoSubido;
   etiqueta: string;
   ayuda: string;
-}[] = [
+  prefijoNombre?: string;
+};
+
+const APARTADOS_BASE: ApartadoDeArchivo[] = [
   {
     tipo: "ESCANEO_PREPARACION",
-    etiqueta: "Escaneo de la preparación o conjunto completo",
-    ayuda: "La arcada que preparó o el archivo con el conjunto junto.",
+    etiqueta: "Escaneo de la preparación",
+    ayuda: "La arcada que preparó o el archivo del conjunto completo.",
   },
   {
     tipo: "ESCANEO_ANTAGONISTA",
-    etiqueta: "Escaneo del antagonista (opcional si ya viene en el conjunto)",
-    ayuda: "La arcada opuesta por separado, si no la incluyó arriba.",
+    etiqueta: "Escaneo del antagonista",
+    ayuda: "La arcada opuesta del paciente.",
   },
   {
     tipo: "REGISTRO_MORDIDA",
-    etiqueta: "Registro de mordida (opcional)",
-    ayuda: "El registro con el que monto el caso, si viene en archivo aparte.",
+    etiqueta: "Registro de mordida",
+    ayuda: "El registro de mordida con el que se monta el caso.",
   },
   {
     tipo: "FOTO_COLOR",
-    etiqueta: "Foto del color (opcional)",
-    ayuda: "Opcional, pero ayuda mucho a que el color quede a la primera.",
+    etiqueta: "Foto del color",
+    ayuda: "Foto con buena luz para igualar el tono del paciente.",
   },
 ];
+
+const APARTADO_IMPLANTES_DIGITALES: ApartadoDeArchivo = {
+  tipo: "OTRO",
+  etiqueta: "Archivo sobre implantes digitales",
+  ayuda:
+    "Escaneo con cuerpo de escaneo (scanbody), librería digital o archivo del implante.",
+  prefijoNombre: "[Implante digital] ",
+};
 
 /**
  * Los archivos del caso (SKILL.md O-2).
  *
- * Basta con subir al menos un archivo de escaneo (ya sea el conjunto completo
- * o las quijadas por separado) para poder mandar el caso al laboratorio.
+ * Todos los apartados mostrados son obligatorios para poder mandar el caso
+ * al laboratorio. Si el caso incluye trabajos sobre implante, se exige además
+ * el archivo sobre implantes digitales.
  */
 export function ArchivosDelCaso({
   casoId,
+  esSobreImplante,
   archivos,
 }: {
   casoId: string;
+  esSobreImplante: boolean;
   archivos: ArchivoEnPantalla[];
 }) {
   const router = useRouter();
+  const apartados = esSobreImplante
+    ? [...APARTADOS_BASE, APARTADO_IMPLANTES_DIGITALES]
+    : APARTADOS_BASE;
 
   return (
     <section aria-labelledby="archivos" className="flex flex-col gap-4">
@@ -62,8 +79,9 @@ export function ArchivosDelCaso({
           Sus archivos
         </h2>
         <p className="mt-1 text-menor text-secundario">
-          Suba al menos un archivo (el conjunto completo o las quijadas por
-          separado). Recibo STL, PLY, OBJ, DICOM y ZIP.{" "}
+          Todos los archivos de esta pantalla son obligatorios para mandar el
+          caso. Recibo STL, PLY, OBJ, DICOM y ZIP (e imágenes para la foto del
+          color).{" "}
           <Link
             href="/ayuda/guias-de-exportacion"
             className="text-enlace underline underline-offset-4"
@@ -73,13 +91,14 @@ export function ArchivosDelCaso({
         </p>
       </div>
 
-      {APARTADOS.map((apartado) => (
+      {apartados.map((apartado) => (
         <div key={apartado.tipo} className="flex flex-col gap-2">
           <ZonaDeArchivos
             casoId={casoId}
             tipo={apartado.tipo}
             etiqueta={apartado.etiqueta}
             ayuda={apartado.ayuda}
+            prefijoNombre={apartado.prefijoNombre}
             yaSubidos={archivos
               .filter((a) => a.tipo === apartado.tipo && a.estado === "COMPLETO")
               .map((a) => ({

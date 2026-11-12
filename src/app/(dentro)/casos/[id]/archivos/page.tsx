@@ -4,7 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { prisma } from "@/lib/prisma";
 import { exigirUsuario, filtroDeCasos } from "@/lib/autorizacion";
-import { revisarAdmision, sePuedeEnviar } from "@/lib/admision";
+import {
+  llevaSobreImplante,
+  revisarAdmision,
+  sePuedeEnviar,
+} from "@/lib/admision";
 import { resumirUnidades } from "@/lib/casos";
 import { PasosDelCaso, pasosDelAlta } from "@/componentes/PasosDelCaso";
 import { ArchivosDelCaso } from "./ArchivosDelCaso";
@@ -40,6 +44,7 @@ export default async function PaginaDeArchivos({
 
   const admision = revisarAdmision(caso);
   const listo = sePuedeEnviar(caso);
+  const esSobreImplante = llevaSobreImplante(caso.unidades);
 
   return (
     <div className="mx-auto flex w-full max-w-[80rem] flex-col gap-5 pb-8">
@@ -69,6 +74,7 @@ export default async function PaginaDeArchivos({
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
         <ArchivosDelCaso
           casoId={caso.id}
+          esSobreImplante={esSobreImplante}
           archivos={caso.archivos.map((a) => ({
             id: a.id,
             nombre: a.nombre,

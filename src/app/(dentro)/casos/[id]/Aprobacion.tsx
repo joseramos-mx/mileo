@@ -2,7 +2,6 @@
 
 import { useCallback, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { DownloadSimple } from "@phosphor-icons/react";
 import { Boton } from "@/componentes/Boton";
 import { CampoDeTexto } from "@/componentes/Campo";
 import type {
@@ -94,7 +93,6 @@ export function Aprobacion({
   const [visor, setVisor] = useState<EstadoDelVisor>(
     mallaPrincipalId ? "cargando" : "no-pude",
   );
-  const [revisadoAparte, setRevisadoAparte] = useState(false);
 
   // Estable: si cambia en cada pintada, el visor vuelve a bajar la malla.
   const alCambiarEstado = useCallback(
@@ -104,8 +102,8 @@ export function Aprobacion({
 
   const tieneImagenes = imagenesDeDiseno.length > 0;
   const loVio = mallaPrincipalId
-    ? visor === "listo" || revisadoAparte || tieneImagenes
-    : tieneImagenes || revisadoAparte;
+    ? visor === "listo" || tieneImagenes
+    : tieneImagenes;
 
   return (
     <section aria-labelledby="aprobacion" className="flex flex-col gap-4">
@@ -155,16 +153,13 @@ export function Aprobacion({
                 <img
                   src={`/api/archivos/${img.id}/contenido`}
                   alt={`${img.nombre} — ${descripcion}`}
-                  className="max-h-96 w-full rounded-control object-contain"
+                  draggable={false}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className="max-h-96 w-full select-none rounded-control object-contain"
                 />
                 <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
                   <span className="truncate">{img.nombre}</span>
-                  <a
-                    href={`/api/archivos/${img.id}/contenido?descargar`}
-                    className="shrink-0 text-enlace underline underline-offset-4"
-                  >
-                    Descargar
-                  </a>
+                  <span className="shrink-0">Solo lectura en visor</span>
                 </figcaption>
               </figure>
             ))}
@@ -173,17 +168,12 @@ export function Aprobacion({
       ) : null}
 
       {!mallaPrincipalId && !tieneImagenes ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-contenedor border border-borde bg-superficie p-4">
+        <div className="rounded-contenedor border border-borde bg-superficie p-4">
           <p className="text-menor text-secundario">
-            Descargue el archivo del diseño para revisarlo en su programa.
+            Este diseño no tiene una vista previa compatible en el visor.
+            Pídale a su técnico en el chat que suba el archivo STL o una imagen
+            para poder revisarlo aquí.
           </p>
-          <a
-            href={`/api/archivos/${archivoOriginalId}/contenido?descargar`}
-            className="area-tactil inline-flex items-center gap-2 rounded-control text-menor text-enlace underline underline-offset-4"
-          >
-            <DownloadSimple aria-hidden="true" size={16} />
-            Descargar el diseño
-          </a>
         </div>
       ) : null}
 
@@ -246,23 +236,6 @@ export function Aprobacion({
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {visor === "no-pude" && !tieneImagenes ? (
-            <label className="flex items-start gap-2 rounded-control border border-borde bg-superficie p-3 text-menor text-primario">
-              <input
-                type="checkbox"
-                checked={revisadoAparte}
-                onChange={(e) => setRevisadoAparte(e.target.checked)}
-                className="mt-0.5 size-5 shrink-0"
-              />
-              <span>
-                Descargué el diseño y ya lo revisé en mi programa.
-                <span className="block text-secundario">
-                  Márquelo para poder aprobarlo desde aquí.
-                </span>
-              </span>
-            </label>
-          ) : null}
-
           <div className="flex flex-col gap-2 sm:flex-row">
             <Boton
               type="button"
