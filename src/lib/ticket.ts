@@ -298,12 +298,16 @@ export async function armarTicketDelCaso(
   });
 
   const textoFechaEnvio = formatearFechaHoraTicket(fechaCalculada);
+  const mm = String(fechaBase.getMonth() + 1).padStart(2, "0");
+  const dd = String(fechaBase.getDate()).padStart(2, "0");
+  const numeroPaciente = caso.paciente.folio || caso.folio;
+  const folioTicket = `ZF-${mm}${dd}-${numeroPaciente}`;
 
   return {
     casoId: caso.id,
     empresa: "RMS ZAHNFACTURING",
     fechaCreacion: formatearFechaHoraTicket(fechaBase),
-    folio: caso.folio,
+    folio: folioTicket,
     cintillo,
     urlQr: `${urlBaseDeMileo()}/casos/${caso.id}`,
     consultorio: caso.clinica.nombre || caso.doctor.nombreCompleto,
