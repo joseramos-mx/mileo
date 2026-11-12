@@ -21,8 +21,8 @@ import type { Malla } from "@/lib/malla";
  * pieza desde el mismo ángulo, que es lo que tiene que reconocer.
  */
 
-/** El color de la pieza, el mismo de `materialDeLaPieza`. */
-const PIEZA: [number, number, number] = [0xe9, 0xe6, 0xe0];
+/** El color de la pieza, el mismo tono marfil cálido de `materialDeLaPieza`. */
+const PIEZA: [number, number, number] = [0xed, 0xdc, 0xc8];
 
 /** El fondo, el mismo neutro claro del visor. Aquí no se juzga sobre negro. */
 const FONDO: [number, number, number] = [0xff, 0xff, 0xff];

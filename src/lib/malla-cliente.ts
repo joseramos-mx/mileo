@@ -106,9 +106,13 @@ export function armarGeometria(buffer: ArrayBuffer): MallaLeida {
 
 /** El material con el que Mileo pinta una pieza. Uno solo, en las dos vistas. */
 export function materialDeLaPieza() {
-  return new THREE.MeshStandardMaterial({
-    color: "#e9e6e0",
-    roughness: 0.55,
-    metalness: 0.02,
+  return new THREE.MeshPhysicalMaterial({
+    color: "#eddcc8",
+    roughness: 0.4,
+    metalness: 0.03,
+    clearcoat: 0.14,
+    clearcoatRoughness: 0.35,
+    reflectivity: 0.5,
+    side: THREE.DoubleSide,
   });
 }

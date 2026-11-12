@@ -1,6 +1,5 @@
 import "server-only";
-import fsp from "node:fs/promises";
-import { rutaAbsolutaDe, prepararCarpeta } from "@/lib/almacen";
+import { guardarArchivo, leerArchivo } from "@/lib/almacen";
 import { dibujarLaPieza } from "@/lib/vista-malla";
 
 /**
@@ -25,14 +24,14 @@ import { dibujarLaPieza } from "@/lib/vista-malla";
  * sin biblioteca de carga de por medio.
  */
 
-/** Arriba de esto sí se reduce. Un diseño de tres unidades no llega. */
-const TRIANGULOS_OBJETIVO = 120_000;
+/** Arriba de esto sí se reduce. 450k triángulos conserva arcadas completas intactas. */
+const TRIANGULOS_OBJETIVO = 450_000;
 
 const FIRMA = 0x4d4c4c41; // "MLLA"
 const VERSION = 1;
 
 export function rutaDeLaMalla(archivoId: string, casoId: string) {
-  return `${casoId}/${archivoId}.malla`;
+  return `${casoId}/${archivoId}.v2.malla`;
 }
 
 export type Malla = {
@@ -95,10 +94,16 @@ function leerStlDeTexto(datos: Buffer): Float32Array {
 
 // -------------------------------------------------------------- unir y bajar
 
-/** Une vértices repetidos. Sin pérdida: la geometría queda idéntica. */
+/**
+ * Une vértices repetidos. Cuando `rejilla` es `null`, no hay pérdida alguna.
+ * Cuando `rejilla` tiene valor, agrupa vértices cercanos calculando el
+ * centroide exacto (promedio de coordenadas originales) de cada celda en lugar
+ * de truncar a la esquina de la rejilla, evitando el efecto escalonado/pixelado.
+ */
 function unirVertices(sopa: Float32Array, rejilla: number | null): Malla {
   const conocidos = new Map<string, number>();
-  const posiciones: number[] = [];
+  const sumaPosiciones: number[] = [];
+  const conteos: number[] = [];
   const indices: number[] = [];
 
   const triangulos = Math.floor(sopa.length / 9);
@@ -108,22 +113,27 @@ function unirVertices(sopa: Float32Array, rejilla: number | null): Malla {
 
     for (let v = 0; v < 3; v++) {
       const base = t * 9 + v * 3;
-      let x = sopa[base];
-      let y = sopa[base + 1];
-      let z = sopa[base + 2];
+      const x = sopa[base];
+      const y = sopa[base + 1];
+      const z = sopa[base + 2];
 
-      if (rejilla !== null) {
-        x = Math.round(x / rejilla) * rejilla;
-        y = Math.round(y / rejilla) * rejilla;
-        z = Math.round(z / rejilla) * rejilla;
-      }
+      const clave =
+        rejilla !== null
+          ? `${Math.round(x / rejilla)},${Math.round(y / rejilla)},${Math.round(z / rejilla)}`
+          : `${x},${y},${z}`;
 
-      const clave = `${x},${y},${z}`;
       let indice = conocidos.get(clave);
       if (indice === undefined) {
-        indice = posiciones.length / 3;
+        indice = conteos.length;
         conocidos.set(clave, indice);
-        posiciones.push(x, y, z);
+        sumaPosiciones.push(x, y, z);
+        conteos.push(1);
+      } else if (rejilla !== null) {
+        const idx3 = indice * 3;
+        sumaPosiciones[idx3] += x;
+        sumaPosiciones[idx3 + 1] += y;
+        sumaPosiciones[idx3 + 2] += z;
+        conteos[indice] += 1;
       }
       esquinas.push(indice);
     }
@@ -138,8 +148,17 @@ function unirVertices(sopa: Float32Array, rejilla: number | null): Malla {
     }
   }
 
+  const posiciones = new Float32Array(sumaPosiciones.length);
+  for (let i = 0; i < conteos.length; i++) {
+    const c = conteos[i];
+    const idx3 = i * 3;
+    posiciones[idx3] = sumaPosiciones[idx3] / c;
+    posiciones[idx3 + 1] = sumaPosiciones[idx3 + 1] / c;
+    posiciones[idx3 + 2] = sumaPosiciones[idx3 + 2] / c;
+  }
+
   return {
-    posiciones: Float32Array.from(posiciones),
+    posiciones,
     indices: Uint32Array.from(indices),
   };
 }
@@ -275,7 +294,7 @@ export function rutaDelRetrato(
   tamano: TamanoDelRetrato = "grande",
 ) {
   const cola = tamano === "chico" ? ".chico" : "";
-  return `${casoId}/${archivoId}.vista${cola}.png`;
+  return `${casoId}/${archivoId}.v2.vista${cola}.png`;
 }
 
 export type TamanoDelRetrato = "grande" | "chico";
@@ -305,7 +324,7 @@ export async function derivarMallaLigera({
   casoId: string;
   archivoId: string;
 }): Promise<ResumenDeMalla> {
-  const datos = await fsp.readFile(rutaAbsolutaDe(rutaDelOriginal));
+  const datos = await leerArchivo(rutaDelOriginal);
   const sopa = leerStl(datos);
 
   if (sopa.length === 0) {
@@ -317,7 +336,7 @@ export async function derivarMallaLigera({
 
   const triangulos = malla.indices.length / 3;
   if (triangulos > TRIANGULOS_OBJETIVO) {
-    // Rejilla proporcional a la caja: cuanto más grande el modelo, más gruesa.
+    // Rejilla fina proporcional a la caja con promedio de centroides.
     const { min, max } = cajaDe(malla.posiciones);
     const diagonal = Math.hypot(
       max[0] - min[0],
@@ -325,23 +344,23 @@ export async function derivarMallaLigera({
       max[2] - min[2],
     );
     const factor = Math.sqrt(triangulos / TRIANGULOS_OBJETIVO);
-    malla = unirVertices(sopa, (diagonal / 512) * factor);
+    malla = unirVertices(sopa, (diagonal / 1024) * factor);
     reducida = true;
   }
 
   const empaquetada = empaquetar(malla);
   const rutaRelativa = rutaDeLaMalla(archivoId, casoId);
-  const completa = await prepararCarpeta(rutaRelativa);
-  await fsp.writeFile(completa, empaquetada);
+  await guardarArchivo(rutaRelativa, empaquetada, "application/octet-stream");
 
   // Los dos retratos salen de una vez: es la misma pieza que el doctor va a
   // ver en cada tarjeta, y dibujarlos aquí ahorra hacerlo la primera vez que
   // alguien abre su inicio.
   for (const tamano of ["grande", "chico"] as const) {
     const retrato = rutaDelRetrato(archivoId, casoId, tamano);
-    await fsp.writeFile(
-      await prepararCarpeta(retrato),
+    await guardarArchivo(
+      retrato,
       dibujarLaPieza(malla, LADO_DEL_RETRATO[tamano]),
+      "image/png",
     );
   }
 

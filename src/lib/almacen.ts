@@ -4,19 +4,23 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
+import {
+  borrarObjetoS3,
+  descargarObjetoS3,
+  subirObjetoS3,
+  tamanoObjetoS3,
+  tieneS3,
+} from "@/lib/s3";
 
 export { enTamano } from "@/lib/formato";
 
 /**
  * Dónde viven los archivos de paciente (SKILL.md O-2).
  *
- * Un archivo por caso, con un nombre que Mileo decide: el nombre que traía del
- * escáner se guarda como dato, nunca como ruta. Así ningún nombre raro llega al
- * sistema de archivos.
- *
- * Las subidas grandes se escriben por partes sobre el mismo archivo. Si se cae
- * la señal, lo ya recibido se queda en disco y la siguiente parte continúa
- * donde iba: nunca se reinicia (§6.6).
+ * Cuando AWS S3 está configurado (`AWS_S3_BUCKET`, `AWS_ACCESS_KEY_ID`,
+ * `AWS_SECRET_ACCESS_KEY`), todos los archivos completos, mallas 3D derivadas,
+ * retratos e imágenes se guardan y leen desde el bucket privado de Amazon S3,
+ * usando el disco local sólo como caché de trabajo temporal.
  */
 
 /** Escaneos y diseños: lo que Mileo recibe, venga de la marca que venga (O-2). */
@@ -70,13 +74,36 @@ export const TIPOS_MIME_ACEPTADOS = [
   "application/x-zip-compressed",
 ];
 
+const MIME_POR_EXTENSION: Record<string, string> = {
+  malla: "application/octet-stream",
+  stl: "model/stl",
+  ply: "application/octet-stream",
+  obj: "text/plain",
+  dcm: "application/dicom",
+  dicom: "application/dicom",
+  zip: "application/zip",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+};
+
+export function mimeDeRuta(rutaRelativa: string): string {
+  const ext = extensionDe(rutaRelativa);
+  return MIME_POR_EXTENSION[ext] ?? "application/octet-stream";
+}
+
 /** 2 GB por archivo: un DICOM completo cabe de sobra. */
 export const BYTES_MAXIMOS_POR_ARCHIVO = 2 * 1024 * 1024 * 1024;
 
 export function carpetaBase() {
   return path.resolve(
     process.cwd(),
-    process.env.MILEO_ALMACEN_ARCHIVOS ?? (process.env.VERCEL ? path.join(os.tmpdir(), "mileo-archivos") : "./almacen/archivos"),
+    process.env.MILEO_ALMACEN_ARCHIVOS ??
+      (process.env.VERCEL
+        ? path.join(os.tmpdir(), "mileo-archivos")
+        : "./almacen/archivos"),
   );
 }
 
@@ -124,7 +151,6 @@ export function rutaRelativaDe(
 
 export function rutaAbsolutaDe(rutaRelativa: string) {
   const completa = path.resolve(carpetaBase(), rutaRelativa);
-  // Cinturón contra rutas que se salgan del almacén.
   if (!completa.startsWith(carpetaBase())) {
     throw new Error("Ruta de archivo fuera del almacén.");
   }
@@ -137,51 +163,149 @@ export async function prepararCarpeta(rutaRelativa: string) {
   return completa;
 }
 
-/** Cuántos bytes hay realmente en disco. La base puede haberse quedado atrás. */
+/** Guarda un archivo completo en disco local y en Amazon S3 (si está activo). */
+export async function guardarArchivo(
+  rutaRelativa: string,
+  datos: Buffer,
+  contentType?: string,
+): Promise<void> {
+  try {
+    const completa = await prepararCarpeta(rutaRelativa);
+    await fsp.writeFile(completa, datos);
+  } catch {
+    // Si el sistema de archivos local no permite escritura, S3 es la fuente principal.
+  }
+
+  if (tieneS3()) {
+    await subirObjetoS3(
+      rutaRelativa,
+      datos,
+      contentType ?? mimeDeRuta(rutaRelativa),
+    );
+  }
+}
+
+/** Lee un archivo desde caché local o lo descarga desde Amazon S3. */
+export async function leerArchivo(rutaRelativa: string): Promise<Buffer> {
+  const completa = rutaAbsolutaDe(rutaRelativa);
+  try {
+    return await fsp.readFile(completa);
+  } catch (err) {
+    if (!tieneS3()) throw err;
+  }
+
+  const desdeS3 = await descargarObjetoS3(rutaRelativa);
+  if (!desdeS3) {
+    throw new Error(`Archivo no encontrado en S3: ${rutaRelativa}`);
+  }
+
+  try {
+    await prepararCarpeta(rutaRelativa);
+    await fsp.writeFile(completa, desdeS3);
+  } catch {
+    // Caché local opcional.
+  }
+
+  return desdeS3;
+}
+
+/** Verifica si el archivo existe en disco local o en Amazon S3. */
+export async function existeArchivo(rutaRelativa: string): Promise<boolean> {
+  try {
+    await fsp.access(rutaAbsolutaDe(rutaRelativa));
+    return true;
+  } catch {
+    if (!tieneS3()) return false;
+    const tamano = await tamanoObjetoS3(rutaRelativa);
+    return tamano !== null;
+  }
+}
+
+/** Cuántos bytes hay realmente guardados (en disco o en S3). */
 export async function bytesEnDisco(rutaRelativa: string) {
   try {
     const { size } = await fsp.stat(rutaAbsolutaDe(rutaRelativa));
-    return size;
+    if (size > 0) return size;
   } catch {
-    return 0;
+    // No está en disco local; revisamos S3 si está activo.
   }
+
+  if (tieneS3()) {
+    const enS3 = await tamanoObjetoS3(rutaRelativa);
+    if (enS3 !== null) return enS3;
+  }
+
+  return 0;
 }
 
 /**
  * Agrega una parte al final del archivo.
- * `desde` tiene que coincidir con lo que ya hay en disco; si no, se devuelve
- * null y quien sube vuelve a preguntar por dónde iba.
+ * Cuando se completa (o en cada parte si S3 está activo), sincroniza con S3.
  */
 export async function agregarParte(
   rutaRelativa: string,
   desde: number,
   parte: Buffer,
+  bytesTotalesEsperados?: number,
 ): Promise<number | null> {
   const completa = await prepararCarpeta(rutaRelativa);
-  const yaHay = await bytesEnDisco(rutaRelativa);
+  let yaHay = 0;
+  try {
+    yaHay = (await fsp.stat(completa)).size;
+  } catch {
+    yaHay = 0;
+  }
+
+  // Si se está reanudando una subida en otra instancia y lo previo estaba en S3:
+  if (yaHay === 0 && desde > 0 && tieneS3()) {
+    const previoS3 = await descargarObjetoS3(rutaRelativa);
+    if (previoS3 && previoS3.byteLength === desde) {
+      await fsp.writeFile(completa, previoS3);
+      yaHay = previoS3.byteLength;
+    }
+  }
 
   if (desde !== yaHay) return null;
 
   await fsp.appendFile(completa, parte);
-  return yaHay + parte.byteLength;
+  const nuevoTotal = yaHay + parte.byteLength;
+
+  if (
+    tieneS3() &&
+    (bytesTotalesEsperados === undefined || nuevoTotal >= bytesTotalesEsperados)
+  ) {
+    const todo = await fsp.readFile(completa);
+    await subirObjetoS3(rutaRelativa, todo, mimeDeRuta(rutaRelativa));
+  }
+
+  return nuevoTotal;
 }
 
 export async function huellaDe(rutaRelativa: string) {
   const completa = rutaAbsolutaDe(rutaRelativa);
-  const hash = crypto.createHash("sha256");
-  await new Promise<void>((listo, falla) => {
-    const flujo = fs.createReadStream(completa);
-    flujo.on("data", (trozo) => hash.update(trozo));
-    flujo.on("end", () => listo());
-    flujo.on("error", falla);
-  });
-  return hash.digest("hex");
+  if (fs.existsSync(completa)) {
+    const hash = crypto.createHash("sha256");
+    await new Promise<void>((listo, falla) => {
+      const flujo = fs.createReadStream(completa);
+      flujo.on("data", (trozo) => hash.update(trozo));
+      flujo.on("end", () => listo());
+      flujo.on("error", falla);
+    });
+    return hash.digest("hex");
+  }
+
+  const datos = await leerArchivo(rutaRelativa);
+  return crypto.createHash("sha256").update(datos).digest("hex");
 }
 
 export async function borrarArchivo(rutaRelativa: string) {
   try {
     await fsp.unlink(rutaAbsolutaDe(rutaRelativa));
   } catch {
-    // Si ya no estaba, el resultado es el que queríamos.
+    // Si ya no estaba en disco local, continuamos.
+  }
+
+  if (tieneS3()) {
+    await borrarObjetoS3(rutaRelativa);
   }
 }

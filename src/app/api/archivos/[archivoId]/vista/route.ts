@@ -1,11 +1,10 @@
-import fsp from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { usuarioActual } from "@/lib/sesion";
 import { filtroDeCasos } from "@/lib/autorizacion";
 import {
   esExtensionDeFoto,
-  prepararCarpeta,
-  rutaAbsolutaDe,
+  guardarArchivo,
+  leerArchivo,
 } from "@/lib/almacen";
 import {
   LADO_DEL_RETRATO,
@@ -16,18 +15,7 @@ import { dibujarLaPieza } from "@/lib/vista-malla";
 
 /**
  * El retrato del diseño: un PNG de la misma pieza que el doctor gira en la
- * pantalla de aprobación.
- *
- * Existe para que la vista del diseño se pueda enseñar en cualquier lista —el
- * inicio, sus casos, cada tarjeta que espera su revisión— con un `<img>` y sin
- * abrir un contexto 3D por tarjeta (§5.5).
- *
- * Normalmente ya está dibujado desde que el laboratorio mandó el diseño. Si no
- * —una malla de antes de que esto existiera—, se dibuja aquí la primera vez y
- * se guarda al lado de la malla.
- *
- * Como todo archivo del caso: nunca por su ruta, siempre por su identificador,
- * y sólo si el caso es de quien lo pide.
+ * pantalla de aprobación (servido desde Amazon S3 o caché local).
  */
 export async function GET(
   peticion: Request,
@@ -59,10 +47,9 @@ export async function GET(
     return new Response("No encuentro esa vista.", { status: 404 });
   }
 
-  // Si es una imagen del diseño subida directamente por el laboratorio, se sirve tal cual.
   if (archivo.tipo === "DISENO" && esExtensionDeFoto(archivo.extension)) {
     try {
-      const bytes = await fsp.readFile(rutaAbsolutaDe(archivo.rutaRelativa));
+      const bytes = await leerArchivo(archivo.rutaRelativa);
       const ext = archivo.extension.toLowerCase();
       const mime =
         ext === "png"
@@ -88,8 +75,6 @@ export async function GET(
     return new Response("No encuentro esa vista.", { status: 404 });
   }
 
-  // `?tamano=chico` es el de las miniaturas. Cualquier otra cosa, el grande:
-  // el parámetro viene de la dirección y no se le hace caso a lo que traiga.
   const tamano =
     new URL(peticion.url).searchParams.get("tamano") === "chico"
       ? "chico"
@@ -98,12 +83,11 @@ export async function GET(
   let png: Buffer;
 
   try {
-    png = await fsp.readFile(rutaAbsolutaDe(retrato));
+    png = await leerArchivo(retrato);
   } catch {
-    // Todavía no está dibujado: se dibuja de la malla, no del original.
     let malla: Buffer;
     try {
-      malla = await fsp.readFile(rutaAbsolutaDe(archivo.rutaRelativa));
+      malla = await leerArchivo(archivo.rutaRelativa);
     } catch {
       return new Response("No encuentro esa vista.", { status: 404 });
     }
@@ -114,10 +98,8 @@ export async function GET(
       return new Response("No pude dibujar esa vista.", { status: 500 });
     }
 
-    // Se guarda para no volver a dibujarla. Si el disco no deja, no importa:
-    // la respuesta ya va en camino.
     try {
-      await fsp.writeFile(await prepararCarpeta(retrato), png);
+      await guardarArchivo(retrato, png, "image/png");
     } catch {}
   }
 
@@ -125,8 +107,6 @@ export async function GET(
     headers: {
       "content-type": "image/png",
       "content-length": String(png.length),
-      // El retrato de un diseño no cambia: si el laboratorio manda otro, es
-      // otra malla y otro identificador.
       "cache-control": "private, max-age=604800, immutable",
     },
   });

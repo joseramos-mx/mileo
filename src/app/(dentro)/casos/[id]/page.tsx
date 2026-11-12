@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -26,7 +25,7 @@ import {
 } from "@/lib/vocabulario";
 import { fechaCorta, cuandoFalta, fechaConHora, paraMaquina } from "@/lib/fechas";
 import { enTamano } from "@/lib/formato";
-import { esExtensionDeFoto, rutaAbsolutaDe } from "@/lib/almacen";
+import { esExtensionDeFoto, existeArchivo } from "@/lib/almacen";
 import { derivarMallaLigera, rutaDeLaMalla } from "@/lib/malla";
 import { LineaDeTiempo } from "./LineaDeTiempo";
 import { Aprobacion, VistaPrevia3D } from "./Aprobacion";
@@ -176,6 +175,16 @@ export default async function PaginaDeCaso({
   );
   const tieneSubidaIncompleta = caso.archivos.some(
     (a) => a.estado === "EN_PROCESO" && a.tipo !== "MALLA_LIGERA",
+  );
+  const fotosDeCalidad = await Promise.all(
+    caso.archivos
+      .filter(
+        (a) => a.tipo.startsWith("FOTO_CALIDAD") && a.estado === "COMPLETO",
+      )
+      .map(async (foto) => ({
+        ...foto,
+        existeEnAlmacen: await existeArchivo(foto.rutaRelativa),
+      })),
   );
   const recienEnviado = consulta.enviado === "1";
 
@@ -428,7 +437,7 @@ export default async function PaginaDeCaso({
       </section>
 
       {/* Las fotos de control de calidad se juzgan sobre fondo claro (§5.1). */}
-      {caso.archivos.some((a) => a.tipo.startsWith("FOTO_CALIDAD")) ? (
+      {fotosDeCalidad.length > 0 ? (
         <section
           aria-labelledby="fotos"
           className="siempre-claro rounded-contenedor border border-borde p-4"
@@ -437,47 +446,39 @@ export default async function PaginaDeCaso({
             Fotos de control de calidad
           </h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {caso.archivos
-              .filter(
-                (a) =>
-                  a.tipo.startsWith("FOTO_CALIDAD") && a.estado === "COMPLETO",
-              )
-              .map((foto) => {
-                const etiquetaFoto = `${TIPOS_DE_ARCHIVO[foto.tipo]} del caso ${caso.folio}`;
-                const existeArchivo = fs.existsSync(
-                  rutaAbsolutaDe(foto.rutaRelativa),
-                );
-                return existeArchivo ? (
-                  <figure
-                    key={foto.id}
-                    className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/archivos/${foto.id}/contenido`}
-                      alt={etiquetaFoto}
-                      className="aspect-4/3 w-full rounded-control object-contain"
-                    />
-                    <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
-                      <span className="truncate font-medium text-primario">
-                        {TIPOS_DE_ARCHIVO[foto.tipo]}
-                      </span>
-                      <a
-                        href={`/api/archivos/${foto.id}/contenido?descargar`}
-                        className="shrink-0 text-enlace underline underline-offset-4"
-                      >
-                        Descargar
-                      </a>
-                    </figcaption>
-                  </figure>
-                ) : (
-                  <MarcoDeImagen
-                    key={foto.id}
-                    proporcion="4/3"
-                    etiqueta={etiquetaFoto}
+            {fotosDeCalidad.map((foto) => {
+              const etiquetaFoto = `${TIPOS_DE_ARCHIVO[foto.tipo]} del caso ${caso.folio}`;
+              return foto.existeEnAlmacen ? (
+                <figure
+                  key={foto.id}
+                  className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/archivos/${foto.id}/contenido`}
+                    alt={etiquetaFoto}
+                    className="aspect-4/3 w-full rounded-control object-contain"
                   />
-                );
-              })}
+                  <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
+                    <span className="truncate font-medium text-primario">
+                      {TIPOS_DE_ARCHIVO[foto.tipo]}
+                    </span>
+                    <a
+                      href={`/api/archivos/${foto.id}/contenido?descargar`}
+                      className="shrink-0 text-enlace underline underline-offset-4"
+                    >
+                      Descargar
+                    </a>
+                  </figcaption>
+                </figure>
+              ) : (
+                <MarcoDeImagen
+                  key={foto.id}
+                  proporcion="4/3"
+                  etiqueta={etiquetaFoto}
+                />
+              );
+            })}
           </div>
         </section>
       ) : null}

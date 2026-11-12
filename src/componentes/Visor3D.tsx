@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Center } from "@react-three/drei";
 import * as THREE from "three";
 import {
@@ -289,6 +289,54 @@ export function Visor3D({
   );
 }
 
+function LucesDeEstudio() {
+  const luzPrincipal = useRef<THREE.DirectionalLight>(null);
+  const luzRelleno = useRef<THREE.DirectionalLight>(null);
+  const luzContraluz = useRef<THREE.DirectionalLight>(null);
+
+  useFrame(({ camera }) => {
+    // Mantiene la iluminación de estudio acoplada al punto de vista del doctor
+    // (como en Exocad / 3Shape) para que al girar el modelo nunca quede a contraluz.
+    const derecha = new THREE.Vector3(1, 0, 0).applyQuaternion(
+      camera.quaternion,
+    );
+    const arriba = new THREE.Vector3(0, 1, 0).applyQuaternion(
+      camera.quaternion,
+    );
+    const frente = camera.position.clone().normalize();
+
+    if (luzPrincipal.current) {
+      luzPrincipal.current.position
+        .copy(frente)
+        .multiplyScalar(5)
+        .addScaledVector(derecha, 2.2)
+        .addScaledVector(arriba, 2.6);
+    }
+    if (luzRelleno.current) {
+      luzRelleno.current.position
+        .copy(frente)
+        .multiplyScalar(4.5)
+        .addScaledVector(derecha, -2.8)
+        .addScaledVector(arriba, -1.2);
+    }
+    if (luzContraluz.current) {
+      luzContraluz.current.position
+        .copy(frente)
+        .multiplyScalar(-4)
+        .addScaledVector(arriba, 3);
+    }
+  });
+
+  return (
+    <>
+      <hemisphereLight args={["#ffffff", "#e5d7c6", 0.65]} />
+      <directionalLight ref={luzPrincipal} position={[2.5, 3, 5]} intensity={1.55} />
+      <directionalLight ref={luzRelleno} position={[-3, -1.5, 4]} intensity={0.65} />
+      <directionalLight ref={luzContraluz} position={[0, 3, -4]} intensity={0.35} />
+    </>
+  );
+}
+
 function Escena({
   geometria,
   descripcion,
@@ -308,10 +356,8 @@ function Escena({
       aria-label={descripcion}
       role="img"
     >
-      <color attach="background" args={["#f7faff"]} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[3, 4, 5]} intensity={1.5} />
-      <directionalLight position={[-4, -2, -3]} intensity={0.5} />
+      <color attach="background" args={["#f2f6fc"]} />
+      <LucesDeEstudio />
 
       <Center>
         <mesh geometry={geometria} material={material} />

@@ -9,6 +9,7 @@ import {
   borrarArchivo,
   huellaDe,
 } from "@/lib/almacen";
+import { rutaDeLaMalla, rutaDelRetrato } from "@/lib/malla";
 import { TIPOS_DE_ARCHIVO } from "@/lib/vocabulario";
 
 /**
@@ -107,7 +108,12 @@ export async function PATCH(
   }
 
   const bytesTotales = Number(archivo.bytesTotales);
-  const nuevoTotal = await agregarParte(archivo.rutaRelativa, desde, parte);
+  const nuevoTotal = await agregarParte(
+    archivo.rutaRelativa,
+    desde,
+    parte,
+    bytesTotales,
+  );
 
   if (nuevoTotal === null) {
     // El cliente iba desfasado: se le dice por dónde va de verdad y reanuda.
@@ -173,9 +179,43 @@ export async function DELETE(
   }
 
   const { usuario, archivo } = encontrado;
+  const rutaMallaDerivada = rutaDeLaMalla(archivo.id, archivo.casoId);
+  const mallasDerivadas = await prisma.archivo.findMany({
+    where: {
+      casoId: archivo.casoId,
+      tipo: "MALLA_LIGERA",
+      rutaRelativa: rutaMallaDerivada,
+    },
+    select: { id: true },
+  });
 
-  await borrarArchivo(archivo.rutaRelativa);
-  await prisma.archivo.delete({ where: { id: archivo.id } });
+  const rutasABorrar = new Set<string>([
+    archivo.rutaRelativa,
+    rutaMallaDerivada,
+    rutaDelRetrato(archivo.id, archivo.casoId, "grande"),
+    rutaDelRetrato(archivo.id, archivo.casoId, "chico"),
+  ]);
+  for (const m of mallasDerivadas) {
+    rutasABorrar.add(rutaDelRetrato(m.id, archivo.casoId, "grande"));
+    rutasABorrar.add(rutaDelRetrato(m.id, archivo.casoId, "chico"));
+  }
+
+  await Promise.all(
+    Array.from(rutasABorrar).map((ruta) => borrarArchivo(ruta)),
+  );
+
+  await prisma.archivo.deleteMany({
+    where: {
+      OR: [
+        { id: archivo.id },
+        {
+          casoId: archivo.casoId,
+          tipo: "MALLA_LIGERA",
+          rutaRelativa: rutaMallaDerivada,
+        },
+      ],
+    },
+  });
 
   await registrarEvento(prisma, {
     tipo: "ARCHIVO_ELIMINADO",
