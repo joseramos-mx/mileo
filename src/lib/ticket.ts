@@ -1,6 +1,5 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { sumarDiasHabiles } from "@/lib/etapas";
 import { seFabrica } from "@/lib/trabajos";
 import {
   INDICACIONES,
@@ -51,12 +50,36 @@ const MESES_CORTOS = [
   "dic",
 ];
 
+/** Desfase fijo UTC-6 (hora estándar del centro de México) para que el ticket
+ *  muestre exactamente la misma fecha y hora en local y en Vercel (UTC). */
+const DESFASE_UTC_MENOS_6_MS = 6 * 60 * 60 * 1000;
+
+function aUtcMenos6(fecha: Date): Date {
+  return new Date(fecha.getTime() - DESFASE_UTC_MENOS_6_MS);
+}
+
+function desdeUtcMenos6(fechaDesfasada: Date): Date {
+  return new Date(fechaDesfasada.getTime() + DESFASE_UTC_MENOS_6_MS);
+}
+
+function sumarDiasHabilesUtcMenos6(desde: Date, dias: number): Date {
+  const fecha = aUtcMenos6(desde);
+  let restantes = dias;
+  while (restantes > 0) {
+    fecha.setUTCDate(fecha.getUTCDate() + 1);
+    const dia = fecha.getUTCDay();
+    if (dia !== 0 && dia !== 6) restantes--;
+  }
+  return fecha;
+}
+
 function formatearFechaHoraTicket(fecha: Date): string {
-  const diaSemana = DIAS_CORTOS[fecha.getDay()];
-  const dia = fecha.getDate();
-  const mes = MESES_CORTOS[fecha.getMonth()];
-  const horas = String(fecha.getHours()).padStart(2, "0");
-  const minutos = String(fecha.getMinutes()).padStart(2, "0");
+  const f = aUtcMenos6(fecha);
+  const diaSemana = DIAS_CORTOS[f.getUTCDay()];
+  const dia = f.getUTCDate();
+  const mes = MESES_CORTOS[f.getUTCMonth()];
+  const horas = String(f.getUTCHours()).padStart(2, "0");
+  const minutos = String(f.getUTCMinutes()).padStart(2, "0");
   return `${diaSemana} ${dia} ${mes} · ${horas}:${minutos}`;
 }
 
@@ -82,10 +105,12 @@ function resumirDientes(dientes: number[]): string {
 }
 
 function mismoDiaCalendario(a: Date, b: Date): boolean {
+  const fa = aUtcMenos6(a);
+  const fb = aUtcMenos6(b);
   return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+    fa.getUTCFullYear() === fb.getUTCFullYear() &&
+    fa.getUTCMonth() === fb.getUTCMonth() &&
+    fa.getUTCDate() === fb.getUTCDate()
   );
 }
 
@@ -127,10 +152,11 @@ export function calcularFechaDeEnvio({
   }[];
   fechaAprobacion?: Date | null;
 }): Date {
-  const diaSemana = fechaLlegada.getDay();
+  const llegadaUtc6 = aUtcMenos6(fechaLlegada);
+  const diaSemana = llegadaUtc6.getUTCDay();
   const esDiaHabil = diaSemana !== 0 && diaSemana !== 6;
   const horaLlegada =
-    fechaLlegada.getHours() + fechaLlegada.getMinutes() / 60;
+    llegadaUtc6.getUTCHours() + llegadaUtc6.getUTCMinutes() / 60;
   const esRapidoPrioridad = prioridad === "URGENTE" || prioridad === "ALTA";
 
   const piezas = unidades.filter((u) => seFabrica(u.rol));
@@ -216,17 +242,17 @@ export function calcularFechaDeEnvio({
   }
 
   if (diasHabiles === 0 && esDiaHabil) {
-    const mismoDia = new Date(fechaLlegada);
-    mismoDia.setHours(18, 0, 0, 0);
-    return mismoDia;
+    const mismoDia = aUtcMenos6(fechaLlegada);
+    mismoDia.setUTCHours(18, 0, 0, 0);
+    return desdeUtcMenos6(mismoDia);
   }
 
-  const fechaEnvio = sumarDiasHabiles(
+  const fechaEnvio = sumarDiasHabilesUtcMenos6(
     fechaLlegada,
     diasHabiles === 0 ? 1 : diasHabiles,
   );
-  fechaEnvio.setHours(13, 0, 0, 0);
-  return fechaEnvio;
+  fechaEnvio.setUTCHours(13, 0, 0, 0);
+  return desdeUtcMenos6(fechaEnvio);
 }
 
 /**
@@ -298,8 +324,9 @@ export async function armarTicketDelCaso(
   });
 
   const textoFechaEnvio = formatearFechaHoraTicket(fechaCalculada);
-  const mm = String(fechaBase.getMonth() + 1).padStart(2, "0");
-  const dd = String(fechaBase.getDate()).padStart(2, "0");
+  const fechaBaseUtc6 = aUtcMenos6(fechaBase);
+  const mm = String(fechaBaseUtc6.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(fechaBaseUtc6.getUTCDate()).padStart(2, "0");
   const numeroPaciente = caso.paciente.folio || caso.folio;
   const folioTicket = `ZF-${mm}${dd}-${numeroPaciente}`;
 
