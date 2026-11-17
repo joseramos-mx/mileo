@@ -72,17 +72,29 @@ export default async function PaginaDeArchivos({
       </header>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start">
-        <ArchivosDelCaso
-          casoId={caso.id}
-          esSobreImplante={esSobreImplante}
-          archivos={caso.archivos.map((a) => ({
-            id: a.id,
-            nombre: a.nombre,
-            tipo: a.tipo,
-            estado: a.estado,
-            bytesTotales: Number(a.bytesTotales),
-          }))}
-        />
+        <div className="flex flex-col gap-4">
+          {caso.requiereCorreccion && caso.motivoCierre ? (
+            <p
+              role="alert"
+              className="rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4 text-cuerpo text-pendiente-texto"
+            >
+              <strong>El laboratorio solicitó corrección de archivos:</strong>{" "}
+              {caso.motivoCierre}
+            </p>
+          ) : null}
+
+          <ArchivosDelCaso
+            casoId={caso.id}
+            esSobreImplante={esSobreImplante}
+            archivos={caso.archivos.map((a) => ({
+              id: a.id,
+              nombre: a.nombre,
+              tipo: a.tipo,
+              estado: a.estado,
+              bytesTotales: Number(a.bytesTotales),
+            }))}
+          />
+        </div>
 
         <ListaDeAdmision casoId={caso.id} puntos={admision} listo={listo} />
       </div>

@@ -27,10 +27,14 @@ import { fechaCorta, cuandoFalta, fechaConHora, paraMaquina } from "@/lib/fechas
 import { enTamano } from "@/lib/formato";
 import { esExtensionDeFoto, existeArchivo } from "@/lib/almacen";
 import { derivarMallaLigera, rutaDeLaMalla } from "@/lib/malla";
+import { extraerTotalDeCotizacion, obtenerCostosEnvio } from "@/lib/pagos";
+import { PanelRastreoEnvio } from "./PanelRastreoEnvio";
+import { verificarPagoStripeAlRegresar } from "./acciones";
 import { LineaDeTiempo } from "./LineaDeTiempo";
 import { Aprobacion, VistaPrevia3D } from "./Aprobacion";
 import { Chat } from "./Chat";
 import { ControlesDelLaboratorio } from "./ControlesDelLaboratorio";
+import { PanelDePagos } from "./PanelDePagos";
 
 export const metadata: Metadata = { title: "Caso · Mileo" };
 
@@ -67,11 +71,30 @@ export default async function PaginaDeCaso({
   const { id } = await params;
   const consulta = await searchParams;
 
+  const sessionId =
+    typeof consulta.session_id === "string" ? consulta.session_id : null;
+  if (consulta.pago === "exito" && sessionId) {
+    await verificarPagoStripeAlRegresar(id, sessionId);
+  }
+
   const caso = await prisma.caso.findFirst({
     where: { id, ...filtroDeCasos(usuario) },
     include: {
       paciente: true,
-      doctor: { select: { nombreCompleto: true } },
+      clinica: {
+        select: {
+          nombre: true,
+          ciudad: true,
+          codigoPostal: true,
+          calle: true,
+          numeroExterior: true,
+          colonia: true,
+          estadoEnvio: true,
+          telefonoEnvio: true,
+          correoEnvio: true,
+        },
+      },
+      doctor: { select: { nombreCompleto: true, correo: true, telefono: true } },
       tecnico: { select: { nombreCompleto: true, fotoUrl: true } },
       unidades: { orderBy: { diente: "asc" } },
       archivos: { orderBy: { creadoEn: "desc" } },
@@ -190,6 +213,9 @@ export default async function PaginaDeCaso({
       })),
   );
   const recienEnviado = consulta.enviado === "1";
+  const costosEnvio = await obtenerCostosEnvio();
+  const totalCentavos =
+    caso.montoTotalCentavos ?? extraerTotalDeCotizacion(caso.cotizacion);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-8">
@@ -261,6 +287,50 @@ export default async function PaginaDeCaso({
           ) : null}
         </div>
       </header>
+
+      {/* Evaluación inicial, cotización, anticipo 50% y liquidación (Stripe). */}
+      <PanelDePagos
+        casoId={caso.id}
+        etapa={caso.etapa}
+        delLaboratorio={delLaboratorio}
+        totalCentavos={totalCentavos}
+        montoOriginalCentavos={caso.montoOriginalCentavos}
+        motivoCambioPrecio={caso.motivoCambioPrecio}
+        anticipoCentavos={caso.anticipoCentavos}
+        anticipoPagado={caso.anticipoPagadoEn !== null}
+        liquidacionPagada={caso.liquidacionPagadaEn !== null}
+        modalidadEnvioActual={caso.modalidadEnvio}
+        costoEnvioActualCentavos={caso.costoEnvioCentavos}
+        costosEnvio={costosEnvio}
+        motivoCierre={caso.motivoCierre}
+        clinicaDireccion={{
+          ciudad: caso.clinica.ciudad ?? "",
+          codigoPostal: caso.clinica.codigoPostal ?? "",
+          calle: caso.clinica.calle ?? "",
+          numeroExterior: caso.clinica.numeroExterior ?? "",
+          colonia: caso.clinica.colonia ?? "",
+          estadoEnvio: caso.clinica.estadoEnvio ?? "CX",
+          telefonoEnvio:
+            caso.clinica.telefonoEnvio ?? caso.doctor.telefono ?? "",
+          correoEnvio: caso.clinica.correoEnvio ?? caso.doctor.correo,
+        }}
+        envioEnvia={{
+          carrier: caso.enviaCarrier,
+          servicioNombre: caso.enviaServicioNombre,
+          numeroGuia: caso.numeroGuia,
+          urlEtiquetaPdf: caso.urlEtiquetaPdf,
+          urlRastreo: caso.urlRastreo,
+        }}
+      />
+
+      {caso.numeroGuia ? (
+        <PanelRastreoEnvio
+          casoId={caso.id}
+          numeroGuia={caso.numeroGuia}
+          servicioNombre={caso.enviaServicioNombre}
+          urlRastreo={caso.urlRastreo}
+        />
+      ) : null}
 
       {/* La pantalla estrella: aprobación del diseño (O-4). */}
       {caso.etapa === "ESPERANDO_APROBACION" ? (

@@ -476,9 +476,23 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
         };
       }
 
+      const tienePrecioCompleto =
+        cotizacion.cotizacion.sinPrecio === 0 &&
+        !cotizacion.cotizacion.recargoPorConfirmar &&
+        cotizacion.cotizacion.totalCentavos > 0;
+
       await bd.caso.update({
         where: { id: caso.id },
-        data: { esBorrador: false, enviadoEn: new Date(), etapa: "RECIBIDO" },
+        data: {
+          esBorrador: false,
+          enviadoEn: new Date(),
+          etapa: "RECIBIDO",
+          requiereCorreccion: false,
+          motivoCierre: null,
+          ...(tienePrecioCompleto
+            ? { montoTotalCentavos: cotizacion.cotizacion.totalCentavos }
+            : {}),
+        },
       });
 
       await registrarEvento(bd, {

@@ -1,6 +1,7 @@
 import {
   ArrowsClockwise,
   CheckCircle,
+  CreditCard,
   Cube,
   Gear,
   HandTap,
@@ -11,6 +12,7 @@ import {
   ShieldCheck,
   Tray,
   Warning,
+  XCircle,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Icon } from "@phosphor-icons/react";
 import type { Etapa } from "@/generated/prisma/enums";
@@ -37,14 +39,18 @@ const ICONOS: Record<Etapa, Icon> = {
   RECIBIDO: Tray,
   EN_REVISION: MagnifyingGlass,
   ACEPTADO: SealCheck,
+  ESPERANDO_PAGO: CreditCard,
   EN_DISENO: PenNib,
   ESPERANDO_APROBACION: HandTap,
   EN_FABRICACION: Gear,
   EN_CONTROL_DE_CALIDAD: ShieldCheck,
+  ESPERANDO_LIQUIDACION: CreditCard,
   LISTO_Y_EN_CAMINO: PaperPlaneTilt,
   ENTREGADO: CheckCircle,
   EN_PAUSA: Warning,
   REHACER: ArrowsClockwise,
+  DECLINADO: XCircle,
+  CANCELADO: XCircle,
 };
 
 /** Por si alguna etapa nueva se queda sin ícono: un cubo antes que nada. */

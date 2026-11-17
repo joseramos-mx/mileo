@@ -27,6 +27,14 @@ model Clinica {
   /// Donde se entregan las piezas. Vacia al registrarse: la clinica la
   /// completa en ajustes, y sin ella no se puede enviar un caso.
   direccionEntrega String?
+  /// Dirección estructurada para cotizar y generar guías en Envia.com.
+  codigoPostal     String?
+  calle            String?
+  numeroExterior   String?
+  colonia          String?
+  estadoEnvio      String?
+  telefonoEnvio    String?
+  correoEnvio      String?
   creadoEn DateTime @default(now())
 
   /// Cuantos casos al mes son la meta de esta clinica. Es lo que enseña la
@@ -127,14 +135,35 @@ enum Etapa {
   RECIBIDO
   EN_REVISION
   ACEPTADO
+  ESPERANDO_PAGO
   EN_DISENO
   ESPERANDO_APROBACION
   EN_FABRICACION
   EN_CONTROL_DE_CALIDAD
+  ESPERANDO_LIQUIDACION
   LISTO_Y_EN_CAMINO
   ENTREGADO
   EN_PAUSA
   REHACER
+  DECLINADO
+  CANCELADO
+}
+
+enum TipoPago {
+  ANTICIPO
+  LIQUIDACION
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+  FALLIDO
+}
+
+enum ModalidadEnvio {
+  LOCAL
+  NACIONAL
+  RECOLECCION
 }
 
 enum Indicacion {
@@ -286,6 +315,26 @@ model Caso {
   /// tarifas cambian: un caso ya enviado no debe cambiar de precio después.
   cotizacion    Json?
 
+  /// Totales, anticipo (50%), liquidación (50% + envío) y estado de cierre.
+  montoTotalCentavos    Int?
+  montoOriginalCentavos Int?
+  motivoCambioPrecio    String?
+  anticipoCentavos      Int?
+  anticipoPagadoEn      DateTime?
+  liquidacionCentavos   Int?
+  liquidacionPagadaEn   DateTime?
+  modalidadEnvio        ModalidadEnvio?
+  costoEnvioCentavos    Int?
+  enviaCarrier          String?
+  enviaServicio         String?
+  enviaServicioNombre   String?
+  enviaShipmentId       Int?
+  numeroGuia            String?
+  urlEtiquetaPdf        String?
+  urlRastreo            String?
+  motivoCierre          String?
+  requiereCorreccion    Boolean         @default(false)
+
   enRiesgo     Boolean @default(false)
   motivoRiesgo String?
 
@@ -304,6 +353,7 @@ model Caso {
   aprobaciones Aprobacion[]
   mensajes    Mensaje[]
   avisos      Aviso[]
+  pagos       Pago[]
   controlDeCalidad ControlDeCalidad?
 
   @@index([clinicaId, etapa])
@@ -444,6 +494,11 @@ enum TipoEvento {
   USUARIO_REGISTRADO
   AVISO_PRIVACIDAD_ACEPTADO
   RESPALDO_RESTAURADO
+  COTIZACION_ENVIADA
+  PAGO_REGISTRADO
+  CASO_DECLINADO
+  CASO_CANCELADO
+  CORRECCION_SOLICITADA
 }
 
 /// Bitacora inmutable: la base de datos rechaza UPDATE, DELETE y TRUNCATE
@@ -761,5 +816,31 @@ model AjustesDeCotizacion {
   diasHabiles Int[]  @default([1, 2, 3, 4, 5])
   zonaHoraria String @default("America/Mexico_City")
 
+  /// Costos de envío por modalidad (en centavos MXN).
+  envioLocalCentavos    Int @default(5000)
+  envioNacionalCentavos Int @default(15000)
+
   actualizadoEn DateTime @default(now()) @updatedAt
+}
+
+/// Pagos de Stripe asociados a un caso (anticipo 50% y liquidación 50% + envío).
+model Pago {
+  id     String @id @default(cuid())
+  casoId String
+  caso   Caso   @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  tipo           TipoPago
+  estado         EstadoPago      @default(PENDIENTE)
+  montoCentavos  Int
+  envioCentavos  Int             @default(0)
+  modalidadEnvio ModalidadEnvio?
+
+  stripeSessionId       String? @unique
+  stripePaymentIntentId String?
+  pagadoEn              DateTime?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([casoId, tipo])
 }

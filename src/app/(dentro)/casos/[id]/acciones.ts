@@ -14,7 +14,14 @@ import { calcularFechaDeEntrega, sePuedeFabricar } from "@/lib/etapas";
 import { derivarMallaLigera, type ResumenDeMalla } from "@/lib/malla";
 import { avisarA, avisoDeCambioDeEtapa } from "@/lib/avisos";
 import { empujarTicketARaspberry } from "@/lib/ticket";
-import type { Etapa } from "@/generated/prisma/enums";
+import {
+  calcularPartesDePago,
+  confirmarPagoDesdeStripe,
+  extraerTotalDeCotizacion,
+  formatoPesos,
+} from "@/lib/pagos";
+import { obtenerSesionCheckout } from "@/lib/stripe";
+import type { Etapa, ModalidadEnvio, TipoPago } from "@/generated/prisma/enums";
 
 export type Resultado = { error?: string; listo?: boolean };
 
@@ -233,11 +240,37 @@ export async function cambiarEtapa(
     };
   }
 
-  if (nueva === "LISTO_Y_EN_CAMINO" && !caso.controlDeCalidad) {
+  if (
+    nueva === "LISTO_Y_EN_CAMINO" &&
+    !caso.controlDeCalidad &&
+    !caso.liquidacionPagadaEn
+  ) {
     return {
       error:
         `El caso ${caso.folio} todavía no pasa control de calidad. ` +
         "Ciérrelo desde la pantalla de calidad: ahí van las dos fotos y el kit.",
+    };
+  }
+
+  if (
+    nueva === "EN_DISENO" &&
+    caso.montoTotalCentavos &&
+    !caso.anticipoPagadoEn
+  ) {
+    return {
+      error:
+        "No se puede iniciar el diseño hasta confirmar el pago del anticipo (50%).",
+    };
+  }
+
+  if (
+    (nueva === "LISTO_Y_EN_CAMINO" || nueva === "ENTREGADO") &&
+    caso.montoTotalCentavos &&
+    !caso.liquidacionPagadaEn
+  ) {
+    return {
+      error:
+        "No se puede despachar o entregar el caso hasta confirmar la liquidación total (50% restante + envío).",
     };
   }
 
@@ -379,11 +412,11 @@ export async function mandarDisenoAAprobacion(
       etapaNueva: "ESPERANDO_APROBACION",
       datos: primera
         ? {
-            triangulos: primera.triangulos,
-            bytesDeLaVista: primera.bytes,
-            reducida: primera.reducida,
-            mallasGeneradas: mallasDerivadas.length,
-          }
+          triangulos: primera.triangulos,
+          bytesDeLaVista: primera.bytes,
+          reducida: primera.reducida,
+          mallasGeneradas: mallasDerivadas.length,
+        }
         : { archivosDeDiseno: disenosCompletos.length },
     });
   });
@@ -432,4 +465,295 @@ export async function solicitarImpresionDeTicket(
   await empujarTicketARaspberry(caso.id);
   revalidatePath(`/casos/${caso.id}`);
   return { listo: true };
+}
+
+// -------------------------------------- evaluación, cotización y pagos Stripe
+
+const esquemaEvaluacion = z.object({
+  decision: z.enum(["ACEPTAR", "CORRECCION", "DECLINAR"]),
+  montoTotalPesos: z.number().nonnegative().optional(),
+  motivo: z.string().trim().max(1000).optional(),
+  motivoCambioPrecio: z.string().trim().max(1000).optional(),
+});
+
+export async function evaluarCasoLaboratorio(
+  casoId: string,
+  entrada: z.infer<typeof esquemaEvaluacion>,
+): Promise<Resultado> {
+  const { usuario, caso } = await casoDelUsuario(casoId);
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (!puedeMoverEtapas(usuario)) {
+    return { error: "Sólo el laboratorio puede evaluar o cotizar casos." };
+  }
+
+  const leido = esquemaEvaluacion.safeParse(entrada);
+  if (!leido.success) return { error: "Revise los datos de evaluación." };
+  const { decision, montoTotalPesos, motivo, motivoCambioPrecio } = leido.data;
+
+  if (decision === "DECLINAR") {
+    if (!motivo || motivo.length < 5) {
+      return { error: "Indique el motivo por el cual se declina el caso." };
+    }
+    await prisma.$transaction(async (bd) => {
+      await bd.caso.update({
+        where: { id: caso.id },
+        data: { etapa: "DECLINADO", motivoCierre: motivo },
+      });
+      await registrarEvento(bd, {
+        tipo: "CASO_DECLINADO",
+        resumen: `${usuario.nombreCompleto} declinó el caso ${caso.folio}: ${motivo}`,
+        casoId: caso.id,
+        usuarioId: usuario.id,
+        etapaAnterior: caso.etapa,
+        etapaNueva: "DECLINADO",
+        datos: { motivo },
+      });
+    });
+    revalidatePath(`/casos/${caso.id}`);
+    revalidatePath("/tablero");
+    return { listo: true };
+  }
+
+  if (decision === "CORRECCION") {
+    if (!motivo || motivo.length < 5) {
+      return { error: "Explique qué archivos faltan o requieren corrección." };
+    }
+    await prisma.$transaction(async (bd) => {
+      await bd.caso.update({
+        where: { id: caso.id },
+        data: {
+          esBorrador: true,
+          requiereCorreccion: true,
+          motivoCierre: motivo,
+        },
+      });
+      await registrarEvento(bd, {
+        tipo: "CORRECCION_SOLICITADA",
+        resumen: `${usuario.nombreCompleto} regresó el caso ${caso.folio} a la clínica para corrección de archivos: ${motivo}`,
+        casoId: caso.id,
+        usuarioId: usuario.id,
+        datos: { motivo },
+      });
+    });
+    revalidatePath(`/casos/${caso.id}`);
+    revalidatePath(`/casos/${caso.id}/archivos`);
+    revalidatePath("/tablero");
+    return { listo: true };
+  }
+
+  // ACEPTAR -> asignar precio (si requería cotización o viene definido) y pedir 50%
+  const precioOriginalCentavos =
+    caso.montoTotalCentavos ?? extraerTotalDeCotizacion(caso.cotizacion);
+  const centavosManual =
+    typeof montoTotalPesos === "number" && montoTotalPesos > 0
+      ? Math.round(montoTotalPesos * 100)
+      : null;
+  const totalCentavos = centavosManual ?? precioOriginalCentavos;
+
+  if (!totalCentavos || totalCentavos <= 0) {
+    return {
+      error:
+        "Este caso requiere cotización manual. Escriba el costo total en pesos antes de aceptar.",
+    };
+  }
+
+  const precioFueCambiado =
+    precioOriginalCentavos !== null &&
+    precioOriginalCentavos > 0 &&
+    totalCentavos !== precioOriginalCentavos;
+
+  if (precioFueCambiado && (!motivoCambioPrecio || motivoCambioPrecio.length < 5)) {
+    return {
+      error:
+        "Indique el motivo por el cual cambió el precio antes de aceptar el caso.",
+    };
+  }
+
+  const { anticipoCentavos, restanteCentavos } =
+    calcularPartesDePago(totalCentavos);
+  const aceptadoEn = caso.aceptadoEn ?? new Date();
+  const fechaEntrega =
+    caso.fechaEntregaComprometida ??
+    calcularFechaDeEntrega(caso.indicacion, aceptadoEn);
+
+  await prisma.$transaction(async (bd) => {
+    await bd.caso.update({
+      where: { id: caso.id },
+      data: {
+        etapa: "ESPERANDO_PAGO",
+        aceptadoEn,
+        fechaEntregaComprometida: fechaEntrega,
+        montoTotalCentavos: totalCentavos,
+        montoOriginalCentavos: precioFueCambiado ? precioOriginalCentavos : null,
+        motivoCambioPrecio: precioFueCambiado ? motivoCambioPrecio : null,
+        anticipoCentavos,
+        liquidacionCentavos: restanteCentavos,
+        requiereCorreccion: false,
+        motivoCierre: null,
+      },
+    });
+    await registrarEvento(bd, {
+      tipo: "COTIZACION_ENVIADA",
+      resumen:
+        `${usuario.nombreCompleto} aceptó el caso ${caso.folio} con total ${formatoPesos(totalCentavos)} y solicitó anticipo del 50% (${formatoPesos(anticipoCentavos)}).` +
+        (precioFueCambiado
+          ? ` Precio ajustado desde ${formatoPesos(precioOriginalCentavos)}: ${motivoCambioPrecio}`
+          : ""),
+      casoId: caso.id,
+      usuarioId: usuario.id,
+      etapaAnterior: caso.etapa,
+      etapaNueva: "ESPERANDO_PAGO",
+      datos: {
+        totalCentavos,
+        anticipoCentavos,
+        ...(precioFueCambiado
+          ? {
+              montoOriginalCentavos: precioOriginalCentavos,
+              motivoCambioPrecio,
+            }
+          : {}),
+      },
+    });
+  });
+
+  revalidatePath(`/casos/${caso.id}`);
+  revalidatePath("/tablero");
+  revalidatePath("/");
+  return { listo: true };
+}
+
+export async function rechazarCotizacionClinica(
+  casoId: string,
+  motivo?: string,
+): Promise<Resultado> {
+  const { usuario, caso } = await casoDelUsuario(casoId);
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (caso.etapa !== "ESPERANDO_PAGO" && caso.etapa !== "EN_PAUSA") {
+    return { error: "Este caso no está en etapa de autorización de pago." };
+  }
+
+  const razon = motivo?.trim() || "La clínica rechazó el costo del caso.";
+
+  await prisma.$transaction(async (bd) => {
+    await bd.caso.update({
+      where: { id: caso.id },
+      data: { etapa: "CANCELADO", motivoCierre: razon },
+    });
+    await registrarEvento(bd, {
+      tipo: "CASO_CANCELADO",
+      resumen: `${usuario.nombreCompleto} rechazó el pago y canceló el caso ${caso.folio}.`,
+      casoId: caso.id,
+      usuarioId: usuario.id,
+      etapaAnterior: caso.etapa,
+      etapaNueva: "CANCELADO",
+      datos: { motivo: razon },
+    });
+  });
+
+  revalidatePath(`/casos/${caso.id}`);
+  revalidatePath("/");
+  return { listo: true };
+}
+
+export async function dejarPagoPendienteClinica(
+  casoId: string,
+): Promise<Resultado> {
+  const { usuario, caso } = await casoDelUsuario(casoId);
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (caso.etapa !== "ESPERANDO_PAGO") {
+    return { error: "El pago solo puede pausarse cuando espera anticipo." };
+  }
+
+  await prisma.$transaction(async (bd) => {
+    await bd.caso.update({
+      where: { id: caso.id },
+      data: { etapa: "EN_PAUSA" },
+    });
+    await registrarEvento(bd, {
+      tipo: "ETAPA_CAMBIADA",
+      resumen: `${usuario.nombreCompleto} dejó pendiente el pago del anticipo en el caso ${caso.folio}. El caso queda en pausa.`,
+      casoId: caso.id,
+      usuarioId: usuario.id,
+      etapaAnterior: caso.etapa,
+      etapaNueva: "EN_PAUSA",
+    });
+  });
+
+  revalidatePath(`/casos/${caso.id}`);
+  revalidatePath("/");
+  return { listo: true };
+}
+
+export async function solicitarLiquidacion(casoId: string): Promise<Resultado> {
+  const { usuario, caso } = await casoDelUsuario(casoId);
+  if (!caso) return { error: "No encuentro ese caso." };
+  if (!puedeMoverEtapas(usuario)) {
+    return { error: "Sólo el laboratorio puede solicitar la liquidación." };
+  }
+  if (
+    caso.etapa !== "EN_FABRICACION" &&
+    caso.etapa !== "EN_CONTROL_DE_CALIDAD"
+  ) {
+    return {
+      error:
+        "El caso debe estar en fabricación o control de calidad para solicitar liquidación.",
+    };
+  }
+
+  await prisma.$transaction(async (bd) => {
+    await bd.caso.update({
+      where: { id: caso.id },
+      data: { etapa: "ESPERANDO_LIQUIDACION" },
+    });
+    await registrarEvento(bd, {
+      tipo: "ETAPA_CAMBIADA",
+      resumen: `${usuario.nombreCompleto} notificó que el caso ${caso.folio} está terminado y solicitó la liquidación (50% restante + envío).`,
+      casoId: caso.id,
+      usuarioId: usuario.id,
+      etapaAnterior: caso.etapa,
+      etapaNueva: "ESPERANDO_LIQUIDACION",
+    });
+  });
+
+  revalidatePath(`/casos/${caso.id}`);
+  revalidatePath("/tablero");
+  revalidatePath("/");
+  return { listo: true };
+}
+
+export async function verificarPagoStripeAlRegresar(
+  casoId: string,
+  sessionId: string,
+): Promise<void> {
+  try {
+    const sesion = await obtenerSesionCheckout(sessionId);
+    const meta = sesion.metadata ?? {};
+    if (
+      sesion.payment_status === "paid" &&
+      meta.casoId === casoId &&
+      (meta.tipo === "ANTICIPO" || meta.tipo === "LIQUIDACION")
+    ) {
+      const modalidad =
+        meta.modalidadEnvio === "LOCAL" ||
+          meta.modalidadEnvio === "NACIONAL" ||
+          meta.modalidadEnvio === "RECOLECCION"
+          ? (meta.modalidadEnvio as ModalidadEnvio)
+          : null;
+
+      await confirmarPagoDesdeStripe({
+        sessionId: sesion.id,
+        paymentIntentId: sesion.payment_intent ?? null,
+        casoId,
+        tipo: meta.tipo as TipoPago,
+        montoCentavos: Number(meta.montoCentavos || sesion.amount_total || 0),
+        envioCentavos: Number(meta.envioCentavos || 0),
+        modalidadEnvio: modalidad,
+        enviaCarrier: meta.enviaCarrier || null,
+        enviaServicio: meta.enviaServicio || null,
+        enviaServicioNombre: meta.enviaServicioNombre || null,
+      });
+    }
+  } catch {
+    // Si Stripe no responde o aún no confirma, el webhook lo procesará.
+  }
 }

@@ -30,15 +30,22 @@ export const ETAPAS_DEL_DOCTOR: Etapa[] = [
   "RECIBIDO",
   "EN_REVISION",
   "ACEPTADO",
+  "ESPERANDO_PAGO",
   "EN_DISENO",
   "ESPERANDO_APROBACION",
   "EN_FABRICACION",
   "EN_CONTROL_DE_CALIDAD",
+  "ESPERANDO_LIQUIDACION",
   "LISTO_Y_EN_CAMINO",
   "ENTREGADO",
 ];
 
-export const ETAPAS_DE_EXCEPCION: Etapa[] = ["EN_PAUSA", "REHACER"];
+export const ETAPAS_DE_EXCEPCION: Etapa[] = [
+  "EN_PAUSA",
+  "REHACER",
+  "DECLINADO",
+  "CANCELADO",
+];
 
 /**
  * Tono del chip de etapa. Tres, y cada uno contesta una sola pregunta:
@@ -76,6 +83,12 @@ export const ETAPAS: Record<Etapa, DescripcionDeEtapa> = {
     tono: "proceso",
     paraElDoctor: "El caso está aceptado y ya tiene fecha de entrega.",
   },
+  ESPERANDO_PAGO: {
+    nombre: "Esperando anticipo (50%)",
+    tono: "pendiente",
+    paraElDoctor:
+      "Revise la cotización y cubra el anticipo del 50% para iniciar el diseño.",
+  },
   EN_DISENO: {
     nombre: "En diseño",
     tono: "proceso",
@@ -96,6 +109,12 @@ export const ETAPAS: Record<Etapa, DescripcionDeEtapa> = {
     tono: "proceso",
     paraElDoctor: "Revisando ajuste y color antes de enviarlo.",
   },
+  ESPERANDO_LIQUIDACION: {
+    nombre: "Esperando liquidación",
+    tono: "pendiente",
+    paraElDoctor:
+      "Su trabajo está terminado. Elija modalidad de envío y liquide el 50% restante.",
+  },
   LISTO_Y_EN_CAMINO: {
     nombre: "Listo y en camino",
     tono: "terminado",
@@ -115,6 +134,16 @@ export const ETAPAS: Record<Etapa, DescripcionDeEtapa> = {
     nombre: "Rehacer",
     tono: "pendiente",
     paraElDoctor: "Estamos rehaciendo este caso sin costo para usted.",
+  },
+  DECLINADO: {
+    nombre: "Declinado",
+    tono: "pendiente",
+    paraElDoctor: "El laboratorio declinó este caso. Revise el motivo abajo.",
+  },
+  CANCELADO: {
+    nombre: "Cancelado",
+    tono: "pendiente",
+    paraElDoctor: "El caso fue cancelado.",
   },
 };
 
