@@ -17,7 +17,7 @@ const Visor3D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="siempre-claro aspect-4/3 w-full animate-pulse rounded-contenedor border border-borde bg-superficie-suave" />
+      <div className="aspect-16/10 min-h-[500px] w-full animate-pulse rounded-contenedor border border-borde bg-superficie-suave" />
     ),
   },
 );
@@ -131,7 +131,7 @@ export function Aprobacion({
       ) : null}
 
       {tieneImagenes ? (
-        <div className="siempre-claro flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
+        <div className="flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
           <p className="text-menor font-medium text-primario">
             {imagenesDeDiseno.length === 1
               ? "Imagen del diseño"

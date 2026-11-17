@@ -192,7 +192,7 @@ export default async function PaginaDeCaso({
   const recienEnviado = consulta.enviado === "1";
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-8">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-8">
       {/* Confirmación visible después de enviar (§6.8). La duda genera llamadas. */}
       {recienEnviado ? (
         <p
@@ -316,7 +316,7 @@ export default async function PaginaDeCaso({
           ) : null}
 
           {imagenesDeDiseno.length > 0 ? (
-            <div className="siempre-claro flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
+            <div className="flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
               <p className="text-menor font-medium text-primario">
                 {imagenesDeDiseno.length === 1
                   ? "Imagen del diseño"
