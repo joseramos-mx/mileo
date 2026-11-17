@@ -6,23 +6,6 @@ import { Campo } from "@/componentes/Campo";
 import { Boton } from "@/componentes/Boton";
 import { entrar, type ResultadoEntrada } from "./acciones";
 
-const CUENTAS_RAPIDAS = [
-  {
-    etiqueta: "Admin",
-    correo: "direccion@rmszahn.mx",
-    contrasena: "mileo1234",
-  },
-  {
-    etiqueta: "Laboratorio",
-    correo: "diseno@rmszahn.mx",
-    contrasena: "mileo1234",
-  },
-  {
-    etiqueta: "Clínica",
-    correo: "juan.valverde@prodental.mx",
-    contrasena: "mileo1234",
-  },
-] as const;
 
 /**
  * El formulario de la portada.
@@ -84,25 +67,6 @@ export function FormularioDeEntrada() {
           </button>
         }
       />
-
-      {/* <div className="flex flex-col gap-1.5">
-        <p className="text-minimo text-secundario">Llenado rápido de prueba</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {CUENTAS_RAPIDAS.map((cuenta) => (
-            <button
-              key={cuenta.etiqueta}
-              type="button"
-              onClick={() => {
-                setCorreo(cuenta.correo);
-                setContrasena(cuenta.contrasena);
-              }}
-              className="rounded-control border border-borde bg-superficie px-2 py-1.5 text-minimo font-medium text-primario transition-colors hover:bg-superficie-suave"
-            >
-              {cuenta.etiqueta}
-            </button>
-          ))}
-        </div>
-      </div> */}
 
       {/* El error se anuncia sin robar el foco de donde está el doctor. */}
       <p
