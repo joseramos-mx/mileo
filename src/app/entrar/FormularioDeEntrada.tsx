@@ -85,7 +85,7 @@ export function FormularioDeEntrada() {
         }
       />
 
-      <div className="flex flex-col gap-1.5">
+      {/* <div className="flex flex-col gap-1.5">
         <p className="text-minimo text-secundario">Llenado rápido de prueba</p>
         <div className="grid grid-cols-3 gap-1.5">
           {CUENTAS_RAPIDAS.map((cuenta) => (
@@ -102,7 +102,7 @@ export function FormularioDeEntrada() {
             </button>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* El error se anuncia sin robar el foco de donde está el doctor. */}
       <p
