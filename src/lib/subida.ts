@@ -18,7 +18,7 @@
  * Este módulo corre en el navegador.
  */
 
-export const BYTES_POR_PARTE = 2 * 1024 * 1024;
+export const BYTES_POR_PARTE = 4 * 1024 * 1024;
 
 export type TipoDeArchivoSubido =
   | "ESCANEO_PREPARACION"
