@@ -112,7 +112,6 @@ export async function PATCH(
     archivo.rutaRelativa,
     desde,
     parte,
-    bytesTotales,
   );
 
   if (nuevoTotal === null) {

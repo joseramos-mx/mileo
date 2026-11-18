@@ -13,12 +13,12 @@
  * - Un fallo de red no cancela nada: se espera y se reintenta la misma parte.
  *   Sin señal, la subida queda en pausa y sigue sola cuando vuelve.
  * - Si la persona vuelve a escoger el mismo archivo después de recargar, el
- *   servidor reconoce la subida a medias por nombre y tamaño, y continúa.
- *
+ *   servidor reconoce la subida a medias por nombre y tamaño, y continú
+ *  
  * Este módulo corre en el navegador.
  */
 
-export const BYTES_POR_PARTE = 4 * 1024 * 1024;
+export const BYTES_POR_PARTE = 2 * 1024 * 1024;
 
 export type TipoDeArchivoSubido =
   | "ESCANEO_PREPARACION"

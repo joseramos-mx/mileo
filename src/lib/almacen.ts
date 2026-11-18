@@ -98,12 +98,16 @@ export function mimeDeRuta(rutaRelativa: string): string {
 export const BYTES_MAXIMOS_POR_ARCHIVO = 2 * 1024 * 1024 * 1024;
 
 export function carpetaBase() {
+  if (
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    (process.env.NODE_ENV === "production" && tieneS3())
+  ) {
+    return path.join(os.tmpdir(), "mileo-archivos");
+  }
   return path.resolve(
     process.cwd(),
-    process.env.MILEO_ALMACEN_ARCHIVOS ??
-      (process.env.VERCEL
-        ? path.join(os.tmpdir(), "mileo-archivos")
-        : "./almacen/archivos"),
+    process.env.MILEO_ALMACEN_ARCHIVOS ?? "./almacen/archivos",
   );
 }
 
@@ -246,7 +250,6 @@ export async function agregarParte(
   rutaRelativa: string,
   desde: number,
   parte: Buffer,
-  bytesTotalesEsperados?: number,
 ): Promise<number | null> {
   const completa = await prepararCarpeta(rutaRelativa);
   let yaHay = 0;
@@ -256,8 +259,14 @@ export async function agregarParte(
     yaHay = 0;
   }
 
-  // Si se está reanudando una subida en otra instancia y lo previo estaba en S3:
-  if (yaHay === 0 && desde > 0 && tieneS3()) {
+  // Si empieza desde 0, truncamos cualquier residuo previo en /tmp
+  if (desde === 0 && yaHay > 0) {
+    await fsp.writeFile(completa, Buffer.alloc(0));
+    yaHay = 0;
+  }
+
+  // Si se está reanudando una subida en otra instancia serverless y lo previo estaba en S3:
+  if (yaHay !== desde && desde > 0 && tieneS3()) {
     const previoS3 = await descargarObjetoS3(rutaRelativa);
     if (previoS3 && previoS3.byteLength === desde) {
       await fsp.writeFile(completa, previoS3);
@@ -270,10 +279,7 @@ export async function agregarParte(
   await fsp.appendFile(completa, parte);
   const nuevoTotal = yaHay + parte.byteLength;
 
-  if (
-    tieneS3() &&
-    (bytesTotalesEsperados === undefined || nuevoTotal >= bytesTotalesEsperados)
-  ) {
+  if (tieneS3()) {
     const todo = await fsp.readFile(completa);
     await subirObjetoS3(rutaRelativa, todo, mimeDeRuta(rutaRelativa));
   }
