@@ -57,6 +57,11 @@ model Usuario {
   clinicaId String?
   clinica   Clinica? @relation(fields: [clinicaId], references: [id])
 
+  /// La administración lo dio de alta con una contraseña temporal: antes de
+  /// usar Mileo tiene que elegir la suya (/cambiar-contrasena). Se apaga al
+  /// guardarla.
+  debeCambiarContrasena Boolean @default(false)
+
   // Aviso de privacidad aceptado al primer ingreso (O-1)
   avisoPrivacidadVersion    String?
   avisoPrivacidadAceptadoEn DateTime?

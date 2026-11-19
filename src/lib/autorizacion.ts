@@ -26,6 +26,10 @@ export function esDeLaClinica(usuario: UsuarioEnSesion) {
   return ROLES_DE_LA_CLINICA.includes(usuario.rol);
 }
 
+export function esAdmin(usuario: UsuarioEnSesion) {
+  return usuario.rol === "ADMIN";
+}
+
 /** La clínica aprueba los diseños de sus casos (O-1). */
 export function puedeAprobarDisenos(usuario: UsuarioEnSesion) {
   return usuario.rol === "CLINICA";
@@ -64,6 +68,10 @@ export async function exigirUsuario(): Promise<UsuarioEnSesion> {
   const usuario = await usuarioActual();
   if (!usuario) redirect("/entrar");
 
+  // Entró con la contraseña temporal de la administración: primero elige su
+  // contraseña.
+  if (usuario.debeCambiarContrasena) redirect("/cambiar-contrasena");
+
   if (usuario.avisoPrivacidadVersion !== VERSION_AVISO_PRIVACIDAD) {
     redirect("/aviso-de-privacidad");
   }
@@ -79,6 +87,11 @@ export async function exigirRol(roles: Rol[]): Promise<UsuarioEnSesion> {
 
 export async function exigirLaboratorio(): Promise<UsuarioEnSesion> {
   return exigirRol(ROLES_DEL_LABORATORIO);
+}
+
+/** Para las pantallas de administración, como /usuarios. */
+export async function exigirAdmin(): Promise<UsuarioEnSesion> {
+  return exigirRol(["ADMIN"]);
 }
 
 /**

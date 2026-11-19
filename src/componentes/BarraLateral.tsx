@@ -19,13 +19,7 @@ import {
   SignOut,
 } from "@phosphor-icons/react";
 import { salir } from "@/app/acciones-sesion";
-import {
-  APOYO,
-  DESTINOS_DE_LA_CLINICA,
-  DESTINOS_DEL_LABORATORIO,
-  estaActivo,
-  type Destino,
-} from "@/componentes/Navegacion";
+import { APOYO, estaActivo, type Destino } from "@/componentes/Navegacion";
 import { cn } from "@/lib/utilidades";
 
 /**
@@ -44,12 +38,16 @@ function guardarPreferencia(plegada: boolean) {
 }
 
 export function BarraLateral({
+  destinos,
   delLaboratorio,
   plegadaAlInicio,
   marca,
   marcaCompacta,
   usuario,
 }: {
+  /** Las secciones según el rol; las elige el layout. */
+  destinos: Destino[];
+  /** Quien no manda casos (laboratorio o admin): no ve "Nuevo caso". */
   delLaboratorio: boolean;
   plegadaAlInicio: boolean;
   /** El logotipo completo y el asterisco solo; los pinta el servidor. */
@@ -59,9 +57,6 @@ export function BarraLateral({
 }) {
   const [plegada, setPlegada] = useState(plegadaAlInicio);
   const buscador = useRef<HTMLInputElement>(null);
-  const destinos = delLaboratorio
-    ? DESTINOS_DEL_LABORATORIO
-    : DESTINOS_DE_LA_CLINICA;
 
   function cambiar(siguiente: boolean) {
     setPlegada(siguiente);
@@ -90,7 +85,7 @@ export function BarraLateral({
     <header
       className={cn(
         "relative isolate hidden shrink-0 flex-col gap-4 overflow-hidden bg-app p-4 transition-[width] duration-200 lg:flex",
-        plegada ? "w-[4.75rem]" : "w-72",
+        plegada ? "w-19" : "w-72",
       )}
     >
       {/* Luz de fondo: le da al vidrio algo que desenfocar. Y en vez de un
@@ -216,7 +211,7 @@ export function BarraLateral({
 }
 
 function sinSuscripcion() {
-  return () => {};
+  return () => { };
 }
 
 function Buscador({

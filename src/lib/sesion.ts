@@ -23,6 +23,8 @@ export type UsuarioEnSesion = {
   avisoPrivacidadVersion: string | null;
   /** Si ve el catalogo entero de trabajos o la lista corta. */
   catalogoCompleto: boolean;
+  /** Entró con la contraseña temporal de la administración: debe elegir la suya. */
+  debeCambiarContrasena: boolean;
 };
 
 export async function cerrarSesion() {
@@ -74,6 +76,7 @@ export const usuarioActual = cache(
       avisoPrivacidadAceptadoEn: usuario.avisoPrivacidadAceptadoEn,
       avisoPrivacidadVersion: usuario.avisoPrivacidadVersion,
       catalogoCompleto: usuario.catalogoCompleto,
+      debeCambiarContrasena: usuario.debeCambiarContrasena,
     };
   },
 );

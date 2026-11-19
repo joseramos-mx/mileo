@@ -14,6 +14,7 @@ import {
   Receipt,
   Target,
   Tray,
+  Users,
   Warning,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
@@ -58,6 +59,26 @@ export const DESTINOS_DEL_LABORATORIO: Destino[] = [
   { href: "/mi-bandeja", nombre: "Mi bandeja", corto: "Bandeja", icono: Tray },
   { href: "/tablero", nombre: "Tablero", icono: Kanban },
   { href: "/casos", nombre: "Casos", icono: Folders },
+  {
+    href: "/configuracion",
+    nombre: "Configuración",
+    corto: "Ajustes",
+    icono: Gear,
+  },
+];
+
+/** Igual que el laboratorio, más la administración de usuarios. */
+export const DESTINOS_DEL_ADMIN: Destino[] = [
+  { href: "/", nombre: "Requiere atención", corto: "Atención", icono: Warning },
+  { href: "/mi-bandeja", nombre: "Mi bandeja", corto: "Bandeja", icono: Tray },
+  { href: "/tablero", nombre: "Tablero", icono: Kanban },
+  { href: "/casos", nombre: "Casos", icono: Folders },
+  {
+    href: "/usuarios",
+    nombre: "Configuración de usuarios",
+    corto: "Usuarios",
+    icono: Users,
+  },
   {
     href: "/configuracion",
     nombre: "Configuración",

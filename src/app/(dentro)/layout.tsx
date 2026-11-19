@@ -5,6 +5,7 @@ import {
   exigirUsuario,
   esDelLaboratorio,
   esDeLaClinica,
+  esAdmin,
 } from "@/lib/autorizacion";
 import { Marca } from "@/componentes/Marca";
 import { BarraSuperior } from "@/componentes/BarraSuperior";
@@ -14,6 +15,7 @@ import {
   NavegacionInferior,
   DESTINOS_DE_LA_CLINICA,
   DESTINOS_DEL_LABORATORIO,
+  DESTINOS_DEL_ADMIN,
 } from "@/componentes/Navegacion";
 import { salir } from "@/app/acciones-sesion";
 import { metaDelMes } from "@/lib/inicio";
@@ -29,10 +31,14 @@ export default async function DisposicionDentro({
   children,
 }: LayoutProps<"/">) {
   const usuario = await exigirUsuario();
+  const admin = esAdmin(usuario);
+  // El admin ya cuenta como laboratorio (ROLES_DEL_LABORATORIO): no manda casos.
   const delLaboratorio = esDelLaboratorio(usuario);
-  const destinos = delLaboratorio
-    ? DESTINOS_DEL_LABORATORIO
-    : DESTINOS_DE_LA_CLINICA;
+  const destinos = admin
+    ? DESTINOS_DEL_ADMIN
+    : delLaboratorio
+      ? DESTINOS_DEL_LABORATORIO
+      : DESTINOS_DE_LA_CLINICA;
 
   const [meta, galletas] = await Promise.all([
     esDeLaClinica(usuario) ? metaDelMes(usuario) : Promise.resolve(null),
@@ -60,6 +66,7 @@ export default async function DisposicionDentro({
 
       {/* --- Barra lateral, escritorio ------------------------------------ */}
       <BarraLateral
+        destinos={destinos}
         delLaboratorio={delLaboratorio}
         plegadaAlInicio={barraPlegada}
         marca={<Marca tamano="grande" />}
