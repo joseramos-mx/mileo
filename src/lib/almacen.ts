@@ -1,5 +1,4 @@
 import "server-only";
-import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -167,90 +166,97 @@ export async function prepararCarpeta(rutaRelativa: string) {
   return completa;
 }
 
-/** Guarda un archivo completo en disco local y en Amazon S3 (si está activo). */
+/** Guarda un archivo completo directamente en Amazon S3 (o en disco local si S3 no está configurado). */
 export async function guardarArchivo(
   rutaRelativa: string,
   datos: Buffer,
   contentType?: string,
 ): Promise<void> {
-  try {
-    const completa = await prepararCarpeta(rutaRelativa);
-    await fsp.writeFile(completa, datos);
-  } catch {
-    // Si el sistema de archivos local no permite escritura, S3 es la fuente principal.
-  }
-
   if (tieneS3()) {
     await subirObjetoS3(
       rutaRelativa,
       datos,
       contentType ?? mimeDeRuta(rutaRelativa),
     );
+    return;
   }
+
+  const completa = await prepararCarpeta(rutaRelativa);
+  await fsp.writeFile(completa, datos);
 }
 
-/** Lee un archivo desde caché local o lo descarga desde Amazon S3. */
+/**
+ * Lee un archivo completo directamente desde Amazon S3 (sin pasar por `/tmp`)
+ * cuando S3 está configurado, o desde disco local si se corre sin S3.
+ */
 export async function leerArchivo(rutaRelativa: string): Promise<Buffer> {
-  const completa = rutaAbsolutaDe(rutaRelativa);
-  try {
-    return await fsp.readFile(completa);
-  } catch (err) {
-    if (!tieneS3()) throw err;
+  if (tieneS3()) {
+    const desdeS3 = await descargarObjetoS3(rutaRelativa);
+    if (!desdeS3) {
+      throw new Error(`Archivo no encontrado en S3: ${rutaRelativa}`);
+    }
+    return desdeS3;
   }
 
-  const desdeS3 = await descargarObjetoS3(rutaRelativa);
-  if (!desdeS3) {
-    throw new Error(`Archivo no encontrado en S3: ${rutaRelativa}`);
-  }
-
-  try {
-    await prepararCarpeta(rutaRelativa);
-    await fsp.writeFile(completa, desdeS3);
-  } catch {
-    // Caché local opcional.
-  }
-
-  return desdeS3;
+  return fsp.readFile(rutaAbsolutaDe(rutaRelativa));
 }
 
-/** Verifica si el archivo existe en disco local o en Amazon S3. */
+/** Verifica si el archivo existe en Amazon S3 (o en disco local si no hay S3). */
 export async function existeArchivo(rutaRelativa: string): Promise<boolean> {
-  try {
-    await fsp.access(rutaAbsolutaDe(rutaRelativa));
-    return true;
-  } catch {
-    if (!tieneS3()) return false;
+  if (tieneS3()) {
     const tamano = await tamanoObjetoS3(rutaRelativa);
-    return tamano !== null;
+    return tamano !== null && tamano > 0;
   }
-}
 
-/** Cuántos bytes hay realmente guardados (en disco o en S3). */
-export async function bytesEnDisco(rutaRelativa: string) {
   try {
     const { size } = await fsp.stat(rutaAbsolutaDe(rutaRelativa));
-    if (size > 0) return size;
+    return size > 0;
   } catch {
-    // No está en disco local; revisamos S3 si está activo.
+    return false;
   }
+}
 
+/** Cuántos bytes hay realmente guardados en Amazon S3 (o en disco local si no hay S3). */
+export async function bytesEnDisco(rutaRelativa: string) {
   if (tieneS3()) {
     const enS3 = await tamanoObjetoS3(rutaRelativa);
-    if (enS3 !== null) return enS3;
+    return enS3 ?? 0;
   }
 
-  return 0;
+  try {
+    const { size } = await fsp.stat(rutaAbsolutaDe(rutaRelativa));
+    return size > 0 ? size : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**
  * Agrega una parte al final del archivo.
- * Cuando se completa (o en cada parte si S3 está activo), sincroniza con S3.
+ * Cuando S3 está configurado, opera 100% en memoria contra S3 sin tocar `/tmp`.
  */
 export async function agregarParte(
   rutaRelativa: string,
   desde: number,
   parte: Buffer,
 ): Promise<number | null> {
+  if (tieneS3()) {
+    if (desde === 0) {
+      await subirObjetoS3(rutaRelativa, parte, mimeDeRuta(rutaRelativa));
+      return parte.byteLength;
+    }
+
+    const previoS3 = await descargarObjetoS3(rutaRelativa);
+    const yaHayS3 = previoS3 ? previoS3.byteLength : 0;
+    if (desde !== yaHayS3 || !previoS3) {
+      return null;
+    }
+
+    const combinado = Buffer.concat([previoS3, parte]);
+    await subirObjetoS3(rutaRelativa, combinado, mimeDeRuta(rutaRelativa));
+    return combinado.byteLength;
+  }
+
   const completa = await prepararCarpeta(rutaRelativa);
   let yaHay = 0;
   try {
@@ -259,59 +265,30 @@ export async function agregarParte(
     yaHay = 0;
   }
 
-  // Si empieza desde 0, truncamos cualquier residuo previo en /tmp
   if (desde === 0 && yaHay > 0) {
     await fsp.writeFile(completa, Buffer.alloc(0));
     yaHay = 0;
   }
 
-  // Si se está reanudando una subida en otra instancia serverless y lo previo estaba en S3:
-  if (yaHay !== desde && desde > 0 && tieneS3()) {
-    const previoS3 = await descargarObjetoS3(rutaRelativa);
-    if (previoS3 && previoS3.byteLength === desde) {
-      await fsp.writeFile(completa, previoS3);
-      yaHay = previoS3.byteLength;
-    }
-  }
-
   if (desde !== yaHay) return null;
 
   await fsp.appendFile(completa, parte);
-  const nuevoTotal = yaHay + parte.byteLength;
-
-  if (tieneS3()) {
-    const todo = await fsp.readFile(completa);
-    await subirObjetoS3(rutaRelativa, todo, mimeDeRuta(rutaRelativa));
-  }
-
-  return nuevoTotal;
+  return yaHay + parte.byteLength;
 }
 
 export async function huellaDe(rutaRelativa: string) {
-  const completa = rutaAbsolutaDe(rutaRelativa);
-  if (fs.existsSync(completa)) {
-    const hash = crypto.createHash("sha256");
-    await new Promise<void>((listo, falla) => {
-      const flujo = fs.createReadStream(completa);
-      flujo.on("data", (trozo) => hash.update(trozo));
-      flujo.on("end", () => listo());
-      flujo.on("error", falla);
-    });
-    return hash.digest("hex");
-  }
-
   const datos = await leerArchivo(rutaRelativa);
   return crypto.createHash("sha256").update(datos).digest("hex");
 }
 
 export async function borrarArchivo(rutaRelativa: string) {
+  if (tieneS3()) {
+    await borrarObjetoS3(rutaRelativa);
+  }
+
   try {
     await fsp.unlink(rutaAbsolutaDe(rutaRelativa));
   } catch {
-    // Si ya no estaba en disco local, continuamos.
-  }
-
-  if (tieneS3()) {
-    await borrarObjetoS3(rutaRelativa);
+    // Si no existía en disco local, continuamos.
   }
 }

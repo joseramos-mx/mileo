@@ -11,6 +11,7 @@ import {
   prepararCarpeta,
   extensionesQueEsperaba,
 } from "@/lib/almacen";
+import { tieneS3 } from "@/lib/s3";
 import fsp from "node:fs/promises";
 
 /**
@@ -134,9 +135,11 @@ export async function POST(
     data: { rutaRelativa },
   });
 
-  // Se crea vacío para que reanudar siempre encuentre algo que medir.
-  const completa = await prepararCarpeta(rutaRelativa);
-  await fsp.writeFile(completa, "");
+  // Sólo si no hay S3 configurado se crea el archivo vacío en disco local.
+  if (!tieneS3()) {
+    const completa = await prepararCarpeta(rutaRelativa);
+    await fsp.writeFile(completa, "");
+  }
 
   return NextResponse.json({
     id: archivo.id,

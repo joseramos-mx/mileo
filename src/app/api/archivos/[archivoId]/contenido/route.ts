@@ -75,6 +75,10 @@ export async function GET(
   }
 
   const ext = archivo.extension.toLowerCase();
+  const nombreAscii = archivo.nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/["\\]/g, "_");
 
   return new Response(new Uint8Array(bytes), {
     headers: {
@@ -88,7 +92,7 @@ export async function GET(
           : "private, max-age=3600",
       ...(descargar
         ? {
-            "content-disposition": `attachment; filename="${encodeURIComponent(archivo.nombre)}"`,
+            "content-disposition": `attachment; filename="${nombreAscii}"; filename*=UTF-8''${encodeURIComponent(archivo.nombre)}`,
           }
         : {}),
     },
