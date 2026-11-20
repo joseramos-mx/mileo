@@ -9,6 +9,7 @@ import { registrarEvento } from "@/lib/bitacora";
 import { siguienteFolio, siguienteFolioDePaciente } from "@/lib/casos";
 import { sePuedeEnviar, loQueFalta } from "@/lib/admision";
 import { empujarTicketARaspberry } from "@/lib/ticket";
+import { POLITICAS_SERVICIO_MARKDOWN } from "@/lib/politicas-servicio";
 import { congelarCotizacion } from "@/lib/cotizador-caso";
 import { arcadaDe, nombreDelTramo, tramosDe } from "@/lib/tramos";
 import {
@@ -430,7 +431,16 @@ export async function guardarEntregaRapida(
 
 // ------------------------------------------------------------- enviar caso
 
-export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
+export async function enviarCaso(
+  casoId: string,
+  aceptoPoliticas = true,
+): Promise<{ error?: string }> {
+  if (!aceptoPoliticas) {
+    return {
+      error:
+        "Debe aceptar las condiciones y políticas del laboratorio antes de enviar el caso.",
+    };
+  }
   const usuario = await exigirUsuario();
 
   const caso = await prisma.caso.findFirst({
@@ -481,14 +491,18 @@ export async function enviarCaso(casoId: string): Promise<{ error?: string }> {
         !cotizacion.cotizacion.recargoPorConfirmar &&
         cotizacion.cotizacion.totalCentavos > 0;
 
+      const ahora = new Date();
       await bd.caso.update({
         where: { id: caso.id },
         data: {
           esBorrador: false,
-          enviadoEn: new Date(),
+          enviadoEn: ahora,
           etapa: "RECIBIDO",
           requiereCorreccion: false,
           motivoCierre: null,
+          politicasAceptadas: true,
+          politicasAceptadasEn: ahora,
+          politicasAceptadasMarkdown: POLITICAS_SERVICIO_MARKDOWN,
           ...(tienePrecioCompleto
             ? { montoTotalCentavos: cotizacion.cotizacion.totalCentavos }
             : {}),

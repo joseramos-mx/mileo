@@ -159,11 +159,11 @@ export function CalculadoraDePrecios({
         </p>
       </div>
 
-      {/* Lo primero: para cuándo lo necesita. Sólo con la hora ya conocida. */}
+      {/* Lo primero: qué prioridad necesita en el laboratorio. Sólo con la hora ya conocida. */}
       {ahora && estandar.fecha ? (
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1.5 text-menor font-medium text-primario">
-            ¿Para cuándo lo necesita?
+            Prioridad en el laboratorio
           </legend>
 
           <OpcionDeEntrega
@@ -176,7 +176,8 @@ export function CalculadoraDePrecios({
           {rapida ? (
             <OpcionDeEntrega
               grupo={grupo}
-              nombre="Entrega rápida"
+              nombre="Prioridad en laboratorio"
+              descripcionExtra="Se le dará prioridad de elaboración dentro de la fila del laboratorio."
               entrega={rapida}
               marcada={rapidaMarcada}
               alEscoger={() => {
@@ -186,7 +187,7 @@ export function CalculadoraDePrecios({
             />
           ) : (
             <p className="text-minimo text-secundario">
-              Ninguna pieza de este caso tiene entrega rápida.
+              Ninguna pieza de este caso admite prioridad en laboratorio.
             </p>
           )}
 
@@ -195,7 +196,7 @@ export function CalculadoraDePrecios({
               role="status"
               className="rounded-control bg-superficie-suave p-3 text-minimo text-primario"
             >
-              Se quitó la entrega rápida. {avisoDeRapida}
+              Se quitó la prioridad en laboratorio. {avisoDeRapida}
             </p>
           ) : null}
 
@@ -273,7 +274,7 @@ export function CalculadoraDePrecios({
         {ahora && rapidaMarcada && elegida.recargoPct !== 0 ? (
           <div className="flex justify-between text-menor text-secundario">
             <dt>
-              Entrega rápida
+              Prioridad en laboratorio
               {elegida.recargoPct !== null ? ` (+${elegida.recargoPct}%)` : ""}
             </dt>
             <dd className="tabular-nums">
@@ -301,12 +302,14 @@ export function CalculadoraDePrecios({
 function OpcionDeEntrega({
   grupo,
   nombre,
+  descripcionExtra,
   entrega,
   marcada,
   alEscoger,
 }: {
   grupo: string;
   nombre: string;
+  descripcionExtra?: string;
   entrega: EntregaCotizada;
   marcada: boolean;
   alEscoger: () => void;
@@ -343,10 +346,15 @@ function OpcionDeEntrega({
 
         {disponible && entrega.fecha ? (
           <>
+            {descripcionExtra ? (
+              <span className="text-minimo text-secundario">
+                {descripcionExtra}
+              </span>
+            ) : null}
             <span className="text-menor text-primario">
               {entrega.desde
-                ? `Entre el ${fechaLarga(entrega.desde)} y el ${fechaLarga(entrega.fecha)}`
-                : fechaLarga(entrega.fecha)}
+                ? `Estimado en laboratorio: entre el ${fechaLarga(entrega.desde)} y el ${fechaLarga(entrega.fecha)}`
+                : `Estimado en laboratorio: ${fechaLarga(entrega.fecha)}`}
             </span>
             <span className="text-minimo text-secundario">
               {enDias(entrega.diasHabilesDesde, entrega.diasHabiles)}
