@@ -13,7 +13,14 @@ const esquema = z
         contrasena: z
             .string()
             .min(8, "La contraseña necesita al menos 8 caracteres.")
-            .max(72, "La contraseña es demasiado larga (máximo 72 caracteres)."),
+            .max(72, "La contraseña es demasiado larga (máximo 72 caracteres).")
+            .regex(/\p{Lu}/u, "Agregue al menos una letra mayúscula.")
+            .regex(/\p{Ll}/u, "Agregue al menos una letra minúscula.")
+            .regex(/\d/, "Agregue al menos un número.")
+            .regex(
+                /[^\p{L}\p{N}\s]/u,
+                "Agregue al menos un símbolo, como ! @ # $ % o *.",
+            ),
         confirmacion: z.string(),
     })
     .refine((v) => v.contrasena === v.confirmacion, {

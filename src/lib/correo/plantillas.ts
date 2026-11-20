@@ -32,6 +32,8 @@ type Contenido = {
   vistaPrevia: string;
   titulo: string;
   parrafos: string[];
+  /** Renglones destacados en una caja, como el correo y una contraseña temporal. */
+  datos?: { etiqueta: string; valor: string }[];
   boton?: { texto: string; enlace: string };
   pie: string;
 };
@@ -44,9 +46,21 @@ function armarHtml(c: Contenido): string {
     )
     .join("");
 
+  const datos = c.datos?.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;background:${color.fondo};border-radius:10px;"><tr><td style="padding:16px 20px 4px;">` +
+    c.datos
+      .map(
+        (d) =>
+          `<p style="margin:0 0 2px;font-size:13px;line-height:20px;color:${color.suave};">${esc(d.etiqueta)}</p>` +
+          `<p style="margin:0 0 12px;font-size:18px;line-height:26px;font-weight:600;font-family:'SFMono-Regular',Consolas,Menlo,monospace;color:${color.titulo};word-break:break-all;">${esc(d.valor)}</p>`,
+      )
+      .join("") +
+    `</td></tr></table>`
+    : "";
+
   const boton = c.boton
     ? `<p style="margin:28px 0;"><a href="${esc(c.boton.enlace)}" style="display:inline-block;background:${color.boton};color:${color.textoBoton};text-decoration:none;font-size:16px;font-weight:600;padding:14px 28px;border-radius:10px;">${esc(c.boton.texto)}</a></p>` +
-      `<p style="margin:0 0 16px;font-size:13px;line-height:20px;color:${color.suave};">Si el botón no funciona, copie este enlace en su navegador:<br><span style="word-break:break-all;">${esc(c.boton.enlace)}</span></p>`
+    `<p style="margin:0 0 16px;font-size:13px;line-height:20px;color:${color.suave};">Si el botón no funciona, copie este enlace en su navegador:<br><span style="word-break:break-all;">${esc(c.boton.enlace)}</span></p>`
     : "";
 
   return `<!doctype html>
@@ -65,6 +79,7 @@ function armarHtml(c: Contenido): string {
 <p style="margin:0 0 24px;font-size:20px;font-weight:700;letter-spacing:0.5px;color:${color.titulo};">Mileo</p>
 <h1 style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:600;color:${color.titulo};">${esc(c.titulo)}</h1>
 ${parrafos}
+${datos}
 ${boton}
 <p style="margin:24px 0 0;font-size:13px;line-height:20px;color:${color.suave};">${esc(c.pie)}</p>
 </td></tr>
@@ -77,6 +92,9 @@ ${boton}
 
 function armarTexto(c: Contenido): string {
   const partes = [c.titulo, "", ...c.parrafos];
+  if (c.datos?.length) {
+    partes.push("", ...c.datos.map((d) => `${d.etiqueta}: ${d.valor}`));
+  }
   if (c.boton) partes.push("", `${c.boton.texto}: ${c.boton.enlace}`);
   partes.push("", c.pie);
   return partes.join("\n");
@@ -121,5 +139,30 @@ export function plantillaYaTieneCuenta(datos: {
     ],
     boton: { texto: "Entrar a Mileo", enlace: datos.enlaceEntrada },
     pie: "Si no fue usted, ignore este mensaje: su cuenta sigue segura y no se cambió nada.",
+  });
+}
+
+/**
+ * Cuando la administración da de alta a alguien: su correo y una contraseña
+ * temporal. Al entrar, Mileo le pide elegir la suya.
+ */
+export function plantillaAccesoTemporal(datos: {
+  nombre?: string;
+  correo: string;
+  contrasena: string;
+  enlaceEntrada: string;
+}): CorreoListo {
+  return listo("Su acceso a Mileo", {
+    vistaPrevia: "La administración le dio de alta en Mileo.",
+    titulo: datos.nombre ? `Hola, ${datos.nombre}` : "Bienvenido a Mileo",
+    parrafos: [
+      "La administración de Mileo le dio de alta. Entre con estos datos:",
+    ],
+    datos: [
+      { etiqueta: "Correo", valor: datos.correo },
+      { etiqueta: "Contraseña temporal", valor: datos.contrasena },
+    ],
+    boton: { texto: "Entrar a Mileo", enlace: datos.enlaceEntrada },
+    pie: "Al entrar le pediremos que elija su propia contraseña; la temporal deja de servir en ese momento. Si no esperaba este correo, ignórelo.",
   });
 }

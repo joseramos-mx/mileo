@@ -8,7 +8,7 @@ import { crearClienteSupabaseAdmin } from "@/lib/supabase/servidor";
 import { enviarCorreo } from "@/lib/correo/enviar";
 import { RUTA_DE_ENTRADA, urlBase } from "@/lib/rutas-publicas";
 import type { Rol } from "@/generated/prisma/enums";
-import { plantillaCodigoDeAcceso } from "./plantilla-codigo";
+import { plantillaAccesoTemporal } from "@/lib/correo/plantillas";
 import { ROLES_EN_ORDEN } from "./roles";
 
 /**
@@ -29,12 +29,33 @@ export type EstadoDelFormulario = { ok?: boolean; error?: string };
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Sin 0/O, 1/l/I: se lee en un correo y se teclea sin confundirse.
-const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+const MAYUSCULAS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const MINUSCULAS = "abcdefghijkmnopqrstuvwxyz";
+const NUMEROS = "23456789";
+const SIMBOLOS = "!@#$%*+-=?";
 
+const tomar = (grupo: string) => grupo[randomInt(grupo.length)];
+
+/**
+ * Lleva al menos una de cada clase (mayúscula, minúscula, número y símbolo),
+ * así cumple también las reglas de contraseña que se pongan en Supabase.
+ */
 function contrasenaTemporal(largo = 12) {
-    let clave = "";
-    for (let i = 0; i < largo; i++) clave += ALFABETO[randomInt(ALFABETO.length)];
-    return clave;
+    const todos = MAYUSCULAS + MINUSCULAS + NUMEROS + SIMBOLOS;
+    const letras = [
+        tomar(MAYUSCULAS),
+        tomar(MINUSCULAS),
+        tomar(NUMEROS),
+        tomar(SIMBOLOS),
+    ];
+    while (letras.length < largo) letras.push(tomar(todos));
+
+    // Baraja (Fisher-Yates) para que las cuatro primeras no sean siempre una de cada.
+    for (let i = letras.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [letras[i], letras[j]] = [letras[j], letras[i]];
+    }
+    return letras.join("");
 }
 
 async function mandarAcceso(
@@ -44,7 +65,7 @@ async function mandarAcceso(
 ) {
     await enviarCorreo({
         para: correo,
-        ...plantillaCodigoDeAcceso({
+        ...plantillaAccesoTemporal({
             nombre: nombreCompleto.split(/\s+/)[0],
             correo,
             contrasena,
