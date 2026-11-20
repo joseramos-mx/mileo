@@ -328,7 +328,9 @@ export async function armarTicketDelCaso(
   const mm = String(fechaBaseUtc6.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(fechaBaseUtc6.getUTCDate()).padStart(2, "0");
   const numeroPaciente = caso.paciente.folio || caso.folio;
-  const folioTicket = `ZF-${mm}${dd}-${numeroPaciente}`;
+  const folioTicket = caso.folio.startsWith("ZF-")
+    ? caso.folio
+    : `ZF-${mm}${dd}-${numeroPaciente}`;
 
   return {
     casoId: caso.id,

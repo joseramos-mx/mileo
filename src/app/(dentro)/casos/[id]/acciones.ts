@@ -11,7 +11,11 @@ import {
 } from "@/lib/autorizacion";
 import { registrarEvento } from "@/lib/bitacora";
 import { calcularFechaDeEntrega, sePuedeFabricar } from "@/lib/etapas";
-import { derivarMallaLigera, type ResumenDeMalla } from "@/lib/malla";
+import {
+  derivarMallaLigera,
+  esExtension3DVisualizable,
+  type ResumenDeMalla,
+} from "@/lib/malla";
 import { avisarA, avisoDeCambioDeEtapa } from "@/lib/avisos";
 import { empujarTicketARaspberry } from "@/lib/ticket";
 import type { Etapa } from "@/generated/prisma/enums";
@@ -310,8 +314,8 @@ export async function mandarDisenoAAprobacion(
     };
   }
 
-  const disenosStl = disenosCompletos.filter(
-    (a) => a.extension.toLowerCase() === "stl",
+  const disenosStl = disenosCompletos.filter((a) =>
+    esExtension3DVisualizable(a.extension),
   );
 
   const mallasDerivadas: {

@@ -1,5 +1,5 @@
 import "server-only";
-import { guardarArchivo, leerArchivo } from "@/lib/almacen";
+import { extensionDe, guardarArchivo, leerArchivo } from "@/lib/almacen";
 import { dibujarLaPieza } from "@/lib/vista-malla";
 
 /**
@@ -32,6 +32,10 @@ const VERSION = 1;
 
 export function rutaDeLaMalla(archivoId: string, casoId: string) {
   return `${casoId}/${archivoId}.v2.malla`;
+}
+
+export function esExtension3DVisualizable(extension: string): boolean {
+  return ["stl", "ply", "obj"].includes(extension.toLowerCase());
 }
 
 export type Malla = {
@@ -90,6 +94,425 @@ function leerStlDeTexto(datos: Buffer): Float32Array {
     coincidencia = patron.exec(texto);
   }
   return Float32Array.from(numeros);
+}
+
+type TipoEscalarPly =
+  | "int8"
+  | "uint8"
+  | "int16"
+  | "uint16"
+  | "int32"
+  | "uint32"
+  | "float32"
+  | "float64";
+
+type PropiedadPly =
+  | { clase: "escalar"; nombre: string; tipo: TipoEscalarPly; bytes: number }
+  | {
+      clase: "lista";
+      nombre: string;
+      tipoConteo: TipoEscalarPly;
+      bytesConteo: number;
+      tipoItem: TipoEscalarPly;
+      bytesItem: number;
+    };
+
+function normalizarTipoPly(crudo: string): {
+  tipo: TipoEscalarPly;
+  bytes: number;
+} {
+  switch (crudo.toLowerCase()) {
+    case "char":
+    case "int8":
+      return { tipo: "int8", bytes: 1 };
+    case "uchar":
+    case "uint8":
+      return { tipo: "uint8", bytes: 1 };
+    case "short":
+    case "int16":
+      return { tipo: "int16", bytes: 2 };
+    case "ushort":
+    case "uint16":
+      return { tipo: "uint16", bytes: 2 };
+    case "int":
+    case "int32":
+      return { tipo: "int32", bytes: 4 };
+    case "uint":
+    case "uint32":
+      return { tipo: "uint32", bytes: 4 };
+    case "double":
+    case "float64":
+      return { tipo: "float64", bytes: 8 };
+    case "float":
+    case "float32":
+    default:
+      return { tipo: "float32", bytes: 4 };
+  }
+}
+
+function leerEscalarBinarioPly(
+  datos: Buffer,
+  offset: number,
+  tipo: TipoEscalarPly,
+  littleEndian: boolean,
+): number {
+  switch (tipo) {
+    case "int8":
+      return datos.readInt8(offset);
+    case "uint8":
+      return datos.readUInt8(offset);
+    case "int16":
+      return littleEndian
+        ? datos.readInt16LE(offset)
+        : datos.readInt16BE(offset);
+    case "uint16":
+      return littleEndian
+        ? datos.readUInt16LE(offset)
+        : datos.readUInt16BE(offset);
+    case "int32":
+      return littleEndian
+        ? datos.readInt32LE(offset)
+        : datos.readInt32BE(offset);
+    case "uint32":
+      return littleEndian
+        ? datos.readUInt32LE(offset)
+        : datos.readUInt32BE(offset);
+    case "float64":
+      return littleEndian
+        ? datos.readDoubleLE(offset)
+        : datos.readDoubleBE(offset);
+    case "float32":
+      return littleEndian
+        ? datos.readFloatLE(offset)
+        : datos.readFloatBE(offset);
+  }
+}
+
+function leerPly(datos: Buffer): Float32Array {
+  const marcadorCrLf = datos.indexOf("end_header\r\n");
+  const marcadorLf = datos.indexOf("end_header\n");
+  let inicioCuerpo = -1;
+  let finEncabezado = -1;
+
+  if (marcadorCrLf !== -1 && (marcadorLf === -1 || marcadorCrLf < marcadorLf)) {
+    finEncabezado = marcadorCrLf;
+    inicioCuerpo = marcadorCrLf + 12;
+  } else if (marcadorLf !== -1) {
+    finEncabezado = marcadorLf;
+    inicioCuerpo = marcadorLf + 11;
+  } else {
+    throw new Error("El archivo PLY no tiene un encabezado válido.");
+  }
+
+  const textoEncabezado = datos.subarray(0, finEncabezado).toString("ascii");
+  const lineas = textoEncabezado
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith("comment"));
+
+  let formato: "ascii" | "binary_little_endian" | "binary_big_endian" = "ascii";
+  const elementos: {
+    nombre: string;
+    cantidad: number;
+    propiedades: PropiedadPly[];
+  }[] = [];
+
+  for (const linea of lineas) {
+    const partes = linea.split(/\s+/);
+    if (partes[0] === "format" && partes[1]) {
+      if (partes[1] === "binary_little_endian") {
+        formato = "binary_little_endian";
+      } else if (partes[1] === "binary_big_endian") {
+        formato = "binary_big_endian";
+      } else {
+        formato = "ascii";
+      }
+    } else if (partes[0] === "element" && partes[1] && partes[2]) {
+      elementos.push({
+        nombre: partes[1],
+        cantidad: Number(partes[2]) || 0,
+        propiedades: [],
+      });
+    } else if (partes[0] === "property" && elementos.length > 0) {
+      const actual = elementos[elementos.length - 1];
+      if (partes[1] === "list" && partes[2] && partes[3] && partes[4]) {
+        const c = normalizarTipoPly(partes[2]);
+        const it = normalizarTipoPly(partes[3]);
+        actual.propiedades.push({
+          clase: "lista",
+          nombre: partes[4],
+          tipoConteo: c.tipo,
+          bytesConteo: c.bytes,
+          tipoItem: it.tipo,
+          bytesItem: it.bytes,
+        });
+      } else if (partes[1] && partes[2]) {
+        const esc = normalizarTipoPly(partes[1]);
+        actual.propiedades.push({
+          clase: "escalar",
+          nombre: partes[2],
+          tipo: esc.tipo,
+          bytes: esc.bytes,
+        });
+      }
+    }
+  }
+
+  if (formato === "ascii") {
+    const cuerpoTexto = datos.subarray(inicioCuerpo).toString("utf8");
+    const lineasCuerpo = cuerpoTexto
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    let cursorLinea = 0;
+    let vertices = new Float32Array(0);
+    const sopa: number[] = [];
+
+    for (const el of elementos) {
+      if (el.nombre === "vertex") {
+        vertices = new Float32Array(el.cantidad * 3);
+        const idxX = el.propiedades.findIndex((p) => p.nombre === "x");
+        const idxY = el.propiedades.findIndex((p) => p.nombre === "y");
+        const idxZ = el.propiedades.findIndex((p) => p.nombre === "z");
+        for (let i = 0; i < el.cantidad && cursorLinea < lineasCuerpo.length; i++) {
+          const cols = lineasCuerpo[cursorLinea++].split(/\s+/);
+          vertices[i * 3] = Number(cols[idxX >= 0 ? idxX : 0]) || 0;
+          vertices[i * 3 + 1] = Number(cols[idxY >= 0 ? idxY : 1]) || 0;
+          vertices[i * 3 + 2] = Number(cols[idxZ >= 0 ? idxZ : 2]) || 0;
+        }
+      } else if (el.nombre === "face") {
+        for (let i = 0; i < el.cantidad && cursorLinea < lineasCuerpo.length; i++) {
+          const cols = lineasCuerpo[cursorLinea++].split(/\s+/).map(Number);
+          const n = cols[0] || 0;
+          if (n >= 3) {
+            const i0 = cols[1];
+            for (let k = 1; k < n - 1; k++) {
+              const i1 = cols[1 + k];
+              const i2 = cols[2 + k];
+              sopa.push(
+                vertices[i0 * 3],
+                vertices[i0 * 3 + 1],
+                vertices[i0 * 3 + 2],
+                vertices[i1 * 3],
+                vertices[i1 * 3 + 1],
+                vertices[i1 * 3 + 2],
+                vertices[i2 * 3],
+                vertices[i2 * 3 + 1],
+                vertices[i2 * 3 + 2],
+              );
+            }
+          }
+        }
+      } else {
+        cursorLinea += el.cantidad;
+      }
+    }
+
+    return Float32Array.from(sopa);
+  }
+
+  // Binario (little_endian o big_endian)
+  const littleEndian = formato === "binary_little_endian";
+  let offset = inicioCuerpo;
+  let vertices = new Float32Array(0);
+  const sopa: number[] = [];
+
+  for (const el of elementos) {
+    if (el.nombre === "vertex") {
+      vertices = new Float32Array(el.cantidad * 3);
+      const esFijo = el.propiedades.every((p) => p.clase === "escalar");
+      if (esFijo) {
+        let paso = 0;
+        let offX = 0;
+        let tipoX: TipoEscalarPly = "float32";
+        let offY = 4;
+        let tipoY: TipoEscalarPly = "float32";
+        let offZ = 8;
+        let tipoZ: TipoEscalarPly = "float32";
+
+        for (const p of el.propiedades) {
+          if (p.clase === "escalar") {
+            if (p.nombre === "x") {
+              offX = paso;
+              tipoX = p.tipo;
+            } else if (p.nombre === "y") {
+              offY = paso;
+              tipoY = p.tipo;
+            } else if (p.nombre === "z") {
+              offZ = paso;
+              tipoZ = p.tipo;
+            }
+            paso += p.bytes;
+          }
+        }
+
+        for (let i = 0; i < el.cantidad; i++) {
+          if (offset + paso > datos.length) break;
+          vertices[i * 3] = leerEscalarBinarioPly(
+            datos,
+            offset + offX,
+            tipoX,
+            littleEndian,
+          );
+          vertices[i * 3 + 1] = leerEscalarBinarioPly(
+            datos,
+            offset + offY,
+            tipoY,
+            littleEndian,
+          );
+          vertices[i * 3 + 2] = leerEscalarBinarioPly(
+            datos,
+            offset + offZ,
+            tipoZ,
+            littleEndian,
+          );
+          offset += paso;
+        }
+      }
+    } else if (el.nombre === "face") {
+      const totalVertices = vertices.length / 3;
+      for (let i = 0; i < el.cantidad; i++) {
+        if (offset >= datos.length) break;
+        for (const p of el.propiedades) {
+          if (p.clase === "escalar") {
+            offset += p.bytes;
+          } else {
+            if (offset + p.bytesConteo > datos.length) break;
+            const n = leerEscalarBinarioPly(
+              datos,
+              offset,
+              p.tipoConteo,
+              littleEndian,
+            );
+            offset += p.bytesConteo;
+            if (offset + n * p.bytesItem > datos.length) break;
+
+            const esIndices =
+              p.nombre === "vertex_indices" || p.nombre === "vertex_index";
+            if (esIndices && n >= 3) {
+              const i0 = leerEscalarBinarioPly(
+                datos,
+                offset,
+                p.tipoItem,
+                littleEndian,
+              );
+              for (let k = 1; k < n - 1; k++) {
+                const i1 = leerEscalarBinarioPly(
+                  datos,
+                  offset + k * p.bytesItem,
+                  p.tipoItem,
+                  littleEndian,
+                );
+                const i2 = leerEscalarBinarioPly(
+                  datos,
+                  offset + (k + 1) * p.bytesItem,
+                  p.tipoItem,
+                  littleEndian,
+                );
+                if (
+                  i0 >= 0 &&
+                  i0 < totalVertices &&
+                  i1 >= 0 &&
+                  i1 < totalVertices &&
+                  i2 >= 0 &&
+                  i2 < totalVertices
+                ) {
+                  sopa.push(
+                    vertices[i0 * 3],
+                    vertices[i0 * 3 + 1],
+                    vertices[i0 * 3 + 2],
+                    vertices[i1 * 3],
+                    vertices[i1 * 3 + 1],
+                    vertices[i1 * 3 + 2],
+                    vertices[i2 * 3],
+                    vertices[i2 * 3 + 1],
+                    vertices[i2 * 3 + 2],
+                  );
+                }
+              }
+            }
+            offset += n * p.bytesItem;
+          }
+        }
+      }
+    } else {
+      for (let i = 0; i < el.cantidad; i++) {
+        for (const p of el.propiedades) {
+          if (p.clase === "escalar") {
+            offset += p.bytes;
+          } else {
+            if (offset + p.bytesConteo > datos.length) break;
+            const n = leerEscalarBinarioPly(
+              datos,
+              offset,
+              p.tipoConteo,
+              littleEndian,
+            );
+            offset += p.bytesConteo + n * p.bytesItem;
+          }
+        }
+      }
+    }
+  }
+
+  return Float32Array.from(sopa);
+}
+
+function leerObj(datos: Buffer): Float32Array {
+  const texto = datos.toString("utf8");
+  const lineas = texto.split(/\r?\n/);
+  const vertices: number[] = [];
+  const sopa: number[] = [];
+
+  for (const cruda of lineas) {
+    const linea = cruda.trim();
+    if (linea.startsWith("v ")) {
+      const partes = linea.split(/\s+/);
+      vertices.push(
+        Number(partes[1]) || 0,
+        Number(partes[2]) || 0,
+        Number(partes[3]) || 0,
+      );
+    } else if (linea.startsWith("f ")) {
+      const partes = linea.split(/\s+/).slice(1);
+      const totalV = vertices.length / 3;
+      const indices: number[] = [];
+      for (const token of partes) {
+        const crudo = Number(token.split("/")[0]);
+        if (!Number.isFinite(crudo) || crudo === 0) continue;
+        const idx = crudo > 0 ? crudo - 1 : totalV + crudo;
+        if (idx >= 0 && idx < totalV) indices.push(idx);
+      }
+      if (indices.length >= 3) {
+        const i0 = indices[0];
+        for (let k = 1; k < indices.length - 1; k++) {
+          const i1 = indices[k];
+          const i2 = indices[k + 1];
+          sopa.push(
+            vertices[i0 * 3],
+            vertices[i0 * 3 + 1],
+            vertices[i0 * 3 + 2],
+            vertices[i1 * 3],
+            vertices[i1 * 3 + 1],
+            vertices[i1 * 3 + 2],
+            vertices[i2 * 3],
+            vertices[i2 * 3 + 1],
+            vertices[i2 * 3 + 2],
+          );
+        }
+      }
+    }
+  }
+
+  return Float32Array.from(sopa);
+}
+
+function leerGeometria3D(datos: Buffer, rutaDelOriginal: string): Float32Array {
+  const ext = extensionDe(rutaDelOriginal);
+  if (ext === "ply") return leerPly(datos);
+  if (ext === "obj") return leerObj(datos);
+  return leerStl(datos);
 }
 
 // -------------------------------------------------------------- unir y bajar
@@ -325,7 +748,7 @@ export async function derivarMallaLigera({
   archivoId: string;
 }): Promise<ResumenDeMalla> {
   const datos = await leerArchivo(rutaDelOriginal);
-  const sopa = leerStl(datos);
+  const sopa = leerGeometria3D(datos, rutaDelOriginal);
 
   if (sopa.length === 0) {
     throw new Error("Ese archivo no trae geometría que pueda mostrar.");

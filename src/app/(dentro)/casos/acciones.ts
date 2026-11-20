@@ -117,7 +117,7 @@ export async function crearBorrador(
 
   const caso = await prisma.caso.create({
     data: {
-      folio: await siguienteFolio(),
+      folio: await siguienteFolio(paciente.folio),
       clinicaId: usuario.clinicaId,
       doctorId,
       creadoPorId: usuario.id,

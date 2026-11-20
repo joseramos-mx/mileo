@@ -26,7 +26,11 @@ import {
 import { fechaCorta, cuandoFalta, fechaConHora, paraMaquina } from "@/lib/fechas";
 import { enTamano } from "@/lib/formato";
 import { esExtensionDeFoto, existeArchivo } from "@/lib/almacen";
-import { derivarMallaLigera, rutaDeLaMalla } from "@/lib/malla";
+import {
+  derivarMallaLigera,
+  esExtension3DVisualizable,
+  rutaDeLaMalla,
+} from "@/lib/malla";
 import { LineaDeTiempo } from "./LineaDeTiempo";
 import { Aprobacion, VistaPrevia3D } from "./Aprobacion";
 import { Chat } from "./Chat";
@@ -124,7 +128,7 @@ export default async function PaginaDeCaso({
       (m) => m.rutaRelativa === rutaEsperada,
     );
 
-    if (!mallaAsociada && archivo3d.extension.toLowerCase() === "stl") {
+    if (!mallaAsociada && esExtension3DVisualizable(archivo3d.extension)) {
       try {
         const resumen = await derivarMallaLigera({
           rutaDelOriginal: archivo3d.rutaRelativa,

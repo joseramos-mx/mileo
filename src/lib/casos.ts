@@ -309,15 +309,46 @@ export async function siguienteFolioDePaciente(clinicaId: string) {
   return String(mayor + 1);
 }
 
-/** El folio visible del caso: C-2026-0001. */
-export async function siguienteFolio() {
-  const anio = new Date().getFullYear();
-  const ultimo = await prisma.caso.findFirst({
-    where: { folio: { startsWith: `C-${anio}-` } },
-    orderBy: { folio: "desc" },
-    select: { folio: true },
-  });
+/** El folio visible del caso: ZF-MMDD-<folioPaciente> (ej. ZF-1119-003). */
+export async function siguienteFolio(
+  folioPaciente?: string,
+  fechaBase: Date = new Date(),
+) {
+  const utc6 = new Date(fechaBase.getTime() - 6 * 60 * 60 * 1000);
+  const mm = String(utc6.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(utc6.getUTCDate()).padStart(2, "0");
+  const prefijoFecha = `ZF-${mm}${dd}-`;
 
-  const consecutivo = ultimo ? Number(ultimo.folio.split("-")[2]) + 1 : 1;
-  return `C-${anio}-${String(consecutivo).padStart(4, "0")}`;
+  if (folioPaciente && folioPaciente.trim().length > 0) {
+    const limpio = folioPaciente.trim();
+    const base = `${prefijoFecha}${limpio}`;
+    const existe = await prisma.caso.findUnique({
+      where: { folio: base },
+      select: { id: true },
+    });
+    if (!existe) return base;
+
+    let sufijo = 2;
+    for (;;) {
+      const candidato = `${base}-${sufijo}`;
+      const ocupado = await prisma.caso.findUnique({
+        where: { folio: candidato },
+        select: { id: true },
+      });
+      if (!ocupado) return candidato;
+      sufijo++;
+    }
+  }
+
+  const total = await prisma.caso.count();
+  let consecutivo = total + 1;
+  for (;;) {
+    const candidato = `${prefijoFecha}${String(consecutivo).padStart(3, "0")}`;
+    const ocupado = await prisma.caso.findUnique({
+      where: { folio: candidato },
+      select: { id: true },
+    });
+    if (!ocupado) return candidato;
+    consecutivo++;
+  }
 }
