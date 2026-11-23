@@ -51,6 +51,7 @@ export async function crearSesionCheckout({
 }): Promise<SesionCheckoutCreada> {
   const params = new URLSearchParams();
   params.set("mode", "payment");
+  params.set("allow_promotion_codes", "true");
   params.set("success_url", urlExito);
   params.set("cancel_url", urlCancelacion);
   params.set("line_items[0][price_data][currency]", "mxn");

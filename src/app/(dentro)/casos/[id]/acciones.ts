@@ -729,7 +729,8 @@ export async function verificarPagoStripeAlRegresar(
     const sesion = await obtenerSesionCheckout(sessionId);
     const meta = sesion.metadata ?? {};
     if (
-      sesion.payment_status === "paid" &&
+      (sesion.payment_status === "paid" ||
+        sesion.payment_status === "no_payment_required") &&
       meta.casoId === casoId &&
       (meta.tipo === "ANTICIPO" || meta.tipo === "LIQUIDACION")
     ) {

@@ -44,7 +44,8 @@ export async function POST(peticion: Request) {
 
     if (
       sesion?.id &&
-      sesion.payment_status === "paid" &&
+      (sesion.payment_status === "paid" ||
+        sesion.payment_status === "no_payment_required") &&
       meta.casoId &&
       (meta.tipo === "ANTICIPO" || meta.tipo === "LIQUIDACION")
     ) {
