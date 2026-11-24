@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Center } from "@react-three/drei";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import {
   ArrowClockwise,
@@ -108,10 +106,26 @@ export function Visor3D({
     return () => obs.disconnect();
   }, []);
 
-  // Visibilidad por índice (por omisión el primer archivo está visible)
-  const [visibles, setVisibles] = useState<Record<number, boolean>>(() => ({
-    0: true,
-  }));
+  // Visibilidad inicial: si hay conjunto completo, se enciende junto con las
+  // restauraciones para que se vean ensamblados en su posición real de Exocad;
+  // si no hay conjunto completo, se encienden todas las piezas.
+  const [visibles, setVisibles] = useState<Record<number, boolean>>(() => {
+    const inicial: Record<number, boolean> = { 0: true };
+    const tieneConjunto = listaDeArchivos.some((a) =>
+      a.nombre.startsWith("[Conjunto completo]"),
+    );
+    listaDeArchivos.forEach((a, idx) => {
+      if (
+        !tieneConjunto ||
+        a.nombre.startsWith("[Restauración]") ||
+        a.nombre.startsWith("[Restauracion]") ||
+        /\b(restauraci[oó]n|inlay|onlay|crown|corona|cad)\b/i.test(a.nombre)
+      ) {
+        inicial[idx] = true;
+      }
+    });
+    return inicial;
+  });
   const [opacidades, setOpacidades] = useState<Record<number, number>>({});
   const [menuAbiertoIdx, setMenuAbiertoIdx] = useState<number | null>(null);
 
@@ -135,9 +149,9 @@ export function Visor3D({
   const [intento, setIntento] = useState(0);
   const cacheDeMallas = useRef<Map<string, MallaLeida>>(new Map());
 
-  // Referencias de contenedor, controles de cámara y cubo de orientación
+  // Referencias de contenedor, objetivo de cámara y cubo de orientación
   const contenedorRef = useRef<HTMLDivElement>(null);
-  const controlesRef = useRef<OrbitControlsImpl | null>(null);
+  const objetivoRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const cuboDomRef = useRef<HTMLDivElement>(null);
   const [peticionVista, setPeticionVista] = useState<{
     cara?: CaraCubo;
@@ -303,10 +317,15 @@ export function Visor3D({
       if (!info) return null;
       const leida = mallasCargadas[info.archivoDeMallaId];
       if (!leida) return null;
+      const esRestauracion =
+        info.nombre.startsWith("[Restauración]") ||
+        info.nombre.startsWith("[Restauracion]") ||
+        /\b(restauraci[oó]n|inlay|onlay|crown|corona|cad)\b/i.test(info.nombre);
       return {
         id: info.archivoOriginalId,
         geometria: leida.geometria,
         opacidad: opacidades[idx] ?? 1,
+        esRestauracion,
       };
     })
     .filter(
@@ -316,8 +335,50 @@ export function Visor3D({
         id: string;
         geometria: THREE.BufferGeometry;
         opacidad: number;
+        esRestauracion: boolean;
       } => x !== null,
     );
+
+  // Marco de coordenadas compartido en milímetros (Exocad): todas las mallas
+  // cargadas comparten el mismo centro y factor de escala global para que la
+  // restauración embone exactamente donde fue diseñada dentro de la arcada.
+  const transformacionCompartida = useMemo(() => {
+    const todasCargadas = Object.values(mallasCargadas);
+    const fuente =
+      todasCargadas.length > 0
+        ? todasCargadas.map((m) => m.geometria)
+        : mallasParaPintar.map((m) => m.geometria);
+
+    const cajaUnion = new THREE.Box3();
+    for (const geom of fuente) {
+      if (!geom.boundingBox) geom.computeBoundingBox();
+      if (geom.boundingBox) {
+        cajaUnion.union(geom.boundingBox);
+      }
+    }
+
+    if (cajaUnion.isEmpty()) {
+      return {
+        escala: 1,
+        posicion: [0, 0, 0] as [number, number, number],
+      };
+    }
+
+    const esferaUnion = new THREE.Sphere();
+    cajaUnion.getBoundingSphere(esferaUnion);
+    const radio = esferaUnion.radius > 1e-5 ? esferaUnion.radius : 1;
+    const escala = 1 / radio;
+    const c = esferaUnion.center;
+
+    return {
+      escala,
+      posicion: [-c.x * escala, -c.y * escala, -c.z * escala] as [
+        number,
+        number,
+        number,
+      ],
+    };
+  }, [mallasCargadas, mallasParaPintar]);
 
   const cargandoAlguna =
     algunaVisible && mallasParaPintar.length < indicesVisibles.length && !error;
@@ -351,12 +412,13 @@ export function Visor3D({
         {mallasParaPintar.length > 0 ? (
           <EscenaMedit
             mallas={mallasParaPintar}
+            transformacion={transformacionCompartida}
             descripcion={descripcion}
             herramienta={herramienta}
             conColor={conColor}
             modoMalla={modoMalla}
             colorFondo={colorFondoCanvas}
-            controlesRef={controlesRef}
+            objetivoRef={objetivoRef}
             cuboDomRef={cuboDomRef}
             peticionVista={peticionVista}
           />
@@ -1153,12 +1215,14 @@ function LucesDeEstudio() {
   );
 }
 
-function SincronizadorCamaraYCubo({
-  controlesRef,
+function ControlesLibres360({
+  herramienta,
+  objetivoRef,
   cuboDomRef,
   peticionVista,
 }: {
-  controlesRef: React.RefObject<OrbitControlsImpl | null>;
+  herramienta: HerramientaActiva;
+  objetivoRef: React.RefObject<THREE.Vector3>;
   cuboDomRef: React.RefObject<HTMLDivElement | null>;
   peticionVista: {
     cara?: CaraCubo;
@@ -1167,45 +1231,216 @@ function SincronizadorCamaraYCubo({
     seq: number;
   } | null;
 }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const matrizAux = useMemo(() => new THREE.Matrix4(), []);
   const quatAux = useMemo(() => new THREE.Quaternion(), []);
+  const velRotacion = useRef({ dx: 0, dy: 0 });
+
+  // Rotación libre 360° relativa a los ejes actuales de la pantalla (sin bloqueo polar)
+  const rotarRespectoAPantalla = useMemo(
+    () => (dx: number, dy: number) => {
+      const objetivo = objetivoRef.current;
+      const offset = camera.position.clone().sub(objetivo);
+      const distancia = offset.length();
+      if (distancia < 1e-5) return;
+
+      const frente = offset.clone().negate().normalize();
+      const arriba = camera.up.clone().normalize();
+      const derecha = new THREE.Vector3().crossVectors(frente, arriba).normalize();
+      if (derecha.lengthSq() < 1e-5) {
+        derecha.set(1, 0, 0);
+      }
+      const arribaOrto = new THREE.Vector3()
+        .crossVectors(derecha, frente)
+        .normalize();
+
+      const velocidad = 0.0075;
+      const qHorizontal = new THREE.Quaternion().setFromAxisAngle(
+        arribaOrto,
+        -dx * velocidad,
+      );
+      const qVertical = new THREE.Quaternion().setFromAxisAngle(
+        derecha,
+        -dy * velocidad,
+      );
+      const qTotal = qHorizontal.multiply(qVertical);
+
+      offset.applyQuaternion(qTotal);
+      arribaOrto.applyQuaternion(qTotal);
+
+      camera.position.copy(objetivo).add(offset);
+      camera.up.copy(arribaOrto);
+      camera.lookAt(objetivo);
+    },
+    [camera, objetivoRef],
+  );
+
+  const desplazarRespectoAPantalla = useMemo(
+    () => (dx: number, dy: number) => {
+      const objetivo = objetivoRef.current;
+      const offset = camera.position.clone().sub(objetivo);
+      const distancia = offset.length();
+      const frente = offset.clone().negate().normalize();
+      const derecha = new THREE.Vector3()
+        .crossVectors(frente, camera.up)
+        .normalize();
+      const arriba = new THREE.Vector3()
+        .crossVectors(derecha, frente)
+        .normalize();
+
+      const factor = distancia * 0.0016;
+      const delta = derecha
+        .multiplyScalar(-dx * factor)
+        .addScaledVector(arriba, dy * factor);
+
+      objetivo.add(delta);
+      camera.position.add(delta);
+    },
+    [camera, objetivoRef],
+  );
+
+  const aplicarZoom = useMemo(
+    () => (factorEscala: number) => {
+      const objetivo = objetivoRef.current;
+      const dir = camera.position.clone().sub(objetivo);
+      const nuevaDist = THREE.MathUtils.clamp(
+        dir.length() * factorEscala,
+        0.9,
+        10,
+      );
+      dir.normalize().multiplyScalar(nuevaDist);
+      camera.position.copy(objetivo).add(dir);
+    },
+    [camera, objetivoRef],
+  );
+
+  useEffect(() => {
+    const dom = gl.domElement;
+
+    let arrastrando = false;
+    let botonActivo = 0;
+    let ultimoX = 0;
+    let ultimoY = 0;
+    const punteros = new Map<number, { x: number; y: number }>();
+    let distanciaPellizcoPrevia: number | null = null;
+
+    function alPresionar(e: PointerEvent) {
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      dom.setPointerCapture(e.pointerId);
+      arrastrando = true;
+      botonActivo = e.button;
+      ultimoX = e.clientX;
+      ultimoY = e.clientY;
+      velRotacion.current = { dx: 0, dy: 0 };
+
+      if (punteros.size === 2) {
+        const pts = Array.from(punteros.values());
+        distanciaPellizcoPrevia = Math.hypot(
+          pts[0].x - pts[1].x,
+          pts[0].y - pts[1].y,
+        );
+      }
+    }
+
+    function alMover(e: PointerEvent) {
+      if (!arrastrando || !punteros.has(e.pointerId)) return;
+      punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (punteros.size === 2) {
+        const pts = Array.from(punteros.values());
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (distanciaPellizcoPrevia && distanciaPellizcoPrevia > 5) {
+          aplicarZoom(distanciaPellizcoPrevia / dist);
+        }
+        distanciaPellizcoPrevia = dist;
+        return;
+      }
+
+      const dx = e.clientX - ultimoX;
+      const dy = e.clientY - ultimoY;
+      ultimoX = e.clientX;
+      ultimoY = e.clientY;
+
+      // Clic derecho o botón central o Shift siempre mueven (Pan)
+      if (botonActivo === 2 || botonActivo === 1 || e.shiftKey || herramienta === "pan") {
+        desplazarRespectoAPantalla(dx, dy);
+      } else if (herramienta === "zoom") {
+        aplicarZoom(1 + dy * 0.006);
+      } else {
+        rotarRespectoAPantalla(dx, dy);
+        velRotacion.current = { dx, dy };
+      }
+    }
+
+    function alSoltar(e: PointerEvent) {
+      punteros.delete(e.pointerId);
+      if (dom.hasPointerCapture(e.pointerId)) {
+        dom.releasePointerCapture(e.pointerId);
+      }
+      if (punteros.size < 2) {
+        distanciaPellizcoPrevia = null;
+      }
+      if (punteros.size === 0) {
+        arrastrando = false;
+      }
+    }
+
+    function alGirarRueda(e: WheelEvent) {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.09 : 0.91;
+      aplicarZoom(factor);
+    }
+
+    function alMenuContextual(e: MouseEvent) {
+      e.preventDefault();
+    }
+
+    dom.addEventListener("pointerdown", alPresionar);
+    dom.addEventListener("pointermove", alMover);
+    dom.addEventListener("pointerup", alSoltar);
+    dom.addEventListener("pointercancel", alSoltar);
+    dom.addEventListener("wheel", alGirarRueda, { passive: false });
+    dom.addEventListener("contextmenu", alMenuContextual);
+
+    return () => {
+      dom.removeEventListener("pointerdown", alPresionar);
+      dom.removeEventListener("pointermove", alMover);
+      dom.removeEventListener("pointerup", alSoltar);
+      dom.removeEventListener("pointercancel", alSoltar);
+      dom.removeEventListener("wheel", alGirarRueda);
+      dom.removeEventListener("contextmenu", alMenuContextual);
+    };
+  }, [
+    gl,
+    herramienta,
+    rotarRespectoAPantalla,
+    desplazarRespectoAPantalla,
+    aplicarZoom,
+  ]);
 
   useEffect(() => {
     if (!peticionVista) return;
-    const controles = controlesRef.current;
+    const objetivo = objetivoRef.current;
+    velRotacion.current = { dx: 0, dy: 0 };
 
     if (peticionVista.fit) {
-      if (controles) {
-        controles.target.set(0, 0, 0);
-      }
-      camera.position.set(0, 0, 4.2);
+      objetivo.set(0, 0, 0);
+      camera.position.set(0, 0, 3.8);
       camera.up.set(0, 1, 0);
       camera.lookAt(0, 0, 0);
-      controles?.update();
       return;
     }
 
     if (typeof peticionVista.zoomDelta === "number") {
-      const objetivo = controles ? controles.target : new THREE.Vector3();
-      const dir = camera.position.clone().sub(objetivo);
-      const nuevaDist = THREE.MathUtils.clamp(
-        dir.length() + peticionVista.zoomDelta,
-        1.6,
-        9,
-      );
-      dir.normalize().multiplyScalar(nuevaDist);
-      camera.position.copy(objetivo).add(dir);
-      controles?.update();
+      aplicarZoom(peticionVista.zoomDelta < 0 ? 0.85 : 1.15);
       return;
     }
 
     if (peticionVista.cara) {
       const def = VECTORES_CARA[peticionVista.cara];
-      const objetivo = controles ? controles.target : new THREE.Vector3();
       const distancia = THREE.MathUtils.clamp(
         camera.position.distanceTo(objetivo),
-        2.2,
+        2.0,
         9,
       );
       camera.position.set(
@@ -1215,11 +1450,21 @@ function SincronizadorCamaraYCubo({
       );
       camera.up.set(def.up[0], def.up[1], def.up[2]);
       camera.lookAt(objetivo);
-      controles?.update();
     }
-  }, [peticionVista, camera, controlesRef]);
+  }, [peticionVista, camera, objetivoRef, aplicarZoom]);
 
   useFrame(() => {
+    // Inercia suave al soltar la rotación
+    const v = velRotacion.current;
+    if (Math.abs(v.dx) > 0.08 || Math.abs(v.dy) > 0.08) {
+      rotarRespectoAPantalla(v.dx, v.dy);
+      v.dx *= 0.84;
+      v.dy *= 0.84;
+    } else {
+      v.dx = 0;
+      v.dy = 0;
+    }
+
     const el = cuboDomRef.current;
     if (!el) return;
 
@@ -1256,28 +1501,36 @@ function PiezaMalla({
   geometria,
   opacidad,
   conColor,
+  esRestauracion,
   modoMalla,
 }: {
   geometria: THREE.BufferGeometry;
   opacidad: number;
   conColor: boolean;
+  esRestauracion: boolean;
   modoMalla: ModoMalla;
 }) {
   const materialPrincipal = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
-        color: conColor ? "#eddcc8" : "#d5d9e0",
-        roughness: conColor ? 0.38 : 0.52,
+        color: conColor
+          ? esRestauracion
+            ? "#fbfaf7"
+            : "#e6d2bc"
+          : esRestauracion
+            ? "#eef1f6"
+            : "#cfd4dc",
+        roughness: conColor ? (esRestauracion ? 0.25 : 0.4) : 0.52,
         metalness: 0.03,
-        clearcoat: conColor ? 0.14 : 0.04,
-        clearcoatRoughness: 0.35,
-        reflectivity: 0.5,
+        clearcoat: conColor ? (esRestauracion ? 0.28 : 0.12) : 0.04,
+        clearcoatRoughness: 0.3,
+        reflectivity: 0.55,
         side: THREE.DoubleSide,
         transparent: opacidad < 1,
         opacity: opacidad,
         wireframe: modoMalla === "alambre",
       }),
-    [conColor, opacidad, modoMalla],
+    [conColor, esRestauracion, opacidad, modoMalla],
   );
 
   const materialAlambre = useMemo(
@@ -1310,12 +1563,13 @@ function PiezaMalla({
 
 function EscenaMedit({
   mallas,
+  transformacion,
   descripcion,
   herramienta,
   conColor,
   modoMalla,
   colorFondo,
-  controlesRef,
+  objetivoRef,
   cuboDomRef,
   peticionVista,
 }: {
@@ -1323,13 +1577,18 @@ function EscenaMedit({
     id: string;
     geometria: THREE.BufferGeometry;
     opacidad: number;
+    esRestauracion: boolean;
   }[];
+  transformacion: {
+    escala: number;
+    posicion: [number, number, number];
+  };
   descripcion: string;
   herramienta: HerramientaActiva;
   conColor: boolean;
   modoMalla: ModoMalla;
   colorFondo: string;
-  controlesRef: React.RefObject<OrbitControlsImpl | null>;
+  objetivoRef: React.RefObject<THREE.Vector3>;
   cuboDomRef: React.RefObject<HTMLDivElement | null>;
   peticionVista: {
     cara?: CaraCubo;
@@ -1338,36 +1597,10 @@ function EscenaMedit({
     seq: number;
   } | null;
 }) {
-  const botonesMouse = useMemo(
-    () => ({
-      LEFT:
-        herramienta === "pan"
-          ? THREE.MOUSE.PAN
-          : herramienta === "zoom"
-            ? THREE.MOUSE.DOLLY
-            : THREE.MOUSE.ROTATE,
-      MIDDLE: THREE.MOUSE.DOLLY,
-      RIGHT: THREE.MOUSE.PAN,
-    }),
-    [herramienta],
-  );
-
-  const toques = useMemo(
-    () => ({
-      ONE:
-        herramienta === "pan"
-          ? THREE.TOUCH.PAN
-          : herramienta === "zoom"
-            ? THREE.TOUCH.DOLLY_PAN
-            : THREE.TOUCH.ROTATE,
-      TWO: THREE.TOUCH.DOLLY_PAN,
-    }),
-    [herramienta],
-  );
-
   return (
     <Canvas
-      camera={{ position: [0, 0, 4.2], fov: 35 }}
+      className="touch-none"
+      camera={{ position: [0, 0, 3.8], fov: 35 }}
       dpr={[1, 2]}
       gl={{ antialias: true }}
       aria-label={descripcion}
@@ -1376,36 +1609,25 @@ function EscenaMedit({
       <color attach="background" args={[colorFondo]} />
       <LucesDeEstudio />
 
-      <Center>
-        <group>
-          {mallas.map((m) => (
-            <PiezaMalla
-              key={m.id}
-              geometria={m.geometria}
-              opacidad={m.opacidad}
-              conColor={conColor}
-              modoMalla={modoMalla}
-            />
-          ))}
-        </group>
-      </Center>
+      <group
+        scale={transformacion.escala}
+        position={transformacion.posicion}
+      >
+        {mallas.map((m) => (
+          <PiezaMalla
+            key={m.id}
+            geometria={m.geometria}
+            opacidad={m.opacidad}
+            conColor={conColor}
+            esRestauracion={m.esRestauracion}
+            modoMalla={modoMalla}
+          />
+        ))}
+      </group>
 
-      <OrbitControls
-        ref={controlesRef}
-        enableDamping
-        dampingFactor={0.08}
-        enablePan
-        enableZoom
-        enableRotate
-        mouseButtons={botonesMouse}
-        touches={toques}
-        autoRotate={false}
-        minDistance={1.6}
-        maxDistance={9}
-      />
-
-      <SincronizadorCamaraYCubo
-        controlesRef={controlesRef}
+      <ControlesLibres360
+        herramienta={herramienta}
+        objetivoRef={objetivoRef}
         cuboDomRef={cuboDomRef}
         peticionVista={peticionVista}
       />

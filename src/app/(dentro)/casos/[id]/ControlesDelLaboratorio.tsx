@@ -37,6 +37,13 @@ function esQuijadaInferior(nombre: string) {
   );
 }
 
+function esRestauracion(nombre: string) {
+  return (
+    nombre.startsWith("[Restauración]") ||
+    nombre.startsWith("[Restauracion]")
+  );
+}
+
 /**
  * Lo que sólo ve el laboratorio: mover la etapa, mandar el diseño a aprobación
  * y la bitácora del caso.
@@ -78,10 +85,18 @@ export function ControlesDelLaboratorio({
 
   const disenosImagenes = disenos.filter((d) => esImagen(d.nombre));
   const disenos3D = disenos.filter((d) => !esImagen(d.nombre));
-  const disenosSuperior = disenos3D.filter((d) => esQuijadaSuperior(d.nombre));
-  const disenosInferior = disenos3D.filter((d) => esQuijadaInferior(d.nombre));
+  const disenosRestauracion = disenos3D.filter((d) => esRestauracion(d.nombre));
+  const disenosSuperior = disenos3D.filter(
+    (d) => !esRestauracion(d.nombre) && esQuijadaSuperior(d.nombre),
+  );
+  const disenosInferior = disenos3D.filter(
+    (d) => !esRestauracion(d.nombre) && esQuijadaInferior(d.nombre),
+  );
   const disenosConjunto = disenos3D.filter(
-    (d) => !esQuijadaSuperior(d.nombre) && !esQuijadaInferior(d.nombre),
+    (d) =>
+      !esRestauracion(d.nombre) &&
+      !esQuijadaSuperior(d.nombre) &&
+      !esQuijadaInferior(d.nombre),
   );
 
   const tieneAlMenosUno = disenos.length > 0;
@@ -129,9 +144,10 @@ export function ControlesDelLaboratorio({
               </span>
             </div>
             <p className="mt-1 text-menor text-secundario">
-              No es obligatorio llenar los tres apartados: puede subir{" "}
-              <strong>sólo el conjunto completo</strong>,{" "}
-              <strong>las dos quijadas por separado</strong>, o los tres. Con{" "}
+              No es obligatorio llenar todos los apartados: puede subir{" "}
+              <strong>el conjunto completo</strong>,{" "}
+              <strong>la restauración</strong>,{" "}
+              <strong>las quijadas por separado</strong>, o combinarlos. Con{" "}
               <strong>al menos un archivo</strong> ya puede mandarlo a
               aprobación:
             </p>
@@ -142,11 +158,15 @@ export function ControlesDelLaboratorio({
                 primero por defecto en el visor).
               </li>
               <li>
+                <strong className="text-primario">Restauración:</strong>{" "}
+                la pieza o prótesis diseñada por separado para revisarla de
+                forma individual en el visor.
+              </li>
+              <li>
                 <strong className="text-primario">
                   Quijada superior / inferior separadas:
                 </strong>{" "}
-                cada arcada por separado para alternarlas con el botón del ojo
-                (una a la vez).
+                cada arcada por separado para alternarlas con el botón del ojo.
               </li>
             </ul>
           </div>
@@ -157,8 +177,24 @@ export function ControlesDelLaboratorio({
             idCampo="archivos-diseno-conjunto"
             prefijoNombre="[Conjunto completo] "
             etiqueta="Conjunto completo (ambas quijadas juntas) · Opcional"
-            ayuda="STL con las dos quijadas juntas. Si lo sube, se renderiza primero al abrir el visor."
+            ayuda="STL, PLY u OBJ con las dos quijadas juntas. Si lo sube, se renderiza primero al abrir el visor."
             yaSubidos={disenosConjunto.map((d) => ({
+              id: d.id,
+              nombre: d.nombre,
+              bytesTotales: d.bytes,
+              tipo: "DISENO" as const,
+            }))}
+            alCambiar={() => router.refresh()}
+          />
+
+          <ZonaDeArchivos
+            casoId={casoId}
+            tipo="DISENO"
+            idCampo="archivos-diseno-restauracion"
+            prefijoNombre="[Restauración] "
+            etiqueta="Restauración (pieza o prótesis diseñada) · Opcional"
+            ayuda="STL, PLY u OBJ de la restauración diseñada por separado."
+            yaSubidos={disenosRestauracion.map((d) => ({
               id: d.id,
               nombre: d.nombre,
               bytesTotales: d.bytes,

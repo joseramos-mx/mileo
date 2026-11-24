@@ -46,6 +46,13 @@ function prioridadDeArchivo3D(nombre: string): number {
     return 0;
   }
   if (
+    nombre.startsWith("[Restauración]") ||
+    nombre.startsWith("[Restauracion]") ||
+    /\b(restauraci[oó]n|inlay|onlay|crown|corona)\b/i.test(nombre)
+  ) {
+    return 1;
+  }
+  if (
     nombre.startsWith("[Quijada superior]") ||
     /\b(quijada superior|arcada superior|superior|upper|maxilar)\b/i.test(nombre)
   ) {

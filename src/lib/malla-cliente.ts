@@ -93,12 +93,7 @@ export function armarGeometria(buffer: ArrayBuffer): MallaLeida {
   geometria.setAttribute("position", new THREE.BufferAttribute(posiciones, 3));
   geometria.setIndex(new THREE.BufferAttribute(indices, 1));
   geometria.computeVertexNormals();
-
-  // Se normaliza el tamaño para que la cámara sirva igual para una carilla que
-  // para un modelo de arcada completa.
-  geometria.computeBoundingSphere();
-  const radio = geometria.boundingSphere?.radius ?? 1;
-  geometria.scale(1 / radio, 1 / radio, 1 / radio);
+  geometria.computeBoundingBox();
   geometria.computeBoundingSphere();
 
   return { geometria, triangulos: cuantosIndices / 3 };
