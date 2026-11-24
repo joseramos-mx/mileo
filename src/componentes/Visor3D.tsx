@@ -48,6 +48,19 @@ export type ArchivoDeVista3D = {
   nombre: string;
 };
 
+export type ImagenDeVistaDiseno = {
+  id: string;
+  nombre: string;
+};
+
+function esArchivoRestauracion(nombre: string): boolean {
+  return (
+    nombre.startsWith("[Restauración]") ||
+    nombre.startsWith("[Restauracion]") ||
+    /\b(restauraci[oó]n|inlay|onlay|crown|corona|cad)\b/i.test(nombre)
+  );
+}
+
 type HerramientaActiva = "pan" | "rotar" | "zoom";
 type ModoMalla = "solido" | "solido-alambre" | "alambre";
 type CaraCubo = "+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z";
@@ -68,26 +81,31 @@ export function Visor3D({
   archivoDeMallaId,
   archivoOriginalId,
   archivos,
+  imagenes = [],
   descripcion,
   alCambiarEstado,
   className,
 }: {
-  archivoDeMallaId: string;
-  archivoOriginalId: string;
+  archivoDeMallaId?: string | null;
+  archivoOriginalId?: string;
   archivos?: ArchivoDeVista3D[];
+  imagenes?: ImagenDeVistaDiseno[];
   descripcion: string;
   alCambiarEstado?: (estado: EstadoDelVisor) => void;
   className?: string;
 }) {
   const listaDeArchivos = useMemo<ArchivoDeVista3D[]>(() => {
     if (archivos && archivos.length > 0) return archivos;
-    return [
-      {
-        archivoDeMallaId,
-        archivoOriginalId,
-        nombre: "Conjunto completo",
-      },
-    ];
+    if (archivoDeMallaId && archivoOriginalId) {
+      return [
+        {
+          archivoDeMallaId,
+          archivoOriginalId,
+          nombre: "Conjunto completo",
+        },
+      ];
+    }
+    return [];
   }, [archivos, archivoDeMallaId, archivoOriginalId]);
 
   // Tema activo (por omisión Mileo arranca en oscuro salvo data-tema="claro")
@@ -133,6 +151,12 @@ export function Visor3D({
   const [panelArbolAbierto, setPanelArbolAbierto] = useState(true);
   const [abiertoAttachment, setAbiertoAttachment] = useState(true);
   const [abierto3DData, setAbierto3DData] = useState(true);
+  const [abiertoModelos, setAbiertoModelos] = useState(true);
+  const [abiertoRestauraciones, setAbiertoRestauraciones] = useState(true);
+  const [abiertoImagenes, setAbiertoImagenes] = useState(true);
+  const [imagenActivaId, setImagenActivaId] = useState<string | null>(() =>
+    listaDeArchivos.length === 0 && imagenes[0] ? imagenes[0].id : null,
+  );
 
   // Herramientas de la barra derecha
   const [herramienta, setHerramienta] = useState<HerramientaActiva>("rotar");
@@ -254,12 +278,29 @@ export function Visor3D({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicesVisibles.join(","), intento, listaDeArchivos]);
 
+  const indicesModelos = useMemo(
+    () =>
+      listaDeArchivos
+        .map((_, idx) => idx)
+        .filter((idx) => !esArchivoRestauracion(listaDeArchivos[idx].nombre)),
+    [listaDeArchivos],
+  );
+
+  const indicesRestauraciones = useMemo(
+    () =>
+      listaDeArchivos
+        .map((_, idx) => idx)
+        .filter((idx) => esArchivoRestauracion(listaDeArchivos[idx].nombre)),
+    [listaDeArchivos],
+  );
+
   const todasVisibles =
     listaDeArchivos.length > 0 &&
     listaDeArchivos.every((_, idx) => Boolean(visibles[idx]));
   const algunaVisible = indicesVisibles.length > 0;
 
   function alternarTodas() {
+    setImagenActivaId(null);
     if (todasVisibles) {
       setVisibles({});
     } else {
@@ -271,7 +312,21 @@ export function Visor3D({
     }
   }
 
+  function alternarGrupo(indices: number[]) {
+    setImagenActivaId(null);
+    const todosEncendidos =
+      indices.length > 0 && indices.every((idx) => Boolean(visibles[idx]));
+    setVisibles((prev) => {
+      const copia = { ...prev };
+      for (const idx of indices) {
+        copia[idx] = !todosEncendidos;
+      }
+      return copia;
+    });
+  }
+
   function alternarArchivo(idx: number) {
+    setImagenActivaId(null);
     setVisibles((prev) => ({
       ...prev,
       [idx]: !prev[idx],
@@ -279,6 +334,7 @@ export function Visor3D({
   }
 
   function aislarArchivo(idx: number) {
+    setImagenActivaId(null);
     setVisibles({ [idx]: true });
     setMenuAbiertoIdx(null);
   }
@@ -385,6 +441,116 @@ export function Visor3D({
 
   const colorFondoCanvas = temaClaro ? "#eef0f4" : "#181c23";
 
+  const imagenActiva =
+    imagenes.find((img) => img.id === imagenActivaId) ?? null;
+
+  function renderFilaArchivo3D(idx: number) {
+    const item = listaDeArchivos[idx];
+    if (!item) return null;
+    const esVisible = Boolean(visibles[idx]) && !imagenActiva;
+    const opacidadActual = opacidades[idx] ?? 1;
+
+    return (
+      <li
+        key={item.archivoOriginalId}
+        className={cn(
+          "relative flex items-center justify-between rounded-sm px-2 py-1",
+          temaClaro ? "hover:bg-white/80" : "hover:bg-[#1b2029]",
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => alternarArchivo(idx)}
+          title={item.nombre}
+          className={cn(
+            "min-w-0 flex-1 truncate pr-2 text-left text-[12.5px]",
+            esVisible ? "font-medium" : "opacity-55",
+          )}
+        >
+          {item.nombre}
+        </button>
+
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => alternarArchivo(idx)}
+            title={
+              esVisible ? `Ocultar ${item.nombre}` : `Mostrar ${item.nombre}`
+            }
+            className={cn(
+              "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+              temaClaro ? "hover:bg-[#eef0f4]" : "hover:bg-[#262d3a]",
+            )}
+          >
+            {esVisible ? (
+              <Eye aria-hidden="true" size={16} />
+            ) : (
+              <EyeSlash aria-hidden="true" size={16} />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setMenuAbiertoIdx(menuAbiertoIdx === idx ? null : idx)
+            }
+            title="Opciones de visualización"
+            className={cn(
+              "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+              temaClaro ? "hover:bg-[#eef0f4]" : "hover:bg-[#262d3a]",
+            )}
+          >
+            <DotsThreeVertical aria-hidden="true" size={15} />
+          </button>
+        </div>
+
+        {menuAbiertoIdx === idx ? (
+          <div
+            className={cn(
+              "absolute top-full right-0 z-30 mt-1 w-40 rounded-md border p-1.5 text-[12px] shadow-md",
+              temaClaro
+                ? "border-[#dcdfe6] bg-white text-[#2c313a]"
+                : "border-[#2c3340] bg-[#161a22] text-[#e7ebf2]",
+            )}
+          >
+            <p className="px-2 py-1 text-[11px] font-semibold opacity-65">
+              Opacidad de malla
+            </p>
+            {[1, 0.65, 0.35].map((valor) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => cambiarOpacidad(idx, valor)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-xs px-2 py-1 text-left",
+                  temaClaro ? "hover:bg-[#eef0f4]" : "hover:bg-[#232936]",
+                  opacidadActual === valor && "font-semibold text-[#4b91ff]",
+                )}
+              >
+                <span>{Math.round(valor * 100)}%</span>
+                {opacidadActual === valor ? <span>✓</span> : null}
+              </button>
+            ))}
+            {listaDeArchivos.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => aislarArchivo(idx)}
+                className={cn(
+                  "mt-1 w-full border-t px-2 pt-1.5 pb-1 text-left",
+                  temaClaro
+                    ? "border-[#eef0f4] hover:bg-[#eef0f4]"
+                    : "border-[#2c3340] hover:bg-[#232936]",
+                )}
+              >
+                Ver solo este archivo
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </li>
+    );
+  }
+
   return (
     <div
       ref={contenedorRef}
@@ -409,7 +575,7 @@ export function Visor3D({
         )}
       >
         {/* Escena 3D principal */}
-        {mallasParaPintar.length > 0 ? (
+        {!imagenActiva && mallasParaPintar.length > 0 ? (
           <EscenaMedit
             mallas={mallasParaPintar}
             transformacion={transformacionCompartida}
@@ -424,8 +590,36 @@ export function Visor3D({
           />
         ) : null}
 
+        {/* Vista de imagen seleccionada desde el árbol */}
+        {imagenActiva ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/archivos/${imagenActiva.id}/contenido`}
+              alt={`${imagenActiva.nombre} — ${descripcion}`}
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              className="max-h-full max-w-full rounded-md object-contain shadow-md"
+            />
+            {listaDeArchivos.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setImagenActivaId(null)}
+                className={cn(
+                  "mt-3 rounded-md border px-3 py-1.5 text-menor font-medium shadow-xs",
+                  temaClaro
+                    ? "border-[#dcdfe6] bg-white text-[#2c313a] hover:bg-[#f0f2f5]"
+                    : "border-[#2c3340] bg-[#11151b] text-[#e7ebf2] hover:bg-[#1b2029]",
+                )}
+              >
+                Volver a la vista 3D
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Estado de carga o error */}
-        {(cargandoAlguna || error || !algunaVisible) && (
+        {!imagenActiva && (cargandoAlguna || error || !algunaVisible) && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
             {error ? (
               <div
@@ -463,8 +657,8 @@ export function Visor3D({
                     : "border border-[#2c3340] bg-[#11151b]/90 text-[#a8acb2]",
                 )}
               >
-                Todos los archivos 3D están ocultos. Active el ícono del ojo en
-                el árbol izquierdo para mostrarlos.
+                Todos los archivos están ocultos. Active el ícono del ojo en el
+                árbol izquierdo para mostrarlos.
               </p>
             ) : (
               <div
@@ -524,11 +718,11 @@ export function Visor3D({
             <ListBullets aria-hidden="true" size={18} weight="bold" />
           </button>
 
-          {/* Árbol de archivos estilo Medit Link: Attachment -> 3D Data -> Archivos */}
+          {/* Árbol de archivos estilo Medit Link: Attachment -> 3D Data (Quijadas / Restauraciones) + Imágenes */}
           {panelArbolAbierto ? (
             <div
               className={cn(
-                "w-60 rounded-md border p-2 text-[13px] shadow-sm backdrop-blur-xs sm:w-64",
+                "w-64 rounded-md border p-2 text-[13px] shadow-sm backdrop-blur-xs sm:w-72",
                 temaClaro
                   ? "border-[#dcdfe6] bg-[#f4f5f8]/95 text-[#2c313a]"
                   : "border-[#2c3340] bg-[#11151b]/95 text-[#e7ebf2]",
@@ -562,25 +756,29 @@ export function Visor3D({
                   <span className="truncate">Attachment</span>
                 </button>
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={alternarTodas}
-                    title={
-                      todasVisibles
-                        ? "Ocultar todos los modelos"
-                        : "Mostrar todos los modelos"
-                    }
-                    className={cn(
-                      "rounded-xs p-0.5 opacity-80 hover:opacity-100",
-                      temaClaro ? "hover:bg-[#eef0f4]" : "hover:bg-[#262d3a]",
-                    )}
-                  >
-                    {algunaVisible ? (
-                      <Eye aria-hidden="true" size={16} />
-                    ) : (
-                      <EyeSlash aria-hidden="true" size={16} />
-                    )}
-                  </button>
+                  {listaDeArchivos.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={alternarTodas}
+                      title={
+                        todasVisibles
+                          ? "Ocultar todos los modelos"
+                          : "Mostrar todos los modelos"
+                      }
+                      className={cn(
+                        "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+                        temaClaro
+                          ? "hover:bg-[#eef0f4]"
+                          : "hover:bg-[#262d3a]",
+                      )}
+                    >
+                      {algunaVisible && !imagenActiva ? (
+                        <Eye aria-hidden="true" size={16} />
+                      ) : (
+                        <EyeSlash aria-hidden="true" size={16} />
+                      )}
+                    </button>
+                  ) : null}
                   <DotsThreeVertical
                     aria-hidden="true"
                     size={15}
@@ -589,185 +787,295 @@ export function Visor3D({
                 </div>
               </div>
 
-              {/* Nivel 2: 3D Data */}
               {abiertoAttachment ? (
-                <div className="mt-1 pl-3">
-                  <div className="flex items-center justify-between rounded-sm px-2 py-1">
-                    <button
-                      type="button"
-                      onClick={() => setAbierto3DData((v) => !v)}
-                      className="flex min-w-0 flex-1 items-center gap-1.5 text-left font-medium"
-                    >
-                      {abierto3DData ? (
-                        <MinusSquare
-                          aria-hidden="true"
-                          size={15}
-                          className="shrink-0 opacity-70"
-                        />
-                      ) : (
-                        <PlusSquare
-                          aria-hidden="true"
-                          size={15}
-                          className="shrink-0 opacity-70"
-                        />
-                      )}
-                      <span className="truncate">3D Data</span>
-                    </button>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={alternarTodas}
-                        title={
-                          todasVisibles
-                            ? "Ocultar 3D Data"
-                            : "Mostrar 3D Data"
-                        }
-                        className={cn(
-                          "rounded-xs p-0.5 opacity-80 hover:opacity-100",
-                          temaClaro ? "hover:bg-white" : "hover:bg-[#1b2029]",
-                        )}
-                      >
-                        {algunaVisible ? (
-                          <Eye aria-hidden="true" size={16} />
-                        ) : (
-                          <EyeSlash aria-hidden="true" size={16} />
-                        )}
-                      </button>
-                      <DotsThreeVertical
-                        aria-hidden="true"
-                        size={15}
-                        className="opacity-50"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Nivel 3: Lista de archivos 3D */}
-                  {abierto3DData ? (
-                    <ul className="mt-0.5 flex flex-col gap-0.5 pl-4">
-                      {listaDeArchivos.map((item, idx) => {
-                        const esVisible = Boolean(visibles[idx]);
-                        const opacidadActual = opacidades[idx] ?? 1;
-                        return (
-                          <li
-                            key={item.archivoOriginalId}
+                <div className="mt-1 flex flex-col gap-1 pl-3">
+                  {/* Nivel 2A: 3D Data */}
+                  {listaDeArchivos.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between rounded-sm px-2 py-1">
+                        <button
+                          type="button"
+                          onClick={() => setAbierto3DData((v) => !v)}
+                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left font-medium"
+                        >
+                          {abierto3DData ? (
+                            <MinusSquare
+                              aria-hidden="true"
+                              size={15}
+                              className="shrink-0 opacity-70"
+                            />
+                          ) : (
+                            <PlusSquare
+                              aria-hidden="true"
+                              size={15}
+                              className="shrink-0 opacity-70"
+                            />
+                          )}
+                          <span className="truncate">3D Data</span>
+                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={alternarTodas}
+                            title={
+                              todasVisibles
+                                ? "Ocultar 3D Data"
+                                : "Mostrar 3D Data"
+                            }
                             className={cn(
-                              "relative flex items-center justify-between rounded-sm px-2 py-1",
+                              "rounded-xs p-0.5 opacity-80 hover:opacity-100",
                               temaClaro
-                                ? "hover:bg-white/80"
+                                ? "hover:bg-white"
                                 : "hover:bg-[#1b2029]",
                             )}
                           >
-                            <button
-                              type="button"
-                              onClick={() => alternarArchivo(idx)}
-                              title={item.nombre}
-                              className={cn(
-                                "min-w-0 flex-1 truncate pr-2 text-left text-[12.5px]",
-                                esVisible
-                                  ? "font-medium"
-                                  : "opacity-55",
-                              )}
-                            >
-                              {item.nombre}
-                            </button>
+                            {algunaVisible && !imagenActiva ? (
+                              <Eye aria-hidden="true" size={16} />
+                            ) : (
+                              <EyeSlash aria-hidden="true" size={16} />
+                            )}
+                          </button>
+                          <DotsThreeVertical
+                            aria-hidden="true"
+                            size={15}
+                            className="opacity-50"
+                          />
+                        </div>
+                      </div>
 
-                            <div className="flex shrink-0 items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => alternarArchivo(idx)}
-                                title={
-                                  esVisible
-                                    ? `Ocultar ${item.nombre}`
-                                    : `Mostrar ${item.nombre}`
-                                }
-                                className={cn(
-                                  "rounded-xs p-0.5 opacity-80 hover:opacity-100",
-                                  temaClaro
-                                    ? "hover:bg-[#eef0f4]"
-                                    : "hover:bg-[#262d3a]",
-                                )}
-                              >
-                                {esVisible ? (
-                                  <Eye aria-hidden="true" size={16} />
-                                ) : (
-                                  <EyeSlash aria-hidden="true" size={16} />
-                                )}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setMenuAbiertoIdx(
-                                    menuAbiertoIdx === idx ? null : idx,
-                                  )
-                                }
-                                title="Opciones de visualización"
-                                className={cn(
-                                  "rounded-xs p-0.5 opacity-80 hover:opacity-100",
-                                  temaClaro
-                                    ? "hover:bg-[#eef0f4]"
-                                    : "hover:bg-[#262d3a]",
-                                )}
-                              >
-                                <DotsThreeVertical
-                                  aria-hidden="true"
-                                  size={15}
-                                />
-                              </button>
-                            </div>
-
-                            {menuAbiertoIdx === idx ? (
-                              <div
-                                className={cn(
-                                  "absolute top-full right-0 z-30 mt-1 w-40 rounded-md border p-1.5 text-[12px] shadow-md",
-                                  temaClaro
-                                    ? "border-[#dcdfe6] bg-white text-[#2c313a]"
-                                    : "border-[#2c3340] bg-[#161a22] text-[#e7ebf2]",
-                                )}
-                              >
-                                <p className="px-2 py-1 text-[11px] font-semibold opacity-65">
-                                  Opacidad de malla
-                                </p>
-                                {[1, 0.65, 0.35].map((valor) => (
-                                  <button
-                                    key={valor}
-                                    type="button"
-                                    onClick={() => cambiarOpacidad(idx, valor)}
-                                    className={cn(
-                                      "flex w-full items-center justify-between rounded-xs px-2 py-1 text-left",
-                                      temaClaro
-                                        ? "hover:bg-[#eef0f4]"
-                                        : "hover:bg-[#232936]",
-                                      opacidadActual === valor &&
-                                        "font-semibold text-[#4b91ff]",
-                                    )}
-                                  >
-                                    <span>{Math.round(valor * 100)}%</span>
-                                    {opacidadActual === valor ? (
-                                      <span>✓</span>
-                                    ) : null}
-                                  </button>
-                                ))}
-                                {listaDeArchivos.length > 1 ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => aislarArchivo(idx)}
-                                    className={cn(
-                                      "mt-1 w-full border-t px-2 pt-1.5 pb-1 text-left",
-                                      temaClaro
-                                        ? "border-[#eef0f4] hover:bg-[#eef0f4]"
-                                        : "border-[#2c3340] hover:bg-[#232936]",
-                                    )}
-                                  >
-                                    Ver solo este archivo
-                                  </button>
-                                ) : null}
+                      {/* Nivel 3 dentro de 3D Data: separado en Quijadas / Modelos y Restauraciones */}
+                      {abierto3DData ? (
+                        <div className="mt-0.5 flex flex-col gap-1 pl-3">
+                          {/* Sub-sección 1: Quijadas y conjunto completo */}
+                          {indicesModelos.length > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-between rounded-sm px-2 py-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAbiertoModelos((v) => !v)
+                                  }
+                                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[12.5px] font-medium"
+                                >
+                                  {abiertoModelos ? (
+                                    <MinusSquare
+                                      aria-hidden="true"
+                                      size={14}
+                                      className="shrink-0 opacity-70"
+                                    />
+                                  ) : (
+                                    <PlusSquare
+                                      aria-hidden="true"
+                                      size={14}
+                                      className="shrink-0 opacity-70"
+                                    />
+                                  )}
+                                  <span className="truncate">
+                                    Quijadas y conjunto
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    alternarGrupo(indicesModelos)
+                                  }
+                                  title="Alternar visibilidad de quijadas y conjunto"
+                                  className={cn(
+                                    "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+                                    temaClaro
+                                      ? "hover:bg-white"
+                                      : "hover:bg-[#1b2029]",
+                                  )}
+                                >
+                                  {indicesModelos.some((i) => visibles[i]) &&
+                                  !imagenActiva ? (
+                                    <Eye aria-hidden="true" size={15} />
+                                  ) : (
+                                    <EyeSlash aria-hidden="true" size={15} />
+                                  )}
+                                </button>
                               </div>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                    </ul>
+                              {abiertoModelos ? (
+                                <ul className="mt-0.5 flex flex-col gap-0.5 pl-4">
+                                  {indicesModelos.map((idx) =>
+                                    renderFilaArchivo3D(idx),
+                                  )}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {/* Sub-sección 2: Restauraciones */}
+                          {indicesRestauraciones.length > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-between rounded-sm px-2 py-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAbiertoRestauraciones((v) => !v)
+                                  }
+                                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[12.5px] font-medium"
+                                >
+                                  {abiertoRestauraciones ? (
+                                    <MinusSquare
+                                      aria-hidden="true"
+                                      size={14}
+                                      className="shrink-0 opacity-70"
+                                    />
+                                  ) : (
+                                    <PlusSquare
+                                      aria-hidden="true"
+                                      size={14}
+                                      className="shrink-0 opacity-70"
+                                    />
+                                  )}
+                                  <span className="truncate">
+                                    Restauraciones
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    alternarGrupo(indicesRestauraciones)
+                                  }
+                                  title="Alternar visibilidad de restauraciones"
+                                  className={cn(
+                                    "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+                                    temaClaro
+                                      ? "hover:bg-white"
+                                      : "hover:bg-[#1b2029]",
+                                  )}
+                                >
+                                  {indicesRestauraciones.some(
+                                    (i) => visibles[i],
+                                  ) && !imagenActiva ? (
+                                    <Eye aria-hidden="true" size={15} />
+                                  ) : (
+                                    <EyeSlash aria-hidden="true" size={15} />
+                                  )}
+                                </button>
+                              </div>
+                              {abiertoRestauraciones ? (
+                                <ul className="mt-0.5 flex flex-col gap-0.5 pl-4">
+                                  {indicesRestauraciones.map((idx) =>
+                                    renderFilaArchivo3D(idx),
+                                  )}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* Nivel 2B: Nueva sección de Imágenes dentro del árbol Attachment */}
+                  {imagenes.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between rounded-sm px-2 py-1">
+                        <button
+                          type="button"
+                          onClick={() => setAbiertoImagenes((v) => !v)}
+                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left font-medium"
+                        >
+                          {abiertoImagenes ? (
+                            <MinusSquare
+                              aria-hidden="true"
+                              size={15}
+                              className="shrink-0 opacity-70"
+                            />
+                          ) : (
+                            <PlusSquare
+                              aria-hidden="true"
+                              size={15}
+                              className="shrink-0 opacity-70"
+                            />
+                          )}
+                          <span className="truncate">Imágenes</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setImagenActivaId(
+                              imagenActiva ? null : (imagenes[0]?.id ?? null),
+                            )
+                          }
+                          title={
+                            imagenActiva
+                              ? "Ocultar imagen y volver al visor 3D"
+                              : "Mostrar imagen en el visor"
+                          }
+                          className={cn(
+                            "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+                            temaClaro
+                              ? "hover:bg-white"
+                              : "hover:bg-[#1b2029]",
+                          )}
+                        >
+                          {imagenActiva ? (
+                            <Eye aria-hidden="true" size={16} />
+                          ) : (
+                            <EyeSlash aria-hidden="true" size={16} />
+                          )}
+                        </button>
+                      </div>
+
+                      {abiertoImagenes ? (
+                        <ul className="mt-0.5 flex flex-col gap-0.5 pl-4">
+                          {imagenes.map((img) => {
+                            const activa = imagenActivaId === img.id;
+                            return (
+                              <li
+                                key={img.id}
+                                className={cn(
+                                  "flex items-center justify-between rounded-sm px-2 py-1",
+                                  temaClaro
+                                    ? "hover:bg-white/80"
+                                    : "hover:bg-[#1b2029]",
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setImagenActivaId(activa ? null : img.id)
+                                  }
+                                  title={img.nombre}
+                                  className={cn(
+                                    "min-w-0 flex-1 truncate pr-2 text-left text-[12.5px]",
+                                    activa ? "font-medium" : "opacity-55",
+                                  )}
+                                >
+                                  {img.nombre}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setImagenActivaId(activa ? null : img.id)
+                                  }
+                                  title={
+                                    activa
+                                      ? `Ocultar ${img.nombre}`
+                                      : `Mostrar ${img.nombre}`
+                                  }
+                                  className={cn(
+                                    "rounded-xs p-0.5 opacity-80 hover:opacity-100",
+                                    temaClaro
+                                      ? "hover:bg-[#eef0f4]"
+                                      : "hover:bg-[#262d3a]",
+                                  )}
+                                >
+                                  {activa ? (
+                                    <Eye aria-hidden="true" size={16} />
+                                  ) : (
+                                    <EyeSlash aria-hidden="true" size={16} />
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}

@@ -45,43 +45,150 @@ function esRestauracion(nombre: string) {
 }
 
 /**
- * Lo que sólo ve el laboratorio: mover la etapa, mandar el diseño a aprobación
- * y la bitácora del caso.
- *
- * La bitácora es inmutable y encadenada por hash en la base de datos (O-0). Se
- * enseña aquí porque es la protección legal y comercial del laboratorio: cada
- * renglón dice quién hizo qué y cuándo.
+ * Controles del ticket del caso para colocar entre la información del caso y el
+ * chip de estado en el encabezado del laboratorio.
  */
-export function ControlesDelLaboratorio({
+export function AccionesDeTicketDelLaboratorio({
+  casoId,
+}: {
+  casoId: string;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [trabajando, empezar] = useTransition();
+
+  return (
+    <div className="flex flex-col items-start gap-1.5 sm:items-end">
+      <div className="flex flex-wrap items-center gap-2">
+        <Boton
+          type="button"
+          disabled={trabajando}
+          onClick={() =>
+            empezar(async () => {
+              setError(null);
+              const resultado = await ejecutar(() =>
+                solicitarImpresionDeTicket(casoId),
+              );
+              if (resultado.error) setError(resultado.error);
+            })
+          }
+        >
+          {trabajando ? "Imprimiendo…" : "Mandar a imprimir Ticket"}
+        </Boton>
+        <BotonEnlace href={`/casos/${casoId}/ticket`}>
+          Ver vista previa del ticket
+        </BotonEnlace>
+      </div>
+      {error ? (
+        <p role="alert" className="text-minimo text-pendiente-texto">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Controles para mover la etapa del caso, ubicados debajo del encabezado
+ * (información del caso, estado, ticket y fecha de entrega).
+ */
+export function MoverEtapaDelLaboratorio({
   casoId,
   etapa,
   tieneAprobacion,
   tieneCalidad,
-  disenos,
-  eventos,
 }: {
   casoId: string;
   etapa: Etapa;
   tieneAprobacion: boolean;
   tieneCalidad: boolean;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [trabajando, empezar] = useTransition();
+
+  const posibles = etapasPosiblesDesde(etapa).filter(
+    (destino) =>
+      (destino !== "EN_FABRICACION" || tieneAprobacion) &&
+      (destino !== "LISTO_Y_EN_CAMINO" || tieneCalidad),
+  );
+
+  return (
+    <div className="flex flex-col gap-3 rounded-tarjeta border border-borde bg-superficie p-4">
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-control border border-pendiente/40 bg-pendiente-fondo px-3 py-2 text-menor text-pendiente-texto"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      {etapa === "EN_CONTROL_DE_CALIDAD" && !tieneCalidad ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-menor text-secundario">
+            Para que el caso salga del laboratorio hacen falta las dos fotos y
+            el kit completo.
+          </p>
+          <BotonEnlace
+            href={`/casos/${casoId}/calidad`}
+            tono="principal"
+            className="self-start"
+          >
+            Abrir control de calidad
+          </BotonEnlace>
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        <p className="text-menor font-medium text-primario">Mover la etapa</p>
+        {!tieneAprobacion ? (
+          <p className="text-menor text-secundario">
+            Este caso todavía no tiene aprobación del doctor, así que no puede
+            pasar a fabricación.
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {posibles.map((destino) => (
+            <Boton
+              key={destino}
+              type="button"
+              disabled={trabajando}
+              onClick={() =>
+                empezar(async () => {
+                  setError(null);
+                  const resultado = await ejecutar(() =>
+                    cambiarEtapa(casoId, destino),
+                  );
+                  if (resultado.error) setError(resultado.error);
+                })
+              }
+            >
+              {ETAPAS[destino].nombre}
+            </Boton>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sección del laboratorio para subir los archivos del diseño y mandarlos a
+ * aprobación (con el botón y texto de mandar a aprobación hasta arriba).
+ */
+export function ControlesDelLaboratorio({
+  casoId,
+  etapa,
+  disenos,
+  eventos,
+}: {
+  casoId: string;
+  etapa: Etapa;
   disenos: { id: string; nombre: string; bytes: number }[];
   eventos: { id: string; resumen: string; creadoEn: string; hash: string }[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [trabajando, empezar] = useTransition();
-
-  // El bloqueo duro tambien se ve: sin aprobacion registrada del doctor, pasar
-  // a fabricacion ni siquiera se ofrece. El servidor lo rechaza de todas
-  // formas, pero ensenar un boton que va a fallar es faltarle al respeto a
-  // quien lo aprieta.
-  const posibles = etapasPosiblesDesde(etapa).filter(
-    (destino) =>
-      (destino !== "EN_FABRICACION" || tieneAprobacion) &&
-      // Salir del laboratorio se hace desde la pantalla de calidad, con sus
-      // dos fotos y su kit (O-6), no moviendo una etapa a mano.
-      (destino !== "LISTO_Y_EN_CAMINO" || tieneCalidad),
-  );
 
   const disenosImagenes = disenos.filter((d) => esImagen(d.nombre));
   const disenos3D = disenos.filter((d) => !esImagen(d.nombre));
@@ -100,6 +207,10 @@ export function ControlesDelLaboratorio({
   );
 
   const tieneAlMenosUno = disenos.length > 0;
+  const enEtapaDeDiseno =
+    etapa === "ACEPTADO" ||
+    etapa === "EN_DISENO" ||
+    etapa === "ESPERANDO_APROBACION";
 
   return (
     <section
@@ -122,9 +233,46 @@ export function ControlesDelLaboratorio({
         {error ?? ""}
       </p>
 
-      {etapa === "ACEPTADO" ||
-      etapa === "EN_DISENO" ||
-      etapa === "ESPERANDO_APROBACION" ? (
+      {/* Botón y texto de mandar a aprobación hasta arriba de la sección */}
+      {enEtapaDeDiseno ? (
+        <div className="flex flex-col gap-2.5 rounded-tarjeta border border-borde bg-superficie-suave p-4">
+          <p className="text-menor text-secundario">
+            Mandar a aprobación prepara la vista 3D de los archivos que haya
+            subido (con su botón de ojo por archivo) para que el doctor los
+            revise.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton
+              type="button"
+              tono="principal"
+              disabled={trabajando || !tieneAlMenosUno}
+              onClick={() =>
+                empezar(async () => {
+                  setError(null);
+                  const resultado = await ejecutar(() =>
+                    mandarDisenoAAprobacion(casoId),
+                  );
+                  if (resultado.error) setError(resultado.error);
+                })
+              }
+            >
+              {!tieneAlMenosUno
+                ? "Suba al menos 1 archivo para mandar a aprobación"
+                : etapa === "ESPERANDO_APROBACION"
+                  ? "Actualizar vistas y mandar a aprobación"
+                  : `Mandar a aprobación (${disenos.length === 1 ? disenos[0].nombre : `${disenos.length} archivos`})`}
+            </Boton>
+            {etapa === "ESPERANDO_APROBACION" ? (
+              <ChipDeEtapa
+                etapa="ESPERANDO_APROBACION"
+                texto="Esperando aprobación"
+              />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {enEtapaDeDiseno ? (
         <div className="flex flex-col gap-4">
           <div className="rounded-tarjeta border border-borde bg-superficie-suave p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -251,114 +399,6 @@ export function ControlesDelLaboratorio({
           />
         </div>
       ) : null}
-
-      {tieneAlMenosUno &&
-      (etapa === "ACEPTADO" ||
-        etapa === "EN_DISENO" ||
-        etapa === "ESPERANDO_APROBACION") ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-menor text-secundario">
-            Mandar a aprobación prepara la vista 3D de los archivos STL que haya
-            subido (con su botón de ojo por archivo) para que el doctor los
-            revise.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Boton
-              type="button"
-              tono="principal"
-              disabled={trabajando}
-              onClick={() =>
-                empezar(async () => {
-                  const resultado = await ejecutar(() =>
-                    mandarDisenoAAprobacion(casoId),
-                  );
-                  if (resultado.error) setError(resultado.error);
-                })
-              }
-            >
-              {etapa === "ESPERANDO_APROBACION"
-                ? "Actualizar vistas y mandar a aprobación"
-                : `Mandar a aprobación (${disenos.length === 1 ? disenos[0].nombre : `${disenos.length} archivos`})`}
-            </Boton>
-            {etapa === "ESPERANDO_APROBACION" ? (
-              <ChipDeEtapa
-                etapa="ESPERANDO_APROBACION"
-                texto="Esperando aprobación"
-              />
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {etapa === "EN_CONTROL_DE_CALIDAD" && !tieneCalidad ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-menor text-secundario">
-            Para que el caso salga del laboratorio hacen falta las dos fotos y
-            el kit completo.
-          </p>
-          <BotonEnlace
-            href={`/casos/${casoId}/calidad`}
-            tono="principal"
-            className="self-start"
-          >
-            Abrir control de calidad
-          </BotonEnlace>
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-2">
-        <p className="text-menor font-medium text-primario">Mover la etapa</p>
-        {!tieneAprobacion ? (
-          <p className="text-menor text-secundario">
-            Este caso todavía no tiene aprobación del doctor, así que no puede
-            pasar a fabricación.
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          {posibles.map((destino) => (
-            <Boton
-              key={destino}
-              type="button"
-              disabled={trabajando}
-              onClick={() =>
-                empezar(async () => {
-                  const resultado = await ejecutar(() =>
-                    cambiarEtapa(casoId, destino),
-                  );
-                  if (resultado.error) setError(resultado.error);
-                })
-              }
-            >
-              {ETAPAS[destino].nombre}
-            </Boton>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <p className="text-menor font-medium text-primario">
-          Ticket
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Boton
-            type="button"
-            disabled={trabajando}
-            onClick={() =>
-              empezar(async () => {
-                const resultado = await ejecutar(() =>
-                  solicitarImpresionDeTicket(casoId),
-                );
-                if (resultado.error) setError(resultado.error);
-              })
-            }
-          >
-            Mandar a imprimir Ticket
-          </Boton>
-          <BotonEnlace href={`/casos/${casoId}/ticket`}>
-            Ver vista previa del ticket
-          </BotonEnlace>
-        </div>
-      </div>
 
       <details className="rounded-tarjeta border border-borde">
         <summary className="area-tactil flex cursor-pointer items-center px-3 text-cuerpo text-primario">

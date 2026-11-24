@@ -34,7 +34,12 @@ import {
 import { LineaDeTiempo } from "./LineaDeTiempo";
 import { Aprobacion, VistaPrevia3D } from "./Aprobacion";
 import { Chat } from "./Chat";
-import { ControlesDelLaboratorio } from "./ControlesDelLaboratorio";
+import {
+  AccionesDeTicketDelLaboratorio,
+  ControlesDelLaboratorio,
+  MoverEtapaDelLaboratorio,
+} from "./ControlesDelLaboratorio";
+import { ResumenInteractivoDeUnidades } from "./ResumenInteractivoDeUnidades";
 
 export const metadata: Metadata = { title: "Caso · Mileo" };
 
@@ -241,7 +246,12 @@ export default async function PaginaDeCaso({
               {delLaboratorio ? ` · ${caso.doctor.nombreCompleto}` : ""}
             </p>
           </div>
-          <ChipDeEtapa etapa={caso.etapa} />
+          <div className="flex flex-wrap items-center gap-3">
+            {delLaboratorio ? (
+              <AccionesDeTicketDelLaboratorio casoId={caso.id} />
+            ) : null}
+            <ChipDeEtapa etapa={caso.etapa} />
+          </div>
         </div>
 
         <p className="text-cuerpo text-secundario">
@@ -271,9 +281,82 @@ export default async function PaginaDeCaso({
             </p>
           ) : null}
         </div>
+
+        {delLaboratorio ? (
+          <MoverEtapaDelLaboratorio
+            casoId={caso.id}
+            etapa={caso.etapa}
+            tieneAprobacion={caso.aprobaciones.some(
+              (a) => a.decision === "APROBADO",
+            )}
+            tieneCalidad={caso.controlDeCalidad !== null}
+          />
+        ) : null}
       </header>
 
-      {/* La pantalla estrella: aprobación del diseño (O-4). */}
+      <section aria-labelledby="unidades" className="flex flex-col gap-3">
+        <h2 id="unidades" className="text-subtitulo font-semibold text-primario">
+          Lo que estamos haciendo
+        </h2>
+        {delLaboratorio ? (
+          <ResumenInteractivoDeUnidades
+            unidades={caso.unidades.map((u) => ({
+              diente: u.diente,
+              arcada: u.arcada,
+              rol: u.rol,
+              material: u.material,
+              metodo: u.metodo,
+              color: u.color,
+              notas: u.notas,
+              esImplante: u.esImplante,
+              sistemaImplante: u.sistemaImplante,
+              retencion: u.retencion,
+              espesorAlivioMm: u.espesorAlivioMm,
+              grosorMm: u.grosorMm,
+              colorBase: u.colorBase,
+              colorDientes: u.colorDientes,
+              troqueles: u.troqueles,
+              tramoId: u.tramoId,
+            }))}
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {caso.unidades.map((unidad) => (
+              <li
+                key={unidad.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
+              >
+                <span className="text-cuerpo font-medium text-primario">
+                  {unidad.diente !== null ? (
+                    <>
+                      Diente {unidad.diente}
+                      <span className="font-normal text-secundario">
+                        {" · "}
+                        {nombreDelDiente(unidad.diente)}
+                      </span>
+                    </>
+                  ) : unidad.arcada ? (
+                    ARCADAS_EN_PALABRAS[unidad.arcada]
+                  ) : (
+                    "Todo el caso"
+                  )}
+                </span>
+                <span className="text-menor text-secundario">
+                  {[
+                    ROLES_DE_UNIDAD[unidad.rol],
+                    unidad.material ? MATERIALES[unidad.material] : null,
+                    unidad.color ? `color ${nombreDelColor(unidad.color)}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* La pantalla estrella: aprobación del diseño (O-4) / Vista del diseño. */}
       {caso.etapa === "ESPERANDO_APROBACION" ? (
         diseno ? (
           <Aprobacion
@@ -319,141 +402,81 @@ export default async function PaginaDeCaso({
             Vista del diseño
           </h2>
 
-          {archivosDeMalla.length > 0 ? (
-            <VistaPrevia3D
-              archivosDeMalla={archivosDeMalla}
-              descripcion={descripcionDelDiseno}
-            />
-          ) : null}
-
-          {imagenesDeDiseno.length > 0 ? (
-            <div className="flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
-              <p className="text-menor font-medium text-primario">
-                {imagenesDeDiseno.length === 1
-                  ? "Imagen del diseño"
-                  : "Imágenes del diseño"}
-              </p>
-              <div
-                className={
-                  imagenesDeDiseno.length > 1
-                    ? "grid gap-3 sm:grid-cols-2"
-                    : "flex flex-col gap-3"
-                }
-              >
-                {imagenesDeDiseno.map((img) => (
-                  <figure
-                    key={img.id}
-                    className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/api/archivos/${img.id}/contenido`}
-                      alt={`${img.nombre} — caso ${caso.folio}`}
-                      draggable={false}
-                      className="max-h-96 w-full select-none rounded-control object-contain"
-                    />
-                    <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
-                      <span className="truncate">{img.nombre}</span>
-                      {delLaboratorio ? (
-                        <a
-                          href={`/api/archivos/${img.id}/contenido?descargar`}
-                          className="shrink-0 text-enlace underline underline-offset-4"
-                        >
-                          Descargar
-                        </a>
-                      ) : (
-                        <span className="shrink-0">Solo lectura en visor</span>
-                      )}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <VistaPrevia3D
+            archivosDeMalla={archivosDeMalla}
+            imagenesDeDiseno={imagenesDeDiseno.map((img) => ({
+              id: img.id,
+              nombre: img.nombre,
+            }))}
+            descripcion={descripcionDelDiseno}
+          />
         </section>
       ) : null}
 
-      <section aria-labelledby="unidades" className="flex flex-col gap-3">
-        <h2 id="unidades" className="text-subtitulo font-semibold text-primario">
-          Lo que estamos haciendo
-        </h2>
-        <ul className="flex flex-col gap-2">
-          {caso.unidades.map((unidad) => (
-            <li
-              key={unidad.id}
-              className="flex flex-wrap items-baseline justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
-            >
-              <span className="text-cuerpo font-medium text-primario">
-                {unidad.diente !== null ? (
-                  <>
-                    Diente {unidad.diente}
-                    <span className="font-normal text-secundario">
-                      {" · "}
-                      {nombreDelDiente(unidad.diente)}
-                    </span>
-                  </>
-                ) : unidad.arcada ? (
-                  ARCADAS_EN_PALABRAS[unidad.arcada]
-                ) : (
-                  "Todo el caso"
-                )}
-              </span>
-              <span className="text-menor text-secundario">
-                {[
-                  ROLES_DE_UNIDAD[unidad.rol],
-                  unidad.material ? MATERIALES[unidad.material] : null,
-                  unidad.color ? `color ${nombreDelColor(unidad.color)}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <LineaDeTiempo etapaActual={caso.etapa} />
 
-      <section aria-labelledby="archivos" className="flex flex-col gap-3">
-        <h2 id="archivos" className="text-subtitulo font-semibold text-primario">
-          Archivos del caso
-        </h2>
-        {archivosVisibles.length === 0 ? (
-          <p className="rounded-tarjeta border border-borde bg-superficie p-4 text-cuerpo text-secundario">
-            {tieneSubidaIncompleta
-              ? "Todavía no hay archivos completos en este caso; quedó una subida sin terminar."
-              : delLaboratorio
-                ? "Todavía no se han subido archivos en este caso."
-                : "Todavía no se han subido archivos en este caso. Si necesita compartir un escaneo o una foto, avísele a su técnico en el chat de abajo."}
+      {delLaboratorio ? (
+        <ControlesDelLaboratorio
+          casoId={caso.id}
+          etapa={caso.etapa}
+          disenos={caso.archivos
+            .filter((a) => a.tipo === "DISENO" && a.estado === "COMPLETO")
+            .map((a) => ({
+              id: a.id,
+              nombre: a.nombre,
+              bytes: Number(a.bytesTotales),
+            }))}
+          eventos={caso.eventos.map((e) => ({
+            id: e.id,
+            resumen: e.resumen,
+            creadoEn: e.creadoEn.toISOString(),
+            hash: e.hash,
+          }))}
+        />
+      ) : null}
+
+      <Chat
+        casoId={caso.id}
+        usuarioId={usuario.id}
+        mensajes={caso.mensajes.map((m) => ({
+          id: m.id,
+          texto: m.texto,
+          creadoEn: m.creadoEn.toISOString(),
+          autor: {
+            id: m.autor.id,
+            nombreCompleto: m.autor.nombreCompleto,
+            fotoUrl: m.autor.fotoUrl,
+          },
+        }))}
+      />
+
+      {caso.controlDeCalidad ? (
+        <section
+          aria-labelledby="envio"
+          className="flex flex-col gap-2 rounded-contenedor border border-borde bg-superficie p-4"
+        >
+          <h2 id="envio" className="text-subtitulo font-semibold text-primario">
+            Su caso va en camino
+          </h2>
+          <p className="text-cuerpo text-secundario">
+            Lo revisó {caso.controlDeCalidad.revisadoPor.nombreCompleto} y salió
+            del laboratorio.
           </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {archivosVisibles.map((archivo) => (
-              <li
-                key={archivo.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-cuerpo text-primario">
-                    {archivo.nombre}
-                  </p>
-                  <p className="text-menor text-secundario">
-                    {TIPOS_DE_ARCHIVO[archivo.tipo]} ·{" "}
-                    {enTamano(archivo.bytesTotales)} ·{" "}
-                    {fechaConHora(archivo.creadoEn)}
-                  </p>
-                </div>
-                <a
-                  href={`/api/archivos/${archivo.id}/contenido?descargar`}
-                  className="area-tactil inline-flex items-center rounded-control text-menor text-enlace underline underline-offset-4"
-                >
-                  Descargar
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          {caso.controlDeCalidad.numeroDeGuia ? (
+            <p className="text-cuerpo text-primario">
+              Guía {caso.controlDeCalidad.numeroDeGuia}
+            </p>
+          ) : null}
+          {caso.controlDeCalidad.enlaceDeRastreo ? (
+            <a
+              href={caso.controlDeCalidad.enlaceDeRastreo}
+              className="area-tactil inline-flex items-center text-cuerpo text-enlace underline underline-offset-4"
+            >
+              Rastrear el envío
+            </a>
+          ) : null}
+        </section>
+      ) : null}
 
       {/* Las fotos de control de calidad se juzgan sobre fondo claro (§5.1). */}
       {fotosDeCalidad.length > 0 ? (
@@ -502,72 +525,46 @@ export default async function PaginaDeCaso({
         </section>
       ) : null}
 
-      {caso.controlDeCalidad ? (
-        <section
-          aria-labelledby="envio"
-          className="flex flex-col gap-2 rounded-contenedor border border-borde bg-superficie p-4"
-        >
-          <h2 id="envio" className="text-subtitulo font-semibold text-primario">
-            Su caso va en camino
-          </h2>
-          <p className="text-cuerpo text-secundario">
-            Lo revisó {caso.controlDeCalidad.revisadoPor.nombreCompleto} y salió
-            del laboratorio.
+      <section aria-labelledby="archivos" className="flex flex-col gap-3">
+        <h2 id="archivos" className="text-subtitulo font-semibold text-primario">
+          Archivos del caso
+        </h2>
+        {archivosVisibles.length === 0 ? (
+          <p className="rounded-tarjeta border border-borde bg-superficie p-4 text-cuerpo text-secundario">
+            {tieneSubidaIncompleta
+              ? "Todavía no hay archivos completos en este caso; quedó una subida sin terminar."
+              : delLaboratorio
+                ? "Todavía no se han subido archivos en este caso."
+                : "Todavía no se han subido archivos en este caso. Si necesita compartir un escaneo o una foto, avísele a su técnico en el chat de abajo."}
           </p>
-          {caso.controlDeCalidad.numeroDeGuia ? (
-            <p className="text-cuerpo text-primario">
-              Guía {caso.controlDeCalidad.numeroDeGuia}
-            </p>
-          ) : null}
-          {caso.controlDeCalidad.enlaceDeRastreo ? (
-            <a
-              href={caso.controlDeCalidad.enlaceDeRastreo}
-              className="area-tactil inline-flex items-center text-cuerpo text-enlace underline underline-offset-4"
-            >
-              Rastrear el envío
-            </a>
-          ) : null}
-        </section>
-      ) : null}
-
-      <Chat
-        casoId={caso.id}
-        usuarioId={usuario.id}
-        mensajes={caso.mensajes.map((m) => ({
-          id: m.id,
-          texto: m.texto,
-          creadoEn: m.creadoEn.toISOString(),
-          autor: {
-            id: m.autor.id,
-            nombreCompleto: m.autor.nombreCompleto,
-            fotoUrl: m.autor.fotoUrl,
-          },
-        }))}
-      />
-
-      {delLaboratorio ? (
-        <ControlesDelLaboratorio
-          casoId={caso.id}
-          etapa={caso.etapa}
-          tieneAprobacion={caso.aprobaciones.some(
-            (a) => a.decision === "APROBADO",
-          )}
-          tieneCalidad={caso.controlDeCalidad !== null}
-          disenos={caso.archivos
-            .filter((a) => a.tipo === "DISENO" && a.estado === "COMPLETO")
-            .map((a) => ({
-              id: a.id,
-              nombre: a.nombre,
-              bytes: Number(a.bytesTotales),
-            }))}
-          eventos={caso.eventos.map((e) => ({
-            id: e.id,
-            resumen: e.resumen,
-            creadoEn: e.creadoEn.toISOString(),
-            hash: e.hash,
-          }))}
-        />
-      ) : null}
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {archivosVisibles.map((archivo) => (
+              <li
+                key={archivo.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-tarjeta border border-borde bg-superficie p-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-cuerpo text-primario">
+                    {archivo.nombre}
+                  </p>
+                  <p className="text-menor text-secundario">
+                    {TIPOS_DE_ARCHIVO[archivo.tipo]} ·{" "}
+                    {enTamano(archivo.bytesTotales)} ·{" "}
+                    {fechaConHora(archivo.creadoEn)}
+                  </p>
+                </div>
+                <a
+                  href={`/api/archivos/${archivo.id}/contenido?descargar`}
+                  className="area-tactil inline-flex items-center rounded-control text-menor text-enlace underline underline-offset-4"
+                >
+                  Descargar
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

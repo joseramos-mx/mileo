@@ -24,18 +24,21 @@ const Visor3D = dynamic(
 
 export function VistaPrevia3D({
   archivosDeMalla,
+  imagenesDeDiseno = [],
   descripcion,
 }: {
   archivosDeMalla: ArchivoDeVista3D[];
+  imagenesDeDiseno?: { id: string; nombre: string }[];
   descripcion: string;
 }) {
-  if (archivosDeMalla.length === 0) return null;
+  if (archivosDeMalla.length === 0 && imagenesDeDiseno.length === 0) return null;
   const principal = archivosDeMalla[0];
   return (
     <Visor3D
-      archivoDeMallaId={principal.archivoDeMallaId}
-      archivoOriginalId={principal.archivoOriginalId}
+      archivoDeMallaId={principal?.archivoDeMallaId ?? null}
+      archivoOriginalId={principal?.archivoOriginalId}
       archivos={archivosDeMalla}
+      imagenes={imagenesDeDiseno}
       descripcion={descripcion}
     />
   );
@@ -120,51 +123,17 @@ export function Aprobacion({
         </p>
       </div>
 
-      {mallaPrincipalId ? (
+      {mallaPrincipalId || tieneImagenes ? (
         <Visor3D
           archivoDeMallaId={mallaPrincipalId}
-          archivoOriginalId={listaMallas[0]?.archivoOriginalId ?? archivoOriginalId}
+          archivoOriginalId={
+            listaMallas[0]?.archivoOriginalId ?? archivoOriginalId
+          }
           archivos={listaMallas}
+          imagenes={imagenesDeDiseno}
           descripcion={descripcion}
           alCambiarEstado={alCambiarEstado}
         />
-      ) : null}
-
-      {tieneImagenes ? (
-        <div className="flex flex-col gap-3 rounded-contenedor border border-borde bg-superficie p-4">
-          <p className="text-menor font-medium text-primario">
-            {imagenesDeDiseno.length === 1
-              ? "Imagen del diseño"
-              : "Imágenes del diseño"}
-          </p>
-          <div
-            className={
-              imagenesDeDiseno.length > 1
-                ? "grid gap-3 sm:grid-cols-2"
-                : "flex flex-col gap-3"
-            }
-          >
-            {imagenesDeDiseno.map((img) => (
-              <figure
-                key={img.id}
-                className="flex flex-col gap-2 overflow-hidden rounded-tarjeta border border-borde bg-superficie-suave p-2"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/archivos/${img.id}/contenido`}
-                  alt={`${img.nombre} — ${descripcion}`}
-                  draggable={false}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className="max-h-96 w-full select-none rounded-control object-contain"
-                />
-                <figcaption className="flex items-center justify-between gap-2 px-1 text-minimo text-secundario">
-                  <span className="truncate">{img.nombre}</span>
-                  <span className="shrink-0">Solo lectura en visor</span>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
       ) : null}
 
       {!mallaPrincipalId && !tieneImagenes ? (
