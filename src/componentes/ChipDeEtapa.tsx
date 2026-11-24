@@ -45,6 +45,10 @@ const ICONOS: Record<Etapa, Icon> = {
   ENTREGADO: CheckCircle,
   EN_PAUSA: Warning,
   REHACER: ArrowsClockwise,
+  ESPERANDO_PAGO: HandTap,
+  ESPERANDO_LIQUIDACION: HandTap,
+  DECLINADO: Warning,
+  CANCELADO: Warning,
 };
 
 /** Por si alguna etapa nueva se queda sin ícono: un cubo antes que nada. */

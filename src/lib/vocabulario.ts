@@ -116,6 +116,26 @@ export const ETAPAS: Record<Etapa, DescripcionDeEtapa> = {
     tono: "pendiente",
     paraElDoctor: "Estamos rehaciendo este caso sin costo para usted.",
   },
+  ESPERANDO_PAGO: {
+    nombre: "Esperando anticipo",
+    tono: "pendiente",
+    paraElDoctor: "Confirmamos su caso. Falta cubrir el anticipo para iniciar diseño.",
+  },
+  ESPERANDO_LIQUIDACION: {
+    nombre: "Esperando liquidación",
+    tono: "pendiente",
+    paraElDoctor: "Su pieza está terminada. Falta cubrir la liquidación para enviarla.",
+  },
+  DECLINADO: {
+    nombre: "Declinado",
+    tono: "terminado",
+    paraElDoctor: "Este caso fue declinado.",
+  },
+  CANCELADO: {
+    nombre: "Cancelado",
+    tono: "terminado",
+    paraElDoctor: "Este caso fue cancelado.",
+  },
 };
 
 /** Las etapas en las que la pelota está del lado del doctor. */
