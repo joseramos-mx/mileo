@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { Etapa, Indicacion } from "@/generated/prisma/enums";
 import {
   ETAPAS_DEL_DOCTOR,
+  INDICACIONES,
   MATERIALES,
   ROLES_DE_UNIDAD,
   leTocaAlDoctor,
@@ -38,6 +39,8 @@ export const seleccionDeTarjeta = {
   fechaEntregaComprometida: true,
   enRiesgo: true,
   paciente: { select: { folio: true, iniciales: true } },
+  doctor: { select: { nombreCompleto: true } },
+  clinica: { select: { nombre: true } },
   tecnico: { select: { nombreCompleto: true, fotoUrl: true } },
   unidades: {
     select: { diente: true, rol: true, material: true, color: true },
@@ -89,6 +92,8 @@ type CasoCrudo = {
   fechaEntregaComprometida: Date | null;
   enRiesgo: boolean;
   paciente: { folio: string; iniciales: string };
+  doctor?: { nombreCompleto: string } | null;
+  clinica?: { nombre: string } | null;
   tecnico: { nombreCompleto: string; fotoUrl: string | null } | null;
   unidades: UnidadResumible[];
   /** La malla ligera del diseño, cuando ya hay uno. */
@@ -190,6 +195,10 @@ export function paraTarjeta(caso: CasoCrudo): CasoParaTarjeta {
     fechaEntregaComprometida: caso.fechaEntregaComprometida,
     enRiesgo: caso.enRiesgo,
     paciente: caso.paciente,
+    doctor: caso.doctor?.nombreCompleto ?? null,
+    clinica: caso.clinica?.nombre ?? null,
+    indicacionNombre: INDICACIONES[caso.indicacion].nombre,
+    resumenCompleto: resumirUnidades(caso.unidades),
     unidades: unidadesYDientes(caso.unidades),
     materialYColor: materialYColor(caso.unidades),
     // El diseño de este caso manda sobre el render genérico: en cuanto el
@@ -238,9 +247,15 @@ export type BorradorDeCaso = {
   id: string;
   folio: string;
   paciente: string;
+  folioPaciente: string;
+  inicialesPaciente: string;
+  nombrePaciente: string;
+  doctor: string;
+  clinica: string;
   indicacion: Indicacion;
   cuantasUnidades: number;
   resumenDeUnidades: string;
+  dientes: string;
   archivos: number;
   actualizadoEn: Date;
 };
@@ -255,9 +270,11 @@ export async function borradoresDeLaClinica(
       folio: true,
       indicacion: true,
       actualizadoEn: true,
-      paciente: { select: { folio: true, iniciales: true } },
+      paciente: { select: { folio: true, iniciales: true, nombreCompleto: true } },
+      doctor: { select: { nombreCompleto: true } },
+      clinica: { select: { nombre: true } },
       unidades: {
-        select: { diente: true, rol: true, material: true },
+        select: { diente: true, rol: true, material: true, color: true },
         orderBy: { diente: "asc" },
       },
       _count: { select: { archivos: true } },
@@ -269,15 +286,24 @@ export async function borradoresDeLaClinica(
     id: caso.id,
     folio: caso.folio,
     paciente: `${caso.paciente.folio} · ${caso.paciente.iniciales}`,
+    folioPaciente: caso.paciente.folio,
+    inicialesPaciente: caso.paciente.iniciales,
+    nombrePaciente: caso.paciente.nombreCompleto ?? "",
+    doctor: caso.doctor.nombreCompleto,
+    clinica: caso.clinica.nombre,
     indicacion: caso.indicacion,
     cuantasUnidades: soloPiezas(caso.unidades).length,
     resumenDeUnidades: resumirUnidades(caso.unidades),
+    dientes: caso.unidades
+      .map((u) => u.diente)
+      .filter((d) => d != null)
+      .join(", "),
     archivos: caso._count.archivos,
     actualizadoEn: caso.actualizadoEn,
   }));
 }
 
-export async function casosEntregados(usuario: UsuarioEnSesion, limite = 20) {
+export async function casosEntregados(usuario: UsuarioEnSesion, limite = 200) {
   const casos = await prisma.caso.findMany({
     where: { ...filtroDeCasos(usuario), etapa: "ENTREGADO" },
     select: seleccionDeTarjeta,
