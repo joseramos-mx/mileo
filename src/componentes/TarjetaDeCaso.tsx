@@ -44,10 +44,6 @@ export type CasoParaTarjeta = {
   fechaEntregaComprometida: Date | null;
   enRiesgo: boolean;
   paciente: { folio: string; iniciales: string };
-  doctor?: string | null;
-  clinica?: string | null;
-  indicacionNombre?: string;
-  resumenCompleto?: string;
   /** "2 unidades · 14, 15" */
   unidades: string;
   /** "Zirconio monolítico A1" */

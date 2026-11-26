@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   CaretUpDown,
   Gear,
+  MagnifyingGlass,
   PaperPlaneTilt,
   Plus,
   SidebarSimple,
@@ -16,8 +23,8 @@ import { APOYO, estaActivo, type Destino } from "@/componentes/Navegacion";
 import { cn } from "@/lib/utilidades";
 
 /**
- * La barra lateral de escritorio: marca y botón para plegarla, secciones,
- * ayuda, la invitación a mandar un caso y la cuenta al pie.
+ * La barra lateral de escritorio: marca y botón para plegarla, buscador,
+ * secciones, ayuda, la invitación a mandar un caso y la cuenta al pie.
  *
  * Plegada se queda en íconos. La preferencia va en una cookie y no en el
  * navegador porque el servidor la lee antes de pintar: así no hay parpadeo de
@@ -49,11 +56,30 @@ export function BarraLateral({
   usuario: { nombre: string; correo: string; fotoUrl: string | null };
 }) {
   const [plegada, setPlegada] = useState(plegadaAlInicio);
+  const buscador = useRef<HTMLInputElement>(null);
 
   function cambiar(siguiente: boolean) {
     setPlegada(siguiente);
     guardarPreferencia(siguiente);
   }
+
+  // ⌘K / Ctrl+K lleva al buscador desde cualquier pantalla. Si la barra está
+  // plegada, primero se abre.
+  useEffect(() => {
+    function alTeclear(evento: KeyboardEvent) {
+      if (
+        (evento.metaKey || evento.ctrlKey) &&
+        evento.key.toLowerCase() === "k"
+      ) {
+        evento.preventDefault();
+        setPlegada(false);
+        guardarPreferencia(false);
+        requestAnimationFrame(() => buscador.current?.focus());
+      }
+    }
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, []);
 
   return (
     <header
@@ -103,6 +129,23 @@ export function BarraLateral({
       <hr className="linea-suave" />
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden">
+        {/* --- Buscador ----------------------------------------------------- */}
+        {plegada ? (
+          <button
+            type="button"
+            onClick={() => {
+              cambiar(false);
+              requestAnimationFrame(() => buscador.current?.focus());
+            }}
+            className="vidrio vidrio-toque mx-auto flex size-11 items-center justify-center rounded-tarjeta text-secundario hover:text-primario"
+          >
+            <MagnifyingGlass aria-hidden="true" size={18} />
+            <span className="sr-only">Buscar un caso o un paciente</span>
+          </button>
+        ) : (
+          <Buscador referencia={buscador} />
+        )}
+
         {/* --- Secciones ---------------------------------------------------- */}
         <nav aria-label="Secciones de Mileo">
           <ul className="flex flex-col gap-1">
@@ -164,6 +207,71 @@ export function BarraLateral({
       {/* --- La cuenta ---------------------------------------------------- */}
       <Cuenta {...usuario} plegada={plegada} />
     </header>
+  );
+}
+
+function sinSuscripcion() {
+  return () => { };
+}
+
+function Buscador({
+  referencia,
+}: {
+  referencia: React.RefObject<HTMLInputElement | null>;
+}) {
+  const router = useRouter();
+  const consulta = useSearchParams();
+  const [texto, setTexto] = useState(consulta.get("buscar") ?? "");
+  // En el servidor no se sabe el sistema: se pinta "Ctrl" y el navegador lo
+  // corrige sin advertencia de hidratación.
+  const esMac = useSyncExternalStore(
+    sinSuscripcion,
+    () => /mac|iphone|ipad/i.test(navigator.platform),
+    () => false,
+  );
+
+  function buscar(evento: React.FormEvent) {
+    evento.preventDefault();
+    const limpio = texto.trim();
+    router.push(
+      limpio ? `/casos?buscar=${encodeURIComponent(limpio)}` : "/casos",
+    );
+  }
+
+  return (
+    <form onSubmit={buscar} role="search">
+      <label className="relative flex items-center">
+        <span className="sr-only">Buscar un caso o un paciente</span>
+        <MagnifyingGlass
+          aria-hidden="true"
+          size={16}
+          className="pointer-events-none absolute left-3 text-secundario"
+        />
+        <input
+          ref={referencia}
+          type="search"
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Buscar…"
+          className="vidrio area-tactil w-full rounded-tarjeta border-0 pr-20 pl-9 text-cuerpo text-primario outline-none placeholder:text-secundario focus-visible:ring-2 focus-visible:ring-foco"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-2 flex gap-1"
+        >
+          <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>
+          <Tecla>K</Tecla>
+        </span>
+      </label>
+    </form>
+  );
+}
+
+function Tecla({ children }: { children: ReactNode }) {
+  return (
+    <kbd className="vidrio flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 font-sans text-minimo text-secundario">
+      {children}
+    </kbd>
   );
 }
 

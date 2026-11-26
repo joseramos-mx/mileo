@@ -1,22 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 /**
  * Mantiene la pantalla al día sin que nadie tenga que recargar (SKILL.md O-5).
  *
- * Se conecta únicamente cuando la persona está en `/tablero` y la pestaña está
- * visible, para no dejar conexiones SSE abiertas en otras pantallas.
+ * Cuando el laboratorio mueve una tarjeta, el doctor lo ve en su pantalla en
+ * segundos. Sólo escucha mientras la pestaña está a la vista: en el celular,
+ * gastar batería en una pantalla que nadie mira es una falta de respeto.
  */
 export function EscuchaNovedades() {
   const router = useRouter();
-  const ruta = usePathname();
-  const enTablero = ruta === "/tablero" || ruta.startsWith("/tablero/");
 
   useEffect(() => {
-    if (!enTablero) return;
-
     let fuente: EventSource | null = null;
     let pendiente = false;
 
@@ -81,7 +78,7 @@ export function EscuchaNovedades() {
       document.removeEventListener("focusout", alSoltarElCampo);
       desconectar();
     };
-  }, [enTablero, router]);
+  }, [router]);
 
   return null;
 }
