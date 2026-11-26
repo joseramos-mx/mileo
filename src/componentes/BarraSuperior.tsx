@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { MagnifyingGlass, Plus } from "@phosphor-icons/react";
+import { Plus } from "@phosphor-icons/react";
 import { cn } from "@/lib/utilidades";
 
 /**
- * La barra de arriba del inicio: la meta del mes, la búsqueda y crear caso.
+ * La barra de arriba del inicio: la meta del mes y crear caso.
  *
  * La meta es una sola barra: la parte llena es lo que va del mes y el número de
  * la derecha lo dice también con cifras, porque el color nunca puede ser el
@@ -20,43 +18,14 @@ export function BarraSuperior({
   meta: { hechos: number; objetivo: number } | null;
   puedeCrearCasos: boolean;
 }) {
-  const router = useRouter();
-  const consulta = useSearchParams();
-  const [texto, setTexto] = useState(consulta.get("buscar") ?? "");
-
-  function buscar(evento: React.FormEvent) {
-    evento.preventDefault();
-    const limpio = texto.trim();
-    router.push(limpio ? `/casos?buscar=${encodeURIComponent(limpio)}` : "/casos");
-  }
+  if (!meta && !puedeCrearCasos) return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       {meta ? <BarraDeMeta {...meta} /> : <span />}
 
-      <div className="flex flex-1 items-center justify-end gap-3">
-        <form onSubmit={buscar} className="w-full max-w-xs" role="search">
-          <label className="relative flex items-center">
-            <span className="sr-only">Buscar un caso o un paciente</span>
-            <MagnifyingGlass
-              aria-hidden="true"
-              size={16}
-              className="pointer-events-none absolute left-3 text-secundario"
-            />
-            <input
-              type="search"
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              placeholder="Buscar"
-              className={cn(
-                "vidrio area-tactil w-full rounded-tarjeta border-0 outline-none focus-visible:ring-2 focus-visible:ring-foco",
-                "pl-9 pr-3 text-cuerpo text-primario placeholder:text-secundario",
-              )}
-            />
-          </label>
-        </form>
-
-        {puedeCrearCasos ? (
+      {puedeCrearCasos ? (
+        <div className="flex flex-1 items-center justify-end gap-3">
           <Link
             href="/casos/nuevo"
             className={cn(
@@ -68,8 +37,8 @@ export function BarraSuperior({
             <Plus aria-hidden="true" size={16} weight="bold" />
             Nuevo caso
           </Link>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -86,12 +55,6 @@ function BarraDeMeta({
 }) {
   const porcentaje = Math.min(100, Math.round((hechos / objetivo) * 100));
 
-  // El texto va encima de dos fondos a la vez: el relleno azul y lo que queda
-  // de barra. Un solo color no sirve para los dos —en tema claro el blanco se
-  // perdía sobre el fondo de la barra—, así que se pinta dos veces: la de
-  // abajo con el color normal del texto, y encima una copia en blanco
-  // recortada justo a lo que va lleno. Cada mitad queda sobre su propio fondo,
-  // con el contraste que pide §7 en los dos temas.
   const contenido = (
     <div
       className="flex h-full items-center justify-between px-4 text-minimo font-medium"

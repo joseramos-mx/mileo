@@ -2,47 +2,95 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, MagnifyingGlass } from "@phosphor-icons/react";
+import {
+  ArrowRight,
+  CaretLeft,
+  CaretRight,
+  MagnifyingGlass,
+} from "@phosphor-icons/react";
 import type { BorradorDeCaso } from "@/lib/casos";
 import { INDICACIONES } from "@/lib/vocabulario";
 import { haceCuanto, paraMaquina } from "@/lib/fechas";
 import { cn } from "@/lib/utilidades";
 
+const BORRADORES_POR_PAGINA = 10;
+
 /**
  * Los casos que la clínica todavía no manda, en lista con la información
- * repartida en columnas.
- *
- * Es una tabla de verdad, no una rejilla de cajas: cada renglón es un caso y
- * cada columna un dato, así que un lector de pantalla puede decir "Paciente,
- * 1041 · R.T.G." en vez de leer texto suelto.
- *
- * No lleva chip de etapa a propósito: estos casos no han salido de la clínica,
- * y enseñar "Recibido" le diría al doctor que el laboratorio ya los tiene (§8).
- * Lo que sí lleva es qué falta para poder mandarlos.
+ * repartida en columnas, buscador completo y paginación de 10 en 10.
  */
+function normalizarTexto(valor: string) {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\./g, "")
+    .toLowerCase();
+}
+
 export function TablaDeBorradores({
   borradores,
 }: {
   borradores: BorradorDeCaso[];
 }) {
   const [busqueda, setBusqueda] = useState("");
+  const [pagina, setPagina] = useState(1);
+
+  const filtrados = useMemo(() => {
+    const palabras = normalizarTexto(busqueda)
+      .split(/\s+/)
+      .filter(Boolean);
+    if (palabras.length === 0) return borradores;
+    return borradores.filter((b) => {
+      const textoArchivos =
+        b.archivos === 0
+          ? "ninguno todavia"
+          : b.archivos === 1
+            ? "1 archivo"
+            : `${b.archivos} archivos`;
+      const pajar = normalizarTexto(
+        [
+          b.folio,
+          `paciente ${b.paciente}`,
+          b.paciente,
+          b.folioPaciente ?? "",
+          b.inicialesPaciente ?? "",
+          b.nombrePaciente ?? "",
+          b.doctor ?? "",
+          b.clinica ?? "",
+          INDICACIONES[b.indicacion].nombre,
+          b.resumenDeUnidades,
+          b.dientes ?? "",
+          textoArchivos,
+          haceCuanto(b.actualizadoEn),
+        ].join(" "),
+      );
+      return palabras.every((palabra) => pajar.includes(palabra));
+    });
+  }, [borradores, busqueda]);
+
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(filtrados.length / BORRADORES_POR_PAGINA),
+  );
+  const paginaActual = Math.min(pagina, totalPaginas);
 
   const visibles = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase();
-    if (!texto) return borradores;
-    return borradores.filter((b) =>
-      [b.folio, b.paciente, INDICACIONES[b.indicacion].nombre, b.resumenDeUnidades]
-        .join(" ")
-        .toLowerCase()
-        .includes(texto),
-    );
-  }, [borradores, busqueda]);
+    const inicio = (paginaActual - 1) * BORRADORES_POR_PAGINA;
+    return filtrados.slice(inicio, inicio + BORRADORES_POR_PAGINA);
+  }, [filtrados, paginaActual]);
+
+  const mostrandoDesde =
+    filtrados.length === 0 ? 0 : (paginaActual - 1) * BORRADORES_POR_PAGINA + 1;
+  const mostrandoHasta = Math.min(
+    paginaActual * BORRADORES_POR_PAGINA,
+    filtrados.length,
+  );
 
   return (
     <div className="vidrio min-w-0 overflow-hidden rounded-contenedor">
-      {borradores.length > 4 ? (
-        <div className="border-b border-primario/5 p-3">
-          <label className="relative flex max-w-sm items-center">
+      {borradores.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-primario/5 p-3">
+          <label className="relative flex w-full max-w-md items-center">
             <span className="sr-only">Buscar entre sus casos sin terminar</span>
             <MagnifyingGlass
               aria-hidden="true"
@@ -52,14 +100,27 @@ export function TablaDeBorradores({
             <input
               type="search"
               value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por paciente o tipo de trabajo"
+              onChange={(e) => {
+                setBusqueda(e.target.value);
+                setPagina(1);
+              }}
+              placeholder="Buscar por paciente, folio, iniciales, tipo de trabajo o material…"
               className={cn(
                 "alto-tactil w-full rounded-control border border-borde bg-superficie-suave",
-                "pr-3 pl-9 text-menor text-primario placeholder:text-secundario",
+                "pr-3 pl-9 text-menor text-primario outline-none placeholder:text-secundario focus-visible:ring-2 focus-visible:ring-foco",
               )}
             />
           </label>
+
+          {filtrados.length > 0 ? (
+            <p className="text-minimo text-secundario">
+              Mostrando{" "}
+              <strong className="text-primario">
+                {mostrandoDesde}–{mostrandoHasta}
+              </strong>{" "}
+              de <strong className="text-primario">{filtrados.length}</strong>
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -139,10 +200,74 @@ export function TablaDeBorradores({
         </table>
       </div>
 
-      {visibles.length === 0 ? (
+      {filtrados.length === 0 ? (
         <p className="p-6 text-center text-cuerpo text-secundario">
           Ninguno de sus casos sin terminar coincide con “{busqueda}”.
         </p>
+      ) : null}
+
+      {totalPaginas > 1 ? (
+        <nav
+          aria-label="Paginación de casos sin terminar"
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-primario/5 px-4 py-3"
+        >
+          <p className="text-menor text-secundario">
+            Página <strong className="text-primario">{paginaActual}</strong> de{" "}
+            <strong className="text-primario">{totalPaginas}</strong> (
+            {mostrandoDesde}–{mostrandoHasta} de {filtrados.length})
+          </p>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={paginaActual <= 1}
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              className={cn(
+                "alto-tactil inline-flex items-center gap-1 rounded-control border border-borde px-3 text-menor font-medium transition-colors",
+                paginaActual <= 1
+                  ? "cursor-not-allowed opacity-40 text-secundario"
+                  : "bg-superficie text-primario hover:bg-superficie-suave",
+              )}
+            >
+              <CaretLeft aria-hidden="true" size={16} />
+              Anterior
+            </button>
+
+            {Array.from({ length: totalPaginas }, (_, idx) => idx + 1).map(
+              (num) => (
+                <button
+                  key={num}
+                  type="button"
+                  aria-current={num === paginaActual ? "page" : undefined}
+                  onClick={() => setPagina(num)}
+                  className={cn(
+                    "alto-tactil inline-flex min-w-10 items-center justify-center rounded-control border px-2.5 text-menor font-medium transition-colors",
+                    num === paginaActual
+                      ? "border-accion bg-accion text-sobre-accion"
+                      : "border-borde bg-superficie text-secundario hover:bg-superficie-suave hover:text-primario",
+                  )}
+                >
+                  {num}
+                </button>
+              ),
+            )}
+
+            <button
+              type="button"
+              disabled={paginaActual >= totalPaginas}
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              className={cn(
+                "alto-tactil inline-flex items-center gap-1 rounded-control border border-borde px-3 text-menor font-medium transition-colors",
+                paginaActual >= totalPaginas
+                  ? "cursor-not-allowed opacity-40 text-secundario"
+                  : "bg-superficie text-primario hover:bg-superficie-suave",
+              )}
+            >
+              Siguiente
+              <CaretRight aria-hidden="true" size={16} />
+            </button>
+          </div>
+        </nav>
       ) : null}
     </div>
   );

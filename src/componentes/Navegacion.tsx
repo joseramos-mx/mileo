@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  ChatCircleDots,
   Folders,
   Gear,
   GraduationCap,
@@ -91,7 +90,6 @@ export const DESTINOS_DEL_ADMIN: Destino[] = [
 export const APOYO: Destino[] = [
   { href: "/ayuda", nombre: "Comentarios", icono: PencilSimple },
   { href: "/ayuda", nombre: "Soporte", icono: Question },
-  { href: "/ayuda", nombre: "Chat en vivo", icono: ChatCircleDots },
 ];
 
 export function estaActivo(ruta: string, href: string) {
