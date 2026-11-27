@@ -40,6 +40,7 @@ import {
   MoverEtapaDelLaboratorio,
 } from "./ControlesDelLaboratorio";
 import { ResumenInteractivoDeUnidades } from "./ResumenInteractivoDeUnidades";
+import { NavegadorDeSeccionesDelCaso } from "./NavegadorDeSeccionesDelCaso";
 
 export const metadata: Metadata = { title: "Caso · Mileo" };
 
@@ -228,7 +229,7 @@ export default async function PaginaDeCaso({
         </p>
       ) : null}
 
-      <header className="flex flex-col gap-3">
+      <header data-seccion-lab="encabezado" className="flex flex-col gap-3">
         <Link
           href={delLaboratorio ? "/tablero" : "/casos"}
           className="text-menor text-enlace underline underline-offset-4"
@@ -294,7 +295,11 @@ export default async function PaginaDeCaso({
         ) : null}
       </header>
 
-      <section aria-labelledby="unidades" className="flex flex-col gap-3">
+      <section
+        data-seccion-lab="unidades"
+        aria-labelledby="unidades"
+        className="flex flex-col gap-3"
+      >
         <h2 id="unidades" className="text-subtitulo font-semibold text-primario">
           Lo que estamos haciendo
         </h2>
@@ -359,21 +364,24 @@ export default async function PaginaDeCaso({
       {/* La pantalla estrella: aprobación del diseño (O-4) / Vista del diseño. */}
       {caso.etapa === "ESPERANDO_APROBACION" ? (
         diseno ? (
-          <Aprobacion
-            casoId={caso.id}
-            archivoDeMallaId={mallaPrincipal?.archivoDeMallaId ?? null}
-            archivoOriginalId={diseno.id}
-            archivosDeMalla={archivosDeMalla}
-            imagenesDeDiseno={imagenesDeDiseno.map((img) => ({
-              id: img.id,
-              nombre: img.nombre,
-            }))}
-            descripcion={descripcionDelDiseno}
-            puedeDecidir={puedeAprobarDisenos(usuario)}
-            tecnico={caso.tecnico}
-          />
+          <div data-seccion-lab="vista-diseno">
+            <Aprobacion
+              casoId={caso.id}
+              archivoDeMallaId={mallaPrincipal?.archivoDeMallaId ?? null}
+              archivoOriginalId={diseno.id}
+              archivosDeMalla={archivosDeMalla}
+              imagenesDeDiseno={imagenesDeDiseno.map((img) => ({
+                id: img.id,
+                nombre: img.nombre,
+              }))}
+              descripcion={descripcionDelDiseno}
+              puedeDecidir={puedeAprobarDisenos(usuario)}
+              tecnico={caso.tecnico}
+            />
+          </div>
         ) : (
           <section
+            data-seccion-lab="vista-diseno"
             aria-labelledby="aprobacion"
             className="flex flex-col gap-2 rounded-contenedor border border-pendiente/40 bg-pendiente-fondo p-4"
           >
@@ -392,6 +400,7 @@ export default async function PaginaDeCaso({
         )
       ) : archivosDeMalla.length > 0 || imagenesDeDiseno.length > 0 ? (
         <section
+          data-seccion-lab="vista-diseno"
           aria-labelledby="vista-diseno"
           className="flex flex-col gap-4"
         >
@@ -413,42 +422,48 @@ export default async function PaginaDeCaso({
         </section>
       ) : null}
 
-      <LineaDeTiempo etapaActual={caso.etapa} />
+      <div data-seccion-lab="por-donde-va">
+        <LineaDeTiempo etapaActual={caso.etapa} />
+      </div>
 
       {delLaboratorio ? (
-        <ControlesDelLaboratorio
-          casoId={caso.id}
-          etapa={caso.etapa}
-          disenos={caso.archivos
-            .filter((a) => a.tipo === "DISENO" && a.estado === "COMPLETO")
-            .map((a) => ({
-              id: a.id,
-              nombre: a.nombre,
-              bytes: Number(a.bytesTotales),
+        <div data-seccion-lab="laboratorio">
+          <ControlesDelLaboratorio
+            casoId={caso.id}
+            etapa={caso.etapa}
+            disenos={caso.archivos
+              .filter((a) => a.tipo === "DISENO" && a.estado === "COMPLETO")
+              .map((a) => ({
+                id: a.id,
+                nombre: a.nombre,
+                bytes: Number(a.bytesTotales),
+              }))}
+            eventos={caso.eventos.map((e) => ({
+              id: e.id,
+              resumen: e.resumen,
+              creadoEn: e.creadoEn.toISOString(),
+              hash: e.hash,
             }))}
-          eventos={caso.eventos.map((e) => ({
-            id: e.id,
-            resumen: e.resumen,
-            creadoEn: e.creadoEn.toISOString(),
-            hash: e.hash,
-          }))}
-        />
+          />
+        </div>
       ) : null}
 
-      <Chat
-        casoId={caso.id}
-        usuarioId={usuario.id}
-        mensajes={caso.mensajes.map((m) => ({
-          id: m.id,
-          texto: m.texto,
-          creadoEn: m.creadoEn.toISOString(),
-          autor: {
-            id: m.autor.id,
-            nombreCompleto: m.autor.nombreCompleto,
-            fotoUrl: m.autor.fotoUrl,
-          },
-        }))}
-      />
+      <div data-seccion-lab="chat">
+        <Chat
+          casoId={caso.id}
+          usuarioId={usuario.id}
+          mensajes={caso.mensajes.map((m) => ({
+            id: m.id,
+            texto: m.texto,
+            creadoEn: m.creadoEn.toISOString(),
+            autor: {
+              id: m.autor.id,
+              nombreCompleto: m.autor.nombreCompleto,
+              fotoUrl: m.autor.fotoUrl,
+            },
+          }))}
+        />
+      </div>
 
       {caso.controlDeCalidad ? (
         <section
@@ -525,7 +540,11 @@ export default async function PaginaDeCaso({
         </section>
       ) : null}
 
-      <section aria-labelledby="archivos" className="flex flex-col gap-3">
+      <section
+        data-seccion-lab="archivos"
+        aria-labelledby="archivos"
+        className="flex flex-col gap-3"
+      >
         <h2 id="archivos" className="text-subtitulo font-semibold text-primario">
           Archivos del caso
         </h2>
@@ -565,6 +584,8 @@ export default async function PaginaDeCaso({
           </ul>
         )}
       </section>
+
+      {delLaboratorio ? <NavegadorDeSeccionesDelCaso /> : null}
     </div>
   );
 }

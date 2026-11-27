@@ -185,8 +185,8 @@ function Enlace({
       aria-current={activo ? "page" : undefined}
       title={plegada ? nombre : undefined}
       className={cn(
-        "relative flex h-11 items-center gap-3 overflow-hidden rounded-tarjeta text-cuerpo transition-colors",
-        plegada ? "justify-center" : "px-3",
+        "relative flex h-11 items-center overflow-hidden rounded-tarjeta text-cuerpo transition-colors",
+        plegada ? "mx-auto size-11 justify-center" : "gap-3 px-3",
         activo
           ? "vidrio-fuerte text-primario"
           : "text-secundario hover:bg-primario/5 hover:text-primario",
@@ -206,7 +206,7 @@ function Enlace({
         </>
       ) : null}
       <Icono aria-hidden="true" size={20} className="relative shrink-0" />
-      <span className={cn("relative truncate", plegada && "sr-only")}>
+      <span className={cn(" truncate", plegada && "sr-only")}>
         {nombre}
       </span>
     </Link>
